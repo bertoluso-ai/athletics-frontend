@@ -43,8 +43,24 @@ export const EVENT_GROUPS = [
   },
   {
     key: "road", label: "Road",
-    events: { Men: ["Marathon"], Women: ["Marathon"] },
-    names: { Marathon: "Marathon" } as Record<string, string>,
+    events: {
+      Men: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road"],
+      Women: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road"],
+    },
+    names: {
+      Marathon: "Marathon", "Half Marathon": "Half Marathon",
+      "10 Kilometres Road": "10km", "5 Kilometres Road": "5km",
+    } as Record<string, string>,
+  },
+  {
+    key: "relays", label: "Relays",
+    events: {
+      Men: ["4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay"],
+      Women: ["4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay"],
+    },
+    names: {
+      "4x100 Metres Relay": "4x100m", "4x200 Metres Relay": "4x200m", "4x400 Metres Relay": "4x400m",
+    } as Record<string, string>,
   },
 ] as const;
 
@@ -74,4 +90,19 @@ export const FIELD_EVENTS = [
 
 export function isFieldEvent(event: string): boolean {
   return (FIELD_EVENTS as readonly string[]).includes(event);
+}
+
+export function isRelayEvent(event: string): boolean {
+  return event.toLowerCase().includes("relay");
+}
+
+// Disciplines where wind reading determines whether a mark counts as a
+// legitimate record/ranking mark.
+export const WIND_AFFECTED_EVENTS = [
+  "100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles",
+  "Long Jump", "Triple Jump",
+];
+
+export function isWindAffected(event: string): boolean {
+  return (WIND_AFFECTED_EVENTS as readonly string[]).includes(event);
 }

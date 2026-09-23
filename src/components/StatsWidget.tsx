@@ -117,11 +117,11 @@ export default function StatsWidget({ year }: { year: number }) {
               href={`/athletes/${r.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
-              <span className="text-sm truncate flex items-center gap-2">
-                <span className="text-neutral-500 font-mono text-xs w-3">{i + 1}</span>
+              <span className="text-sm flex items-center gap-2 min-w-0">
+                <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
                 <Avatar src={r.photo} name={r.display_name} />
                 <Flag code={r.nationality} />
-                {r.display_name}
+                <span className="truncate">{r.display_name}</span>
               </span>
               <span className="font-mono text-sm text-orange-400 shrink-0">{r.points}</span>
             </Link>
@@ -135,11 +135,11 @@ export default function StatsWidget({ year }: { year: number }) {
               href={`/athletes/${m.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
-              <span className="text-sm truncate flex items-center gap-2">
-                <span className="text-neutral-500 font-mono text-xs w-3">{i + 1}</span>
+              <span className="text-sm flex items-center gap-2 min-w-0">
+                <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
                 <Avatar src={m.photo} name={m.display_name} />
                 <Flag code={m.nationality} />
-                {m.display_name}
+                <span className="truncate">{m.display_name}</span>
               </span>
               <span className="font-mono text-sm text-orange-400 shrink-0">{m.mark_display}</span>
             </Link>

@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
-import ResultsFilters from "@/components/ResultsFilters";
 import ResultsList from "@/components/ResultsList";
 import {
   getAthleteInfo,
@@ -32,7 +31,7 @@ export default async function AthletePage({
   const [athleteEvents, personalBests, yearlyPoints, photo] = await Promise.all([
     getAthleteEvents(id),
     getAthletePersonalBests(id),
-    getAthleteYearlyPoints(id),
+    getAthleteYearlyPoints(id, info.gender ?? ""),
     getAthletePhoto(info.display_name),
   ]);
 
@@ -99,27 +98,21 @@ export default async function AthletePage({
           {/* Left: single filterable results block */}
           <div className="lg:col-span-2">
             <section>
-              <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-                  Results
-                </h2>
-                {athleteEvents.length > 0 && (
-                  <ResultsFilters
-                    events={athleteEvents.map((ev) => ({
-                      value: ev.athletics_event,
-                      label: eventLabel(ev.athletics_event),
-                      years: ev.years,
-                    }))}
-                    event={event}
-                    year={year}
-                    baseHref={`/athletes/${id}`}
-                  />
-                )}
-              </div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
+                Results
+              </h2>
               <ResultsList
                 results={results}
                 event={event}
+                gender={info.gender ?? ""}
                 emptyLabel={`No results for ${eventLabel(event)}${year !== "all" ? ` in ${year}` : ""}.`}
+                filterEvents={athleteEvents.map((ev) => ({
+                  value: ev.athletics_event,
+                  label: eventLabel(ev.athletics_event),
+                  years: ev.years,
+                }))}
+                year={year}
+                baseHref={`/athletes/${id}`}
               />
             </section>
           </div>
@@ -127,18 +120,31 @@ export default async function AthletePage({
           {/* Right: personal bests + yearly points */}
           <aside className="flex flex-col gap-8">
             <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
-                Personal Bests
-              </h2>
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                  Personal Bests
+                </h2>
+                <span className="text-[11px] text-neutral-500">#N = all-time world rank</span>
+              </div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
                 {personalBests.map((pb, i) => (
                   <Link
                     key={i}
-                    href={`/athletes/${id}?event=${encodeURIComponent(pb.athletics_event)}&year=${pb.year}`}
+                    href={`/rankings?event=${encodeURIComponent(pb.athletics_event)}&gender=${info.gender ?? ""}&year=all`}
                     className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
                   >
                     <span className="text-sm">{eventLabel(pb.athletics_event)}</span>
-                    <span className="font-mono text-sm text-orange-400">{pb.mark_display}</span>
+                    <span className="font-mono text-sm text-orange-400">
+                      {pb.mark_display}
+                      {pb.all_time_rank && (
+                        <span
+                          className="text-neutral-500 ml-1"
+                          title={`All-time world rank: ${pb.all_time_rank}`}
+                        >
+                          (#{pb.all_time_rank})
+                        </span>
+                      )}
+                    </span>
                   </Link>
                 ))}
                 {personalBests.length === 0 && (
@@ -148,9 +154,12 @@ export default async function AthletePage({
             </section>
 
             <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
-                Points by Year
-              </h2>
+              <div className="flex items-baseline justify-between mb-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                  Points by Year
+                </h2>
+                <span className="text-[11px] text-neutral-500">#N = rank that year</span>
+              </div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
                 {yearlyPoints.map((y) => (
                   <Link
@@ -161,7 +170,17 @@ export default async function AthletePage({
                     }`}
                   >
                     <span className="text-sm">{y.year}</span>
-                    <span className="font-mono text-sm text-orange-400">{y.points}</span>
+                    <span className="font-mono text-sm text-orange-400">
+                      {y.points}
+                      {y.rank && (
+                        <span
+                          className="text-neutral-500 ml-1"
+                          title={`Rank in ${y.year} by total points (same gender): ${y.rank}`}
+                        >
+                          (#{y.rank})
+                        </span>
+                      )}
+                    </span>
                   </Link>
                 ))}
               </div>

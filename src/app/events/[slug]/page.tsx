@@ -3,8 +3,12 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
-import { getEventAllTimeBest, getEventYearBestMarks, getEventAvailableYears } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS } from "@/lib/events";
+import {
+  getEventAllTimeBest, getEventYearBestMarks, getEventAvailableYears,
+  getEventAllTimeBestRelay, getEventYearBestMarksRelay,
+  type MarkRow, type RelayMarkRow,
+} from "@/lib/queries";
+import { eventLabel, EVENT_GROUPS, isRelayEvent } from "@/lib/events";
 import { eventFromSlug } from "@/lib/slugs";
 
 export const revalidate = 3600;
@@ -16,6 +20,55 @@ function findGenders(event: string): ("Men" | "Women")[] {
     if ((g.events.Women as readonly string[]).includes(event)) genders.push("Women");
   }
   return genders.length ? genders : ["Men", "Women"];
+}
+
+function lastName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1];
+}
+
+function MarkRowItem({ m, rank }: { m: MarkRow; rank: number }) {
+  return (
+    <Link
+      href={`/athletes/${m.athlete_id}`}
+      className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
+    >
+      <span className="text-sm flex items-center gap-2 min-w-0">
+        <span className="text-neutral-500 font-mono text-xs w-4 shrink-0">{rank}</span>
+        <Flag code={m.nationality} />
+        <span className="truncate">{m.display_name}</span>
+      </span>
+      <span className="flex items-center gap-1.5 shrink-0">
+        {m.record === "WR" && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">WR</span>
+        )}
+        <span className="font-mono text-sm text-orange-400">{m.mark_display}</span>
+      </span>
+    </Link>
+  );
+}
+
+function RelayMarkRowItem({ m, rank }: { m: RelayMarkRow; rank: number }) {
+  return (
+    <div className="flex items-center justify-between px-4 py-2 bg-neutral-900/40">
+      <span className="text-sm flex items-center gap-2 min-w-0">
+        <span className="text-neutral-500 font-mono text-xs w-4 shrink-0">{rank}</span>
+        <Flag code={m.nationality} />
+        <span className="truncate">
+          {m.nationality ?? "—"}
+          <span className="text-neutral-500 font-normal ml-2 text-xs">
+            {m.roster.map(lastName).join(" · ")}
+          </span>
+        </span>
+      </span>
+      <span className="flex items-center gap-1.5 shrink-0">
+        {m.record === "WR" && (
+          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">WR</span>
+        )}
+        <span className="font-mono text-sm text-orange-400">{m.mark_display}</span>
+      </span>
+    </div>
+  );
 }
 
 export default async function EventPage({
@@ -34,11 +87,12 @@ export default async function EventPage({
   const gender = (genderParam as "Men" | "Women") ?? availableGenders[0];
   const currentYear = new Date().getFullYear();
   const year = yearParam ? Number(yearParam) : currentYear;
+  const isRelay = isRelayEvent(event);
 
   const [allTime, years, yearBest] = await Promise.all([
-    getEventAllTimeBest(event, gender, 10),
+    isRelay ? getEventAllTimeBestRelay(event, gender, 10) : getEventAllTimeBest(event, gender, 10),
     getEventAvailableYears(event, gender),
-    getEventYearBestMarks(event, gender, year, 10),
+    isRelay ? getEventYearBestMarksRelay(event, gender, year, 10) : getEventYearBestMarks(event, gender, year, 10),
   ]);
 
   return (
@@ -68,27 +122,9 @@ export default async function EventPage({
               All-Time Best
             </h2>
             <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
-              {allTime.map((m, i) => (
-                <Link
-                  key={i}
-                  href={`/athletes/${m.athlete_id}`}
-                  className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
-                >
-                  <span className="text-sm flex items-center gap-2 truncate">
-                    <span className="text-neutral-500 font-mono text-xs w-4">{i + 1}</span>
-                    <Flag code={m.nationality} />
-                    {m.display_name}
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    {m.record === "WR" && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">
-                        WR
-                      </span>
-                    )}
-                    <span className="font-mono text-sm text-orange-400">{m.mark_display}</span>
-                  </span>
-                </Link>
-              ))}
+              {isRelay
+                ? (allTime as RelayMarkRow[]).map((m, i) => <RelayMarkRowItem key={i} m={m} rank={i + 1} />)
+                : (allTime as MarkRow[]).map((m, i) => <MarkRowItem key={i} m={m} rank={i + 1} />)}
               {allTime.length === 0 && <div className="px-4 py-4 text-sm text-neutral-500">No data.</div>}
             </div>
           </section>
@@ -105,27 +141,9 @@ export default async function EventPage({
               />
             </div>
             <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
-              {yearBest.map((m, i) => (
-                <Link
-                  key={i}
-                  href={`/athletes/${m.athlete_id}`}
-                  className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
-                >
-                  <span className="text-sm flex items-center gap-2 truncate">
-                    <span className="text-neutral-500 font-mono text-xs w-4">{i + 1}</span>
-                    <Flag code={m.nationality} />
-                    {m.display_name}
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    {m.record === "WR" && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">
-                        WR
-                      </span>
-                    )}
-                    <span className="font-mono text-sm text-orange-400">{m.mark_display}</span>
-                  </span>
-                </Link>
-              ))}
+              {isRelay
+                ? (yearBest as RelayMarkRow[]).map((m, i) => <RelayMarkRowItem key={i} m={m} rank={i + 1} />)
+                : (yearBest as MarkRow[]).map((m, i) => <MarkRowItem key={i} m={m} rank={i + 1} />)}
               {yearBest.length === 0 && (
                 <div className="px-4 py-4 text-sm text-neutral-500">No results in {year}.</div>
               )}

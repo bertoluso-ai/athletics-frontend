@@ -6,6 +6,7 @@ import { EVENT_GROUPS, TIER_PRIORITY, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import type { Race } from "@/lib/queries";
 import Flag from "./Flag";
+import WindBadge from "./WindBadge";
 
 const ALL_EVENTS = Array.from(
   new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
@@ -28,11 +29,25 @@ function formatDate(iso: string) {
 export default function LatestResults({ initialRaces }: { initialRaces: Race[] }) {
   const [event, setEvent] = useState("");
   const [tier, setTier] = useState("");
+  const [nationality, setNationality] = useState("");
   const [races, setRaces] = useState<Race[]>(initialRaces);
+  const [nationalities, setNationalities] = useState<{ code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // Nationality options are independent of the current filters -- fetch
+  // once so the dropdown is populated even before any filter is touched.
   useEffect(() => {
-    if (!event && !tier) {
+    let cancelled = false;
+    fetch("/api/latest-results")
+      .then((r) => r.json())
+      .then((data) => !cancelled && setNationalities(data.nationalities));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!event && !tier && !nationality) {
       setRaces(initialRaces);
       return;
     }
@@ -41,15 +56,16 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
     const params = new URLSearchParams();
     if (event) params.set("event", event);
     if (tier) params.set("tier", tier);
+    if (nationality) params.set("nationality", nationality);
     fetch(`/api/latest-results?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => !cancelled && setRaces(data))
+      .then((data) => !cancelled && setRaces(data.races))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, tier]);
+  }, [event, tier, nationality]);
 
   return (
     <section>
@@ -82,6 +98,18 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
               </option>
             ))}
           </select>
+          <select
+            value={nationality}
+            onChange={(e) => setNationality(e.target.value)}
+            className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">All nationalities</option>
+            {nationalities.map((n) => (
+              <option key={n.code} value={n.code}>
+                {n.name}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -100,7 +128,17 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                     {eventLabel(race.athletics_event)}
                   </Link>
                   <span className="text-neutral-500 mx-2">·</span>
-                  <span className="text-sm text-neutral-400 truncate">{race.event_name}</span>
+                  <Link
+                    href={`/meets/${encodeURIComponent(race.event_name)}?year=${race.date.slice(0, 4)}&discipline=${encodeURIComponent(race.athletics_event)}&gender=${race.gender}`}
+                    className="text-sm text-neutral-400 hover:text-orange-400 truncate"
+                  >
+                    {race.event_name}
+                  </Link>
+                  {race.city && (
+                    <span className="text-xs text-neutral-500 ml-2">
+                      {race.city}{race.country ? `, ${race.country}` : ""}
+                    </span>
+                  )}
                   <span className="text-xs text-neutral-500 ml-2">
                     {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
                   </span>
@@ -131,7 +169,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                             </span>
                           </span>
                         ) : (
-                          solo.display_name
+                          <span className="truncate">{solo.display_name}</span>
                         )}
                       </span>
                       <span className="flex items-center gap-1.5 shrink-0">
@@ -140,6 +178,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                             WR
                           </span>
                         )}
+                        <WindBadge wind={entry.wind} windLegal={entry.wind_legal} />
                         <span className="font-mono text-sm text-neutral-300">{entry.mark_display}</span>
                       </span>
                     </>

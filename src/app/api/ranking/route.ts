@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing event or gender" }, { status: 400 });
   }
 
-  const rows = await getEventYearRanking(event, gender, year, 10);
+  const rows = await getEventYearRanking(event, gender, year, 1, 10, { sortBy: "points" });
   const withPhotos = await Promise.all(
     rows.map(async (r) => ({ ...r, photo: await getAthletePhoto(r.display_name) }))
   );
