@@ -8,6 +8,7 @@ const TYPE_LABEL: Record<SearchResult["type"], string> = {
   athlete: "Athlete",
   event: "Event",
   discipline: "Discipline",
+  meet: "Competition",
 };
 
 export default function SearchBox() {
@@ -45,7 +46,7 @@ export default function SearchBox() {
     <div ref={boxRef} className="relative w-full max-w-[22rem]">
       <input
         type="text"
-        placeholder="Search athletes, events…"
+        placeholder="Search athletes, events, competitions…"
         value={q}
         onChange={(e) => {
           setQ(e.target.value);

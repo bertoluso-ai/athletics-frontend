@@ -144,6 +144,11 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                   </span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {race.top3.find((e) => e.wind)?.wind && (
+                    <span className="text-xs font-mono text-neutral-500">
+                      Wind: {race.top3.find((e) => e.wind)!.wind}
+                    </span>
+                  )}
                   {race.competition_level && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
                       {race.competition_level}

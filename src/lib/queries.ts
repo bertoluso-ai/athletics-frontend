@@ -275,7 +275,7 @@ export async function getLatestRaces(
         LOWER(athletics_event) LIKE '%relay%' AS is_relay
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE place IS NOT NULL
-        AND (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%')
+        AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%'))
         AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
         AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 10 DAY)
         AND athlete_display_name IS NOT NULL
@@ -681,7 +681,7 @@ export async function getMeetResults(eventName: string, year: number): Promise<M
       NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE event_name = @eventName AND year = @year
-      AND (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%')
+      AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%'))
       AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
       AND athlete_display_name IS NOT NULL
     ORDER BY athletics_event, gender, place ASC NULLS LAST

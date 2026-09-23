@@ -162,14 +162,21 @@ export default async function MeetPage({
         </div>
 
         <div className="flex flex-col gap-6 mt-6">
-          {groups.map((g) => (
+          {groups.map((g) => {
+            const groupWind = g.rows.find((r) => r.wind)?.wind;
+            return (
             <section key={`${g.athletics_event}|${g.gender}`} id={meetSectionAnchor(g.athletics_event, g.gender)}>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
-                <Link href={`/events/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
-                  {eventLabel(g.athletics_event)}
-                </Link>
-                <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
-              </h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                  <Link href={`/events/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
+                    {eventLabel(g.athletics_event)}
+                  </Link>
+                  <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
+                </h2>
+                {groupWind && (
+                  <span className="text-xs font-mono text-neutral-500">Wind: {groupWind}</span>
+                )}
+              </div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
                 {isRelayEvent(g.athletics_event) ? (
                   <RelayGroup rows={g.rows} />
@@ -178,7 +185,8 @@ export default async function MeetPage({
                 )}
               </div>
             </section>
-          ))}
+            );
+          })}
           {groups.length === 0 && (
             <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
               No results for {year}.

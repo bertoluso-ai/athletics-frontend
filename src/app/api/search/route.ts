@@ -4,7 +4,7 @@ import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
 export type SearchResult = {
-  type: "athlete" | "event" | "discipline";
+  type: "athlete" | "event" | "discipline" | "meet";
   label: string;
   sublabel?: string;
   href: string;
@@ -51,6 +51,27 @@ export async function GET(req: NextRequest) {
       label: a.display_name,
       sublabel: a.nationality ?? undefined,
       href: `/athletes/${a.athlete_id}`,
+    });
+  }
+
+  // Meets/competitions (BigQuery, name search) -- most-recent edition wins
+  // when the same meet name recurs across years (e.g. an annual Diamond
+  // League stop), since that's the one most people mean to find.
+  const meets = await runQuery<{ event_name: string; year: number; n_results: number }>(`
+    SELECT event_name, MAX(year) AS year, COUNT(*) AS n_results
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE @pattern
+    GROUP BY event_name
+    ORDER BY n_results DESC
+    LIMIT 8
+  `, { pattern: `%${qLower}%` });
+
+  for (const m of meets) {
+    results.push({
+      type: "meet",
+      label: m.event_name,
+      sublabel: String(m.year),
+      href: `/meets/${encodeURIComponent(m.event_name)}?year=${m.year}`,
     });
   }
 
