@@ -100,9 +100,17 @@ export async function getAthletePersonalBests(athleteId: string): Promise<Person
       SELECT DISTINCT athletics_event, gender FROM my_pbs WHERE rk = 1
     ),
     global_best AS (
+      -- mark (raw text) is populated on virtually every row regardless of
+      -- discipline, not just field events -- so "is mark present" can't be
+      -- used to decide track vs field (that inverted 100m rankings: a
+      -- slower time has a larger mark_seconds value, and treating it like
+      -- a field distance made bigger look better). mark_seconds is the
+      -- reliable track-only signal (same rule my_pbs above already uses),
+      -- so a discipline only falls back to the field-style mark reading
+      -- when NONE of its rows have mark_seconds at all.
       SELECT e.athletics_event, e.gender, e.athlete_id,
-        MIN(e.mark_seconds) AS best_track,
-        MAX(SAFE_CAST(e.mark AS FLOAT64)) AS best_field
+        MIN(IF(e.mark_seconds IS NOT NULL, e.mark_seconds, NULL)) AS best_track,
+        MAX(IF(e.mark_seconds IS NULL, SAFE_CAST(e.mark AS FLOAT64), NULL)) AS best_field
       FROM \`athletics-database.athletics_all.events_enriched\` e
       JOIN my_disciplines d ON d.athletics_event = e.athletics_event AND d.gender = e.gender
       WHERE e.athlete_id IS NOT NULL
@@ -113,7 +121,7 @@ export async function getAthletePersonalBests(athleteId: string): Promise<Person
       SELECT athletics_event, gender, athlete_id,
         RANK() OVER (
           PARTITION BY athletics_event, gender
-          ORDER BY IF(best_field IS NOT NULL, -best_field, best_track) ASC
+          ORDER BY IF(best_track IS NOT NULL, best_track, -best_field) ASC
         ) AS rnk
       FROM global_best
     )

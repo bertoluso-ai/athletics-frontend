@@ -164,7 +164,7 @@ export default async function AthletePage({
                 {yearlyPoints.map((y) => (
                   <Link
                     key={y.year}
-                    href={`/athletes/${id}?event=${encodeURIComponent(defaultEventForYear(y.year))}&year=${y.year}`}
+                    href={`/rankings?event=${encodeURIComponent(defaultEventForYear(y.year))}&gender=${info.gender ?? ""}&year=${y.year}`}
                     className={`flex items-center justify-between px-4 py-2 hover:bg-neutral-800 ${
                       y.year === year ? "bg-neutral-800" : "bg-neutral-900/40"
                     }`}
