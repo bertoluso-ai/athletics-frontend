@@ -24,3 +24,14 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Horizontally-scrolling pill rows (category/discipline filters) --
+   scroll sideways on overflow instead of wrapping to more lines, with
+   the scrollbar itself hidden (the row's own edge fade/clipping is the
+   only affordance needed; a visible scrollbar looks broken on a chip row). */
+.pill-row {
+  scrollbar-width: none;
+}
+.pill-row::-webkit-scrollbar {
+  display: none;
+}

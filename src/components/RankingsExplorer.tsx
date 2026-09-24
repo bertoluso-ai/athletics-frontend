@@ -192,11 +192,11 @@ export default function RankingsExplorer() {
         </select>
       </div>
 
-      <div className="flex flex-wrap gap-1 mb-2">
+      <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 mb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
         <button
           onClick={() => setGroupKey(GLOBAL_KEY)}
           title="Total points across every discipline that year, not one event's ranking"
-          className={`text-[10px] px-2 py-1 rounded-full border ${
+          className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
             isGlobal ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
           }`}
         >
@@ -206,7 +206,7 @@ export default function RankingsExplorer() {
           <button
             key={g.key}
             onClick={() => setGroupKey(g.key)}
-            className={`text-[10px] px-2 py-1 rounded-full border ${
+            className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
               groupKey === g.key
                 ? "bg-neutral-100 text-black border-neutral-100"
                 : "border-neutral-700 text-neutral-400"

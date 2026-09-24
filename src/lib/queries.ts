@@ -921,14 +921,23 @@ export async function getEventYearBestMarksRelay(
 // most legitimately use commas for other things (age categories, meet
 // names) and must NOT be touched.
 export const normalizeSeries = (expr: string) => `
-  REGEXP_REPLACE(
+  TRIM(REGEXP_REPLACE(
     REGEXP_REPLACE(
       REGEXP_REPLACE(
         REGEXP_REPLACE(
-          REGEXP_REPLACE(LOWER(TRIM(${expr})), r'^iaaf\\s+', ''),
-          r'^world athletics\\s+', ''
+          REGEXP_REPLACE(
+            -- "Iaaf" shows up anywhere in the name across sources, not
+            -- just as a leading prefix (e.g. "Shanghai Iaaf Diamond
+            -- League" vs "Shanghai Diamond League") -- strip it as a
+            -- standalone word wherever it lands, not just at the start.
+            REGEXP_REPLACE(LOWER(TRIM(${expr})), r'\\biaaf\\b\\s*', ''),
+            r'^world athletics\\s+', ''
+          ),
+          r'^world\\s+', ''
         ),
-        r'^world\\s+', ''
+        -- Some sources tack a generic "Meeting" suffix onto an otherwise
+        -- matching name ("Shanghai Iaaf Diamond League Meeting").
+        r'\\s+meeting$', ''
       ),
       r'(championships),\\s+.*$', r'\\1'
     ),
@@ -938,7 +947,7 @@ export const normalizeSeries = (expr: string) => `
     -- this -- the others ("Toyama Championships In Athletics" etc.) keep
     -- their own distinguishing name before "Championships" and don't merge.
     r'(?i)(championships)\\s+in athletics$', r'\\1'
-  )
+  ))
 `;
 
 // Same rebrand/city-suffix cleanup as normalizeSeries, but for DISPLAY --
@@ -950,16 +959,19 @@ export const normalizeSeries = (expr: string) => `
 // instead, since each of its rows is one specific competition, not a
 // summary of several.
 export const displaySeries = (expr: string) => `
-  REGEXP_REPLACE(
+  TRIM(REGEXP_REPLACE(
     REGEXP_REPLACE(
       REGEXP_REPLACE(
-        REGEXP_REPLACE(TRIM(${expr}), r'(?i)^iaaf\\s+', ''),
-        r'(?i)^world athletics\\s+', 'World '
+        REGEXP_REPLACE(
+          REGEXP_REPLACE(TRIM(${expr}), r'(?i)\\biaaf\\b\\s*', ''),
+          r'(?i)^world athletics\\s+', 'World '
+        ),
+        r'(?i)\\s+meeting$', ''
       ),
       r'(?i)(championships),\\s+.*$', r'\\1'
     ),
     r'(?i)(championships)\\s+in athletics$', r'\\1'
-  )
+  ))
 `;
 
 // Falls back to a plain event_name match for the handful of rows with no
@@ -998,6 +1010,7 @@ export type MeetResultRow = {
   athlete_id: string | null;
   display_name: string;
   mark_display: string;
+  mark_value: number | null; // mark_seconds for track, raw mark for field -- used only to split same-place parallel sections when there's no wind to split by
   nationality: string | null;
   record: string | null;
   city: string | null;
@@ -1026,7 +1039,9 @@ export async function getMeetResults(eventName: string, year: number): Promise<M
   return runQuery<MeetResultRow>(`
     SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
       athletics_event, gender, round, place, athlete_id,
-      athlete_display_name AS display_name, mark_display, nationality,
+      athlete_display_name AS display_name, mark_display,
+      IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
+      nationality,
       NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE ${MEET_SERIES_MATCH_SQL} AND year = @year
@@ -1035,6 +1050,89 @@ export async function getMeetResults(eventName: string, year: number): Promise<M
       AND athlete_display_name IS NOT NULL
     ORDER BY athletics_event, gender, round, place ASC NULLS LAST
   `, { eventName, year });
+}
+
+// ---------------------------------------------------------------------
+// Competitions browser -- lists RAW event_name values (not grouped by
+// display_series_name), so a real naming/classification mistake (a
+// wrongly-tiered or misnamed competition) shows up as its own row
+// instead of being hidden inside a bigger merged group. Doubles as a
+// way to spot cases display_series_name should merge but doesn't yet
+// (its own value is shown right next to the raw name).
+// ---------------------------------------------------------------------
+
+export type CompetitionListRow = {
+  event_name: string;
+  display_series_name: string | null;
+  tiers: string[];
+  min_year: number;
+  max_year: number;
+  n_editions: number;
+};
+
+export async function getCompetitionsList(filters: {
+  gender?: string;
+  tier?: string;
+  year?: number;
+  disciplines?: string[];
+  search?: string;
+} = {}): Promise<CompetitionListRow[]> {
+  const { gender, tier, year, disciplines, search } = filters;
+  return runQuery<CompetitionListRow>(`
+    SELECT event_name,
+      ANY_VALUE(display_series_name) AS display_series_name,
+      ARRAY_AGG(DISTINCT division_key_resolved IGNORE NULLS) AS tiers,
+      MIN(year) AS min_year, MAX(year) AS max_year,
+      COUNT(DISTINCT year) AS n_editions
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE event_name IS NOT NULL
+      ${gender ? "AND gender = @gender" : ""}
+      ${tier ? "AND division_key_resolved = @tier" : ""}
+      ${year ? "AND year = @year" : ""}
+      ${disciplines?.length ? "AND athletics_event IN UNNEST(@disciplines)" : ""}
+      ${search ? "AND LOWER(event_name) LIKE LOWER(CONCAT('%', @search, '%'))" : ""}
+    GROUP BY event_name
+    ORDER BY event_name ASC
+    LIMIT 300
+  `, {
+    ...(gender ? { gender } : {}),
+    ...(tier ? { tier } : {}),
+    ...(year ? { year } : {}),
+    ...(disciplines?.length ? { disciplines } : {}),
+    ...(search ? { search } : {}),
+  });
+}
+
+// Strict literal event_name match (unlike getMeetResults, which matches
+// every raw name sharing the same display_series_name) -- shows exactly
+// what one specific raw name's rows contain, which is the point of the
+// competitions browser: spotting a wrongly-named or wrongly-tiered raw
+// competition means looking at ONLY its own rows, not a merged group.
+export async function getCompetitionResults(eventName: string, year: number): Promise<MeetResultRow[]> {
+  return runQuery<MeetResultRow>(`
+    SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
+      athletics_event, gender, round, place, athlete_id,
+      athlete_display_name AS display_name, mark_display,
+      IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
+      nationality,
+      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE event_name = @eventName AND year = @year
+      AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
+      AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
+      AND athlete_display_name IS NOT NULL
+    ORDER BY athletics_event, gender, round, place ASC NULLS LAST
+  `, { eventName, year });
+}
+
+export async function getCompetitionYears(eventName: string): Promise<number[]> {
+  const rows = await runQuery<{ year: number }>(`
+    SELECT DISTINCT year
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE event_name = @eventName AND year IS NOT NULL
+    ORDER BY year DESC
+  `, { eventName });
+  return rows.map((r) => r.year);
 }
 
 // ---------------------------------------------------------------------

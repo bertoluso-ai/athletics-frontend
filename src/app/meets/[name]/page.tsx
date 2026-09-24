@@ -6,7 +6,7 @@ import WindBadge from "@/components/WindBadge";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import { getMeetAvailableYears, getMeetResults, type MeetResultRow } from "@/lib/queries";
-import { eventLabel, isRelayEvent, EVENT_GROUPS } from "@/lib/events";
+import { eventLabel, isRelayEvent, isFieldEvent, EVENT_GROUPS } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
 export const revalidate = 3600;
@@ -28,13 +28,59 @@ type Group = {
   gender: string;
   round: string | null;
   wind: string | null;
+  section: number;
   rows: MeetResultRow[];
 };
 
-export function meetSectionAnchor(athleticsEvent: string, gender: string, round?: string | null, wind?: string | null): string {
+export function meetSectionAnchor(athleticsEvent: string, gender: string, round?: string | null, wind?: string | null, section?: number): string {
   const base = `${eventSlug(athleticsEvent)}-${gender.toLowerCase()}`;
   const withRound = round ? `${base}-${eventSlug(round)}` : base;
-  return wind ? `${withRound}-${eventSlug(wind)}` : withRound;
+  const withWind = wind ? `${withRound}-${eventSlug(wind)}` : withRound;
+  return section ? `${withWind}-${section}` : withWind;
+}
+
+// Extends the wind-based split below: some sources (confirmed on
+// worldathletics -- indoor meets especially, which never have a wind
+// reading at all to split by) run two parallel sections that share both
+// the same round text AND no wind. Same signal as the backend scoring
+// fix (compute_competition_score_v2.sql): a duplicate place value with
+// two different marks means two different races got merged, not a real
+// tie. Split by ranking each pair of same-place rows by their own mark
+// -- not reliable rank-by-rank on the margins (the two fields' mid-pack
+// times can genuinely overlap), but turns an obviously-broken
+// interleaved list (two different people both "1st", "2nd", ...) into
+// two coherent sections, each keeping its own original place numbering.
+function splitByMarkIfDuplicatePlaces(rows: MeetResultRow[], isField: boolean): MeetResultRow[][] {
+  const byPlace = new Map<number, MeetResultRow[]>();
+  const withoutPlace: MeetResultRow[] = [];
+  for (const r of rows) {
+    if (r.place == null) {
+      withoutPlace.push(r);
+      continue;
+    }
+    const arr = byPlace.get(r.place) ?? [];
+    arr.push(r);
+    byPlace.set(r.place, arr);
+  }
+  const needsSplit = Array.from(byPlace.values()).some(
+    (arr) => arr.length > 1 && new Set(arr.map((r) => r.mark_display)).size > 1
+  );
+  if (!needsSplit) return [rows];
+
+  const sections: MeetResultRow[][] = [];
+  for (const arr of byPlace.values()) {
+    const sorted = [...arr].sort((a, b) => {
+      if (a.mark_value == null) return 1;
+      if (b.mark_value == null) return -1;
+      return isField ? b.mark_value - a.mark_value : a.mark_value - b.mark_value;
+    });
+    sorted.forEach((r, i) => {
+      if (!sections[i]) sections[i] = [];
+      sections[i].push(r);
+    });
+  }
+  if (withoutPlace.length) sections[0] = [...(sections[0] ?? []), ...withoutPlace];
+  return sections.filter((s) => s.length > 0);
 }
 
 // Never merge rows with a different `round` string -- some meets split a
@@ -52,17 +98,29 @@ export function meetSectionAnchor(athleticsEvent: string, gender: string, round?
 // the same round means two different races got merged. Splitting on wind
 // too (when present) catches that case without guessing at true places.
 function groupResults(rows: MeetResultRow[]): Group[] {
-  const groups = new Map<string, Group>();
+  const windGroups = new Map<string, { athletics_event: string; gender: string; round: string | null; wind: string | null; rows: MeetResultRow[] }>();
   for (const r of rows) {
     const key = `${r.athletics_event}|${r.gender}|${r.round ?? ""}|${r.wind ?? ""}`;
-    let g = groups.get(key);
+    let g = windGroups.get(key);
     if (!g) {
       g = { athletics_event: r.athletics_event, gender: r.gender, round: r.round, wind: r.wind, rows: [] };
-      groups.set(key, g);
+      windGroups.set(key, g);
     }
     g.rows.push(r);
   }
-  return Array.from(groups.values());
+
+  const result: Group[] = [];
+  for (const g of windGroups.values()) {
+    if (isRelayEvent(g.athletics_event)) {
+      result.push({ ...g, section: 0 });
+      continue;
+    }
+    const sections = splitByMarkIfDuplicatePlaces(g.rows, isFieldEvent(g.athletics_event));
+    sections.forEach((sectionRows, i) => {
+      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind: g.wind, section: i, rows: sectionRows });
+    });
+  }
+  return result;
 }
 
 function ResultRowItem({ r }: { r: MeetResultRow }) {
@@ -146,7 +204,7 @@ export default async function MeetPage({
   const year = yearParam ? Number(yearParam) : years[0];
   const results = await getMeetResults(eventName, year);
   const allGroups = groupResults(results).sort(
-    (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "")
+    (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
   );
   const first = results[0];
   const meetDate = formatDate(first?.date ?? null);
@@ -214,7 +272,7 @@ export default async function MeetPage({
         <div className="flex flex-col gap-6 mt-6">
           {groups.map((g) => {
             return (
-            <section key={`${g.athletics_event}|${g.gender}|${g.round ?? ""}|${g.wind ?? ""}`} id={meetSectionAnchor(g.athletics_event, g.gender, g.round, g.wind)}>
+            <section key={`${g.athletics_event}|${g.gender}|${g.round ?? ""}|${g.wind ?? ""}|${g.section}`} id={meetSectionAnchor(g.athletics_event, g.gender, g.round, g.wind, g.section)}>
               <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
                   <Link href={`/events/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">

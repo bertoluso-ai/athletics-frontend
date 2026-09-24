@@ -74,12 +74,12 @@ export default function StatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      <div className="px-4 py-2 border-b border-neutral-800 flex flex-wrap gap-1">
+      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1">
         {EVENT_GROUPS.map((g) => (
           <button
             key={g.key}
             onClick={() => setGroupKey(g.key)}
-            className={`text-[10px] px-2 py-1 rounded-full border ${
+            className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
               groupKey === g.key
                 ? "bg-neutral-100 text-black border-neutral-100"
                 : "border-neutral-700 text-neutral-400"
