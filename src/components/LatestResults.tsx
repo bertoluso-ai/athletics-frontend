@@ -122,6 +122,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                   <span className="text-xs text-neutral-500">
                     {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
                   </span>
+                  {race.round && <span className="text-xs text-neutral-500">· {race.round}</span>}
                   {race.top3.find((e) => e.wind)?.wind && (
                     <span className="text-xs font-mono text-neutral-500">
                       Wind: {race.top3.find((e) => e.wind)!.wind}

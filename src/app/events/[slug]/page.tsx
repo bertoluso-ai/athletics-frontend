@@ -11,7 +11,7 @@ import {
   getEventYearlyProgression,
   type MarkRow, type RelayMarkRow,
 } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
 import { eventFromSlug } from "@/lib/slugs";
 
 export const revalidate = 3600;
@@ -79,13 +79,13 @@ export default async function EventPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ gender?: string; year?: string; age?: string; limit?: string }>;
+  searchParams: Promise<{ gender?: string; year?: string; age?: string; limit?: string; indoor?: string }>;
 }) {
   const { slug } = await params;
   const event = eventFromSlug(slug);
   if (!event) notFound();
 
-  const { gender: genderParam, year: yearParam, age: ageParam, limit: limitParam } = await searchParams;
+  const { gender: genderParam, year: yearParam, age: ageParam, limit: limitParam, indoor: indoorParam } = await searchParams;
   const availableGenders = findGenders(event);
   const gender = (genderParam as "Men" | "Women") ?? availableGenders[0];
   const currentYear = new Date().getFullYear();
@@ -93,24 +93,29 @@ export default async function EventPage({
   const ageCategory = ageParam ?? "";
   const limit = limitParam ? Number(limitParam) : 10;
   const isRelay = isRelayEvent(event);
+  // Indoor/outdoor never applies to Road or Cross Country -- those are
+  // always outdoor by nature, so the toggle is hidden for them below.
+  const category = eventCategory(event);
+  const indoorEligible = category !== "Road" && category !== "Cross Country" && !isRelay;
+  const indoor = indoorEligible && indoorParam === "true";
 
   const [allTime, years, yearBest, progression] = await Promise.all([
     isRelay
       ? getEventAllTimeBestRelay(event, gender, limit)
-      : getEventAllTimeBest(event, gender, limit, ageCategory || undefined),
+      : getEventAllTimeBest(event, gender, limit, ageCategory || undefined, indoor),
     getEventAvailableYears(event, gender),
     isRelay
       ? getEventYearBestMarksRelay(event, gender, year, limit)
-      : getEventYearBestMarks(event, gender, year, limit, ageCategory || undefined),
+      : getEventYearBestMarks(event, gender, year, limit, ageCategory || undefined, indoor),
     isRelay ? Promise.resolve([]) : getEventYearlyProgression(event, gender, ageCategory || undefined),
   ]);
 
-  const extraParams = `${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}`;
+  const extraParams = `${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}${indoor ? "&indoor=true" : ""}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold">{eventLabel(event)}</h1>
           <div className="flex items-center gap-2">
@@ -131,6 +136,7 @@ export default async function EventPage({
               year={year}
               ageCategory={ageCategory}
               limit={limit}
+              indoor={indoor}
               baseHref={`/events/${slug}?gender=${gender}`}
             />
           </div>
@@ -144,6 +150,34 @@ export default async function EventPage({
             <YearlyProgressionChart data={progression} isField={isFieldEvent(event)} />
           </section>
         )}
+
+        <div className="flex items-center justify-end gap-2 mb-3">
+          {indoorEligible && (
+            <Link
+              href={`/events/${slug}?gender=${gender}&year=${year}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}${!indoor ? "&indoor=true" : ""}`}
+              title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended together here"
+              className={`text-[10px] px-2 py-1 rounded-full border ${
+                indoor
+                  ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                  : "border-neutral-700 text-neutral-400"
+              }`}
+            >
+              {indoor ? "Indoor" : "Outdoor"}
+            </Link>
+          )}
+          <span className="text-xs text-neutral-500">Show top:</span>
+          <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+            {[10, 20, 100].map((l) => (
+              <Link
+                key={l}
+                href={`/events/${slug}?gender=${gender}&year=${year}${ageCategory ? `&age=${ageCategory}` : ""}${l !== 10 ? `&limit=${l}` : ""}${indoor ? "&indoor=true" : ""}`}
+                className={`px-2 py-1 rounded ${limit === l ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              >
+                {l}
+              </Link>
+            ))}
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section>
@@ -166,7 +200,7 @@ export default async function EventPage({
               <YearSelect
                 years={years.includes(year) ? years : [year, ...years]}
                 year={year}
-                baseHref={`/events/${slug}?gender=${gender}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}`}
+                baseHref={`/events/${slug}?gender=${gender}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}${indoor ? "&indoor=true" : ""}`}
               />
             </div>
             <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">

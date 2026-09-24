@@ -14,7 +14,7 @@ export default async function DisciplinePage({ params }: { params: Promise<{ key
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-6">{group.label}</h1>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {allEvents.map((ev) => (

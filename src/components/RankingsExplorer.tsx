@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { EVENT_GROUPS, eventLabel } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, isRelayEvent } from "@/lib/events";
 import Avatar from "./Avatar";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
@@ -19,12 +19,29 @@ type RankingRow = {
   n_results: number;
   nationality: string | null;
   birth_year: number | null;
-  best_mark: string | null;
-  best_mark_value: number | null;
-  best_mark_wind: string | null;
-  best_mark_wind_legal: boolean | null;
+  best_mark?: string | null;
+  best_mark_value?: number | null;
+  best_mark_wind?: string | null;
+  best_mark_wind_legal?: boolean | null;
   photo: string | null;
 };
+
+type RelayRankingRow = {
+  nationality: string;
+  points: number;
+  n_results: number;
+  best_mark: string | null;
+  best_mark_value: number | null;
+  roster: string[];
+  record: string | null;
+};
+
+function lastName(fullName: string) {
+  const parts = fullName.trim().split(/\s+/);
+  return parts[parts.length - 1];
+}
+
+const GLOBAL_KEY = "global";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1979 }, (_, i) => CURRENT_YEAR - i);
@@ -36,6 +53,7 @@ const AGE_CATEGORIES: { value: AgeCategory; label: string }[] = [
 ];
 
 function findGroupKeyForEvent(ev: string | null, gender: Gender): string {
+  if (ev === "all") return GLOBAL_KEY;
   if (ev) {
     const g = EVENT_GROUPS.find((g) => (g.events[gender] as readonly string[]).includes(ev));
     if (g) return g.key;
@@ -51,9 +69,11 @@ export default function RankingsExplorer() {
 
   const [gender, setGender] = useState<Gender>(initialGender);
   const [groupKey, setGroupKey] = useState<string>(() => findGroupKeyForEvent(initialEvent, initialGender));
-  const group = EVENT_GROUPS.find((g) => g.key === groupKey)!;
+  const isGlobal = groupKey === GLOBAL_KEY;
+  const group = isGlobal ? null : EVENT_GROUPS.find((g) => g.key === groupKey)!;
   const [event, setEvent] = useState<string>(() => {
-    const options = group.events[gender] as readonly string[];
+    if (isGlobal) return "all";
+    const options = group!.events[gender] as readonly string[];
     return initialEvent && options.includes(initialEvent) ? initialEvent : options[0];
   });
   const [year, setYear] = useState<number | "all">(() =>
@@ -69,15 +89,23 @@ export default function RankingsExplorer() {
   // whenever the athlete has a legal one, matching All-Time Best / Best
   // of year. This opts back in to letting illegal marks compete too.
   const [includeIllegalWind, setIncludeIllegalWind] = useState(false);
+  // Outdoor by default -- indoor and outdoor are separate ranking contexts
+  // in the sport (separate world records exist), never blended together.
+  const [indoor, setIndoor] = useState(false);
 
-  const [rows, setRows] = useState<RankingRow[]>([]);
+  const isRelay = !isGlobal && isRelayEvent(event);
+  const [rows, setRows] = useState<(RankingRow | RelayRankingRow)[]>([]);
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(50);
   const [nationalities, setNationalities] = useState<{ code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const options = group.events[gender] as readonly string[];
+    if (isGlobal) {
+      setEvent("all");
+      return;
+    }
+    const options = group!.events[gender] as readonly string[];
     if (!options.includes(event)) setEvent(options[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupKey, gender]);
@@ -91,7 +119,7 @@ export default function RankingsExplorer() {
   // Any change to what's being ranked invalidates the current page.
   useEffect(() => {
     setPage(1);
-  }, [event, gender, year, nationality, ageCategory, sortBy, includeIllegalWind]);
+  }, [event, gender, year, nationality, ageCategory, sortBy, includeIllegalWind, indoor]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,6 +128,7 @@ export default function RankingsExplorer() {
     if (nationality) params.set("nationality", nationality);
     if (ageCategory) params.set("ageCategory", ageCategory);
     if (includeIllegalWind) params.set("includeIllegalWind", "true");
+    if (indoor) params.set("indoor", "true");
     fetch(`/api/rankings?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => {
@@ -113,7 +142,7 @@ export default function RankingsExplorer() {
     return () => {
       cancelled = true;
     };
-  }, [event, gender, year, nationality, ageCategory, sortBy, includeIllegalWind, page]);
+  }, [event, gender, year, nationality, ageCategory, sortBy, includeIllegalWind, indoor, page]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectClass =
@@ -164,6 +193,15 @@ export default function RankingsExplorer() {
       </div>
 
       <div className="flex flex-wrap gap-1 mb-2">
+        <button
+          onClick={() => setGroupKey(GLOBAL_KEY)}
+          title="Total points across every discipline that year, not one event's ranking"
+          className={`text-[10px] px-2 py-1 rounded-full border ${
+            isGlobal ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
+          }`}
+        >
+          Global
+        </button>
         {EVENT_GROUPS.map((g) => (
           <button
             key={g.key}
@@ -179,13 +217,13 @@ export default function RankingsExplorer() {
         ))}
       </div>
 
-      {(group.events[gender] as readonly string[]).length > 1 && (
+      {!isGlobal && (
         <select
           value={event}
           onChange={(e) => setEvent(e.target.value)}
           className={`${selectClass} w-full mb-4`}
         >
-          {(group.events[gender] as readonly string[]).map((ev) => (
+          {(group!.events[gender] as readonly string[]).map((ev) => (
             <option key={ev} value={ev}>{eventLabel(ev)}</option>
           ))}
         </select>
@@ -193,20 +231,36 @@ export default function RankingsExplorer() {
 
       <div className="flex items-center justify-between gap-1 mb-2">
         <span className="text-xs text-neutral-500">
-          {total > 0 && `${total} athletes`}
+          {total > 0 && (isRelay ? `${total} teams` : `${total} athletes`)}
         </span>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setIncludeIllegalWind((v) => !v)}
-            title="Wind-illegal marks are excluded from each athlete's best mark unless they have no legal one -- turn this on to let them compete too"
-            className={`text-xs px-2 py-1 rounded border ${
-              includeIllegalWind
-                ? "bg-red-500/20 border-red-500/40 text-red-400"
-                : "border-neutral-700 text-neutral-400"
-            }`}
-          >
-            {includeIllegalWind ? "Wind-illegal marks: shown" : "Wind-illegal marks: hidden"}
-          </button>
+          {!isGlobal && !isRelay && (
+            <button
+              onClick={() => setIncludeIllegalWind((v) => !v)}
+              title="Wind-illegal marks are excluded from each athlete's best mark unless they have no legal one -- turn this on to let them compete too"
+              className={`text-[10px] px-2 py-1 rounded-full border ${
+                includeIllegalWind
+                  ? "bg-red-500/20 border-red-500/40 text-red-400"
+                  : "border-neutral-700 text-neutral-400"
+              }`}
+            >
+              {includeIllegalWind ? "Wind: shown" : "Wind: hidden"}
+            </button>
+          )}
+          {!isGlobal && !isRelay && groupKey !== "road" && groupKey !== "cross" && (
+            <button
+              onClick={() => setIndoor((v) => !v)}
+              title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended into one ranking here"
+              className={`text-[10px] px-2 py-1 rounded-full border ${
+                indoor
+                  ? "bg-blue-500/20 border-blue-500/40 text-blue-400"
+                  : "border-neutral-700 text-neutral-400"
+              }`}
+            >
+              {indoor ? "Indoor" : "Outdoor"}
+            </button>
+          )}
+          {!isGlobal && (
           <div className="flex items-center gap-1">
             <span className="text-xs text-neutral-500 mr-1">Sort by</span>
             <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
@@ -221,13 +275,44 @@ export default function RankingsExplorer() {
               ))}
             </div>
           </div>
+          )}
         </div>
       </div>
 
       <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
         {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
-        {!loading &&
-          rows.map((r, i) => (
+        {!loading && isRelay &&
+          (rows as RelayRankingRow[]).map((r, i) => (
+            <div
+              key={r.nationality}
+              className="flex items-center justify-between px-4 py-2"
+            >
+              <span className="text-sm flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-neutral-500 font-mono text-xs w-6 shrink-0">
+                  {(page - 1) * pageSize + i + 1}
+                </span>
+                <Flag code={r.nationality} />
+                <span className="truncate">
+                  {r.nationality}
+                  <span className="text-neutral-500 font-normal ml-2 text-xs">
+                    {r.roster.map(lastName).join(" · ")}
+                  </span>
+                </span>
+              </span>
+              <span className="flex items-center gap-3 shrink-0">
+                {r.best_mark && (
+                  <span className={`font-mono text-sm ${sortBy === "mark" ? "text-orange-400" : "text-neutral-300"}`}>
+                    {r.best_mark}
+                  </span>
+                )}
+                <span className={`font-mono text-sm w-12 text-right ${sortBy === "points" ? "text-orange-400" : "text-neutral-300"}`}>
+                  {r.points}
+                </span>
+              </span>
+            </div>
+          ))}
+        {!loading && !isRelay &&
+          (rows as RankingRow[]).map((r, i) => (
             <Link
               key={r.athlete_id}
               href={`/athletes/${r.athlete_id}`}
@@ -247,13 +332,13 @@ export default function RankingsExplorer() {
               <span className="flex items-center gap-3 shrink-0">
                 {r.best_mark && (
                   <span className="flex items-center gap-1.5">
-                    <WindBadge wind={r.best_mark_wind} windLegal={r.best_mark_wind_legal} />
+                    <WindBadge wind={r.best_mark_wind ?? null} windLegal={r.best_mark_wind_legal ?? null} />
                     <span className={`font-mono text-sm ${sortBy === "mark" ? "text-orange-400" : "text-neutral-300"}`}>
                       {r.best_mark}
                     </span>
                   </span>
                 )}
-                <span className={`font-mono text-sm w-12 text-right ${sortBy === "points" ? "text-orange-400" : "text-neutral-300"}`}>
+                <span className={`font-mono text-sm w-12 text-right ${isGlobal || sortBy === "points" ? "text-orange-400" : "text-neutral-300"}`}>
                   {r.points}
                 </span>
               </span>

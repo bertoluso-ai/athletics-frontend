@@ -18,15 +18,16 @@ export default function ResultsFilters({
 }) {
   const router = useRouter();
   const currentEvent = events.find((ev) => ev.value === event);
-  const years = currentEvent?.years ?? [];
+  const allYears = Array.from(new Set(events.flatMap((ev) => ev.years))).sort((a, b) => b - a);
+  const years = event === "all" ? allYears : currentEvent?.years ?? [];
 
   function go(nextEvent: string, nextYear: YearValue) {
-    router.push(`${baseHref}?event=${encodeURIComponent(nextEvent)}&year=${nextYear}`);
+    router.push(`${baseHref}?event=${encodeURIComponent(nextEvent)}&year=${nextYear}`, { scroll: false });
   }
 
   function onEventChange(nextEvent: string) {
-    if (year === "all") {
-      go(nextEvent, "all");
+    if (year === "all" || nextEvent === "all") {
+      go(nextEvent, year);
       return;
     }
     const opt = events.find((ev) => ev.value === nextEvent);
@@ -41,18 +42,19 @@ export default function ResultsFilters({
   }
 
   const selectClass =
-    "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
+    "bg-neutral-800 text-xs rounded px-1.5 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500 min-w-0 truncate";
 
   return (
-    <div className="flex items-center gap-2">
-      <select value={event} onChange={(e) => onEventChange(e.target.value)} className={selectClass}>
+    <div className="flex items-center gap-1.5 min-w-0">
+      <select value={event} onChange={(e) => onEventChange(e.target.value)} className={`${selectClass} max-w-[7rem]`}>
+        <option value="all">All</option>
         {events.map((ev) => (
           <option key={ev.value} value={ev.value}>
             {ev.label}
           </option>
         ))}
       </select>
-      <select value={year} onChange={(e) => onYearChange(e.target.value)} className={selectClass}>
+      <select value={year} onChange={(e) => onYearChange(e.target.value)} className={`${selectClass} max-w-[4.5rem]`}>
         <option value="all">All years</option>
         {years.map((y) => (
           <option key={y} value={y}>

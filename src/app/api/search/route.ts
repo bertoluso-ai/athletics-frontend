@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runQuery } from "@/lib/bigquery";
+import { normalizeSeries } from "@/lib/queries";
 import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
@@ -54,23 +55,22 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Meets/competitions (BigQuery, name search). Different editions of the
-  // same series often carry an ordinal prefix that changes by year ("The
-  // XXVI Olympic Games", "The XXXIII Olympic Games") -- group by the name
-  // with that prefix stripped so the series shows up as ONE result
-  // instead of one per edition; the meet page itself resolves any edition
-  // via the same normalization, so linking with the most recent edition's
-  // exact name still lands on a page listing every edition.
+  // Meets/competitions (BigQuery, name search). Group by the same
+  // normalized display_series_name used by the meet page itself (handles
+  // ordinal prefixes AND the IAAF -> World Athletics rebrand AND
+  // host-city suffixes) so the series shows up as ONE result instead of
+  // one per edition; linking with the most recent edition's exact name
+  // still lands on a page listing every edition.
   const meets = await runQuery<{ event_name: string; year: number; n_results: number }>(`
     WITH normalized AS (
       SELECT event_name, year,
-        REGEXP_REPLACE(event_name, r'(?i)^The\\s+([IVXLCDM]+|[0-9]+(st|nd|rd|th)?)\\s+', '') AS core_name
+        ${normalizeSeries("COALESCE(display_series_name, event_name)")} AS series_key
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE @pattern
     )
-    SELECT event_name, year, COUNT(*) OVER (PARTITION BY core_name) AS n_results
+    SELECT event_name, year, COUNT(*) OVER (PARTITION BY series_key) AS n_results
     FROM normalized
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY core_name ORDER BY year DESC) = 1
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY series_key ORDER BY year DESC) = 1
     ORDER BY n_results DESC
     LIMIT 8
   `, { pattern: `%${qLower}%` });
