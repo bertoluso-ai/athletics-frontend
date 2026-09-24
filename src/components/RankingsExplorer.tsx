@@ -121,7 +121,7 @@ export default function RankingsExplorer() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as Gender[]).map((g) => (
             <button
@@ -143,6 +143,9 @@ export default function RankingsExplorer() {
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 mb-4">
         <select
           value={ageCategory}
           onChange={(e) => setAgeCategory(e.target.value as AgeCategory)}
@@ -230,17 +233,18 @@ export default function RankingsExplorer() {
               href={`/athletes/${r.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
-              <span className="text-sm flex items-center gap-2 min-w-0">
-                <span className="text-neutral-500 font-mono text-xs w-8 shrink-0">
+              <span className="text-sm flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-neutral-500 font-mono text-xs w-6 shrink-0">
                   {(page - 1) * pageSize + i + 1}
                 </span>
                 <Avatar src={r.photo} name={r.display_name} />
                 <Flag code={r.nationality} />
                 <span className="truncate">{r.display_name}</span>
-                {r.birth_year && <span className="text-xs text-neutral-500 shrink-0">b. {r.birth_year}</span>}
+                {r.birth_year && (
+                  <span className="hidden sm:inline text-xs text-neutral-500 shrink-0">b. {r.birth_year}</span>
+                )}
               </span>
               <span className="flex items-center gap-3 shrink-0">
-                <span className="text-xs text-neutral-500">{r.n_results} results</span>
                 {r.best_mark && (
                   <span className="flex items-center gap-1.5">
                     <WindBadge wind={r.best_mark_wind} windLegal={r.best_mark_wind_legal} />

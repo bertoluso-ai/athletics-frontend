@@ -264,9 +264,9 @@ export type Race = {
 
 export async function getLatestRaces(
   maxRaces = 10,
-  filters: { event?: string; tier?: string; nationality?: string } = {}
+  filters: { event?: string; tier?: string } = {}
 ): Promise<Race[]> {
-  const { event, tier, nationality } = filters;
+  const { event, tier } = filters;
   // The source "place" field is heat-relative, not race-relative -- meets
   // that run many parallel non-eliminating heats (all labelled some variant
   // of "Final") each produce their own place 1/2/3, which would otherwise
@@ -351,15 +351,8 @@ export async function getLatestRaces(
     entry.athletes.push({ athlete_id: r.athlete_id, display_name: r.display_name });
   }
 
-  let list = Array.from(races.values());
+  const list = Array.from(races.values());
   for (const race of list) race.top3.sort((a, b) => a.place - b.place);
-  // Nationality filtering happens here, after the real top-3 is computed --
-  // it keeps races where that nationality actually medaled (with the full
-  // podium still shown for context), rather than re-ranking within just
-  // that nationality's subset (which would misrepresent who actually won).
-  if (nationality) {
-    list = list.filter((race) => race.top3.some((entry) => entry.nationality === nationality));
-  }
   // Most recent first (this is "Latest Results") -- competition tier only
   // breaks ties between races on the same date.
   list.sort((a, b) => {
@@ -367,25 +360,6 @@ export async function getLatestRaces(
     return tierPriority(a.competition_level) - tierPriority(b.competition_level);
   });
   return list.slice(0, maxRaces);
-}
-
-export async function getLatestResultsNationalities(): Promise<NationalityOption[]> {
-  return runQuery<NationalityOption>(`
-    WITH codes AS (
-      SELECT DISTINCT nationality AS code
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 10 DAY) AND nationality IS NOT NULL
-    ),
-    names AS (
-      SELECT Codigo AS code, ANY_VALUE(Pais) AS name
-      FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\`
-      GROUP BY Codigo
-    )
-    SELECT c.code, IFNULL(n.name, c.code) AS name
-    FROM codes c
-    LEFT JOIN names n USING (code)
-    ORDER BY name
-  `);
 }
 
 // ---------------------------------------------------------------------

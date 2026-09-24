@@ -26,28 +26,19 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
+function place(city: string | null, country: string | null) {
+  if (!city && !country) return null;
+  return [city, country].filter(Boolean).join(", ");
+}
+
 export default function LatestResults({ initialRaces }: { initialRaces: Race[] }) {
   const [event, setEvent] = useState("");
   const [tier, setTier] = useState("");
-  const [nationality, setNationality] = useState("");
   const [races, setRaces] = useState<Race[]>(initialRaces);
-  const [nationalities, setNationalities] = useState<{ code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Nationality options are independent of the current filters -- fetch
-  // once so the dropdown is populated even before any filter is touched.
   useEffect(() => {
-    let cancelled = false;
-    fetch("/api/latest-results")
-      .then((r) => r.json())
-      .then((data) => !cancelled && setNationalities(data.nationalities));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!event && !tier && !nationality) {
+    if (!event && !tier) {
       setRaces(initialRaces);
       return;
     }
@@ -56,16 +47,15 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
     const params = new URLSearchParams();
     if (event) params.set("event", event);
     if (tier) params.set("tier", tier);
-    if (nationality) params.set("nationality", nationality);
     fetch(`/api/latest-results?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => !cancelled && setRaces(data.races))
+      .then((data) => !cancelled && setRaces(data))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, tier, nationality]);
+  }, [event, tier]);
 
   return (
     <section>
@@ -73,11 +63,11 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
           Latest Results
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 sm:flex sm:items-center gap-2">
+        <div className="flex items-center gap-2">
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
-            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
             {ALL_EVENTS.map((ev) => (
@@ -89,24 +79,12 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value)}
-            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All categories</option>
             {TIERS.map((t) => (
               <option key={t} value={t}>
                 {t}
-              </option>
-            ))}
-          </select>
-          <select
-            value={nationality}
-            onChange={(e) => setNationality(e.target.value)}
-            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
-          >
-            <option value="">All nationalities</option>
-            {nationalities.map((n) => (
-              <option key={n.code} value={n.code}>
-                {n.name}
               </option>
             ))}
           </select>
@@ -122,7 +100,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
         {!loading &&
           races.map((race) => (
             <div key={race.key} className="border border-neutral-800 rounded-lg overflow-hidden">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 py-2 bg-neutral-900">
+              <div className="px-4 py-2 bg-neutral-900">
                 <div className="min-w-0 flex flex-wrap items-baseline gap-x-2">
                   <Link href={`/events/${eventSlug(race.athletics_event)}`} className="text-sm font-medium hover:text-orange-400 shrink-0">
                     {eventLabel(race.athletics_event)}
@@ -134,16 +112,16 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                   >
                     {race.event_name}
                   </Link>
-                  {race.city && (
-                    <span className="text-xs text-neutral-500 shrink-0">
-                      {race.city}{race.country ? `, ${race.country}` : ""}
+                </div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                  {place(race.city, race.country) && (
+                    <span className="text-xs text-neutral-500">
+                      {place(race.city, race.country)}
                     </span>
                   )}
-                  <span className="text-xs text-neutral-500 shrink-0">
+                  <span className="text-xs text-neutral-500">
                     {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
                   </span>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
                   {race.top3.find((e) => e.wind)?.wind && (
                     <span className="text-xs font-mono text-neutral-500">
                       Wind: {race.top3.find((e) => e.wind)!.wind}
@@ -154,7 +132,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
                       {race.competition_level}
                     </span>
                   )}
-                  <span className="text-xs text-neutral-500">{formatDate(race.date)}</span>
+                  <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>
                 </div>
               </div>
               <div className="divide-y divide-neutral-800/60">
