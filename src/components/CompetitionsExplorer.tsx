@@ -140,7 +140,7 @@ export default function CompetitionsExplorer() {
         <select value={tier} onChange={(e) => setTier(e.target.value)} className={`${selectClass} flex-1 min-w-0`}>
           <option value="">All tiers</option>
           {TIER_LABELS.map((t) => (
-            <option key={t.value} value={t.value}>{t.label}</option>
+            <option key={t.value} value={t.value}>{t.value}</option>
           ))}
         </select>
         <select
