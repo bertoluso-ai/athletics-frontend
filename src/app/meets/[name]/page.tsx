@@ -4,7 +4,7 @@ import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getMeetAvailableYears, getMeetResults } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
 export const revalidate = 3600;
 
@@ -40,7 +40,17 @@ export default async function MeetPage({
   );
   const first = results[0];
   const meetDate = formatDate(first?.date ?? null);
-  const tiers = Array.from(new Set(results.map((r) => r.division_key_resolved).filter((t): t is string => !!t)));
+  // A given edition can carry more than one tier across sources -- e.g.
+  // worldathletics tags a Diamond League Final edition "DF", but an older
+  // dlmeetings duplicate of the very same edition has no real tier data
+  // and defaults to "GW" -- showing both looks like a real inconsistency
+  // when it's really just a lesser source's fallback next to the true
+  // value. Show only the single highest-prestige tier found (tierPriority),
+  // not every distinct value.
+  const bestTier = results
+    .map((r) => r.division_key_resolved)
+    .filter((t): t is string => !!t)
+    .sort((a, b) => tierPriority(a) - tierPriority(b))[0];
 
   const disciplineOptions = Array.from(new Set(allGroups.map((g) => g.athletics_event)))
     .sort((a, b) => a.localeCompare(b))
@@ -79,17 +89,17 @@ export default async function MeetPage({
         <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold">{first?.series_name ?? eventName}</h1>
-            {(first?.city || meetDate || tiers.length > 0) && (
+            {(first?.city || meetDate || bestTier) && (
               <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
                 <span>
                   {first?.city}{first?.country ? `, ${first.country}` : ""}
                   {meetDate && <span className="text-neutral-500">{first?.city ? " · " : ""}{meetDate}</span>}
                 </span>
-                {tiers.map((t) => (
-                  <span key={t} title={tierLabel(t)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
-                    {t}
+                {bestTier && (
+                  <span title={tierLabel(bestTier)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                    {bestTier}
                   </span>
-                ))}
+                )}
               </p>
             )}
           </div>
