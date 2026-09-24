@@ -190,12 +190,18 @@ export default function CompetitionsExplorer() {
         <div className="flex flex-col gap-4">
           {seriesGroups.map((g) => (
             <div key={g.seriesName} className="border border-neutral-800 rounded-lg overflow-hidden">
-              <div className="px-4 py-2 bg-neutral-900 text-sm font-semibold flex items-center justify-between gap-3">
-                <span className="truncate">{g.seriesName}</span>
+              <Link
+                href={`/meets/${encodeURIComponent(g.seriesName)}${year ? `?year=${year}` : ""}`}
+                className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-3 hover:bg-neutral-800"
+              >
+                <span className="min-w-0">
+                  <span className="text-[10px] uppercase tracking-wide text-neutral-500 block">Shown to users as</span>
+                  <span className="text-sm font-semibold text-orange-400 truncate block">{g.seriesName} ↗</span>
+                </span>
                 {g.entries.length > 1 && (
                   <span className="text-[11px] text-neutral-500 shrink-0">{g.entries.length} raw names</span>
                 )}
-              </div>
+              </Link>
               <div className="divide-y divide-neutral-800">
                 {g.entries.map((r) => (
                   <Link
