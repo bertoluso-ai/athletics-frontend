@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, TIER_LABELS, eventLabel } from "@/lib/events";
 
@@ -83,12 +83,33 @@ export default function CompetitionsExplorer() {
   const selectClass =
     "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
 
+  // Grouped by canonical name first -- the whole point of this page is
+  // seeing everything that got grouped under one normalized series at a
+  // glance (spotting both over-merging, e.g. "European Team
+  // Championships" wrongly under "European Championships", and under-
+  // merging, e.g. a meet fragmented across sponsor-name spellings).
+  const seriesGroups = useMemo(() => {
+    const groups = new Map<string, CompetitionListRow[]>();
+    for (const r of rows) {
+      const key = r.display_series_name ?? r.event_name;
+      const arr = groups.get(key) ?? [];
+      arr.push(r);
+      groups.set(key, arr);
+    }
+    return Array.from(groups.entries())
+      .map(([seriesName, entries]) => ({
+        seriesName,
+        entries: entries.sort((a, b) => a.event_name.localeCompare(b.event_name)),
+      }))
+      .sort((a, b) => a.seriesName.localeCompare(b.seriesName));
+  }, [rows]);
+
   return (
     <div>
       <input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search raw competition name…"
+        placeholder="Search by normalized series name or raw name…"
         className={`${selectClass} w-full mb-3`}
       />
 
@@ -159,37 +180,53 @@ export default function CompetitionsExplorer() {
       </div>
 
       <div className="text-xs text-neutral-500 mb-2">
-        {!loading && `${rows.length} competitions${rows.length === 300 ? "+ (narrow the filters)" : ""}`}
+        {!loading &&
+          `${seriesGroups.length} normalized series, ${rows.length} raw names${rows.length === 300 ? "+ (narrow the filters)" : ""}`}
       </div>
 
-      <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
-        {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
-        {!loading &&
-          rows.map((r) => (
-            <Link
-              key={r.event_name}
-              href={`/competitions/${encodeURIComponent(r.event_name)}${year ? `?year=${year}` : ""}`}
-              className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-neutral-800"
-            >
-              <span className="min-w-0">
-                <span className="text-sm block truncate">{r.event_name}</span>
-                {r.display_series_name && r.display_series_name !== r.event_name && (
-                  <span className="text-[11px] text-orange-400/80 block truncate">→ {r.display_series_name}</span>
+      {loading && <div className="px-4 py-4 text-xs text-neutral-500 border border-neutral-800 rounded-lg">Loading…</div>}
+
+      {!loading && (
+        <div className="flex flex-col gap-4">
+          {seriesGroups.map((g) => (
+            <div key={g.seriesName} className="border border-neutral-800 rounded-lg overflow-hidden">
+              <div className="px-4 py-2 bg-neutral-900 text-sm font-semibold flex items-center justify-between gap-3">
+                <span className="truncate">{g.seriesName}</span>
+                {g.entries.length > 1 && (
+                  <span className="text-[11px] text-neutral-500 shrink-0">{g.entries.length} raw names</span>
                 )}
-              </span>
-              <span className="flex items-center gap-3 shrink-0 text-xs text-neutral-500">
-                {r.tiers.length > 0 && <span className="font-mono">{r.tiers.join("/")}</span>}
-                <span>
-                  {r.min_year === r.max_year ? r.min_year : `${r.min_year}–${r.max_year}`}
-                  {r.n_editions > 1 && ` (${r.n_editions})`}
-                </span>
-              </span>
-            </Link>
+              </div>
+              <div className="divide-y divide-neutral-800">
+                {g.entries.map((r) => (
+                  <Link
+                    key={r.event_name}
+                    href={`/competitions/${encodeURIComponent(r.event_name)}${year ? `?year=${year}` : ""}`}
+                    className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-neutral-800"
+                  >
+                    <span className="min-w-0">
+                      <span className={`text-sm block truncate ${r.event_name !== g.seriesName ? "text-neutral-300" : ""}`}>
+                        {r.event_name}
+                      </span>
+                    </span>
+                    <span className="flex items-center gap-3 shrink-0 text-xs text-neutral-500">
+                      {r.tiers.length > 0 && <span className="font-mono">{r.tiers.join("/")}</span>}
+                      <span>
+                        {r.min_year === r.max_year ? r.min_year : `${r.min_year}–${r.max_year}`}
+                        {r.n_editions > 1 && ` (${r.n_editions})`}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
-        {!loading && rows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No competitions match this selection.</div>
-        )}
-      </div>
+          {seriesGroups.length === 0 && (
+            <div className="px-4 py-4 text-xs text-neutral-500 border border-neutral-800 rounded-lg">
+              No competitions match this selection.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1092,7 +1092,7 @@ export async function getCompetitionsList(filters: {
       ${tier ? "AND division_key_resolved = @tier" : ""}
       ${year ? "AND year = @year" : ""}
       ${disciplines?.length ? "AND athletics_event IN UNNEST(@disciplines)" : ""}
-      ${search ? "AND LOWER(event_name) LIKE LOWER(CONCAT('%', @search, '%'))" : ""}
+      ${search ? "AND (LOWER(event_name) LIKE LOWER(CONCAT('%', @search, '%')) OR LOWER(display_series_name) LIKE LOWER(CONCAT('%', @search, '%')))" : ""}
     GROUP BY event_name
     ORDER BY event_name ASC
     LIMIT 300
