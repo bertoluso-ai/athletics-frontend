@@ -133,29 +133,29 @@ export default function RankingsExplorer() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 mb-4">
         <select
           value={year}
           onChange={(e) => setYear(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className={selectClass}
+          className={`${selectClass} flex-1 min-w-0`}
         >
           <option value="all">All years</option>
           {YEARS.map((y) => (
             <option key={y} value={y}>{y}</option>
           ))}
         </select>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-4">
         <select
           value={ageCategory}
           onChange={(e) => setAgeCategory(e.target.value as AgeCategory)}
-          className={selectClass}
+          className={`${selectClass} flex-1 min-w-0`}
         >
           {AGE_CATEGORIES.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
-        <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={selectClass}>
+        <select value={nationality} onChange={(e) => setNationality(e.target.value)} className={`${selectClass} flex-1 min-w-0`}>
           <option value="">All nationalities</option>
           {nationalities.map((n) => (
             <option key={n.code} value={n.code}>{n.name}</option>
