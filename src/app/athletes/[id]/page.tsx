@@ -3,6 +3,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import ResultsList from "@/components/ResultsList";
+import WindBadge from "@/components/WindBadge";
 import {
   getAthleteInfo,
   getAthleteEvents,
@@ -20,17 +21,18 @@ export default async function AthletePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; event?: string }>;
+  searchParams: Promise<{ year?: string; event?: string; wind?: string }>;
 }) {
   const { id } = await params;
-  const { year: yearParam, event: eventParam } = await searchParams;
+  const { year: yearParam, event: eventParam, wind: windParam } = await searchParams;
+  const includeIllegalWind = windParam === "all";
 
   const info = await getAthleteInfo(id);
   if (!info) notFound();
 
   const [athleteEvents, personalBests, yearlyPoints, photo] = await Promise.all([
     getAthleteEvents(id),
-    getAthletePersonalBests(id),
+    getAthletePersonalBests(id, includeIllegalWind),
     getAthleteYearlyPoints(id, info.gender ?? ""),
     getAthletePhoto(info.display_name),
   ]);
@@ -120,12 +122,18 @@ export default async function AthletePage({
           {/* Right: personal bests + yearly points */}
           <aside className="flex flex-col gap-8">
             <section>
-              <div className="flex items-baseline justify-between mb-3">
+              <div className="flex items-baseline justify-between mb-1 gap-2 flex-wrap">
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
                   Personal Bests
                 </h2>
-                <span className="text-[11px] text-neutral-500">#N = all-time world rank</span>
+                <Link
+                  href={`/athletes/${id}?${eventParam ? `event=${encodeURIComponent(eventParam)}&` : ""}${yearParam ? `year=${yearParam}&` : ""}wind=${includeIllegalWind ? "" : "all"}`}
+                  className="text-[11px] text-neutral-500 hover:text-neutral-300 underline decoration-dotted"
+                >
+                  {includeIllegalWind ? "hide illegal wind" : "show illegal wind"}
+                </Link>
               </div>
+              <div className="text-[11px] text-neutral-500 mb-2">#N = all-time world rank</div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
                 {personalBests.map((pb, i) => (
                   <Link
@@ -134,7 +142,8 @@ export default async function AthletePage({
                     className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
                   >
                     <span className="text-sm">{eventLabel(pb.athletics_event)}</span>
-                    <span className="font-mono text-sm text-orange-400">
+                    <span className="font-mono text-sm text-orange-400 flex items-center gap-1.5">
+                      <WindBadge wind={pb.wind} windLegal={pb.wind_legal} />
                       {pb.mark_display}
                       {pb.all_time_rank && (
                         <span

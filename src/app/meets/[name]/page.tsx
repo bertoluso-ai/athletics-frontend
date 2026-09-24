@@ -140,7 +140,7 @@ export default async function MeetPage({
       <main className="mx-auto max-w-4xl px-6 py-6">
         <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold">{eventName}</h1>
+            <h1 className="text-2xl font-bold">{first?.event_name ?? eventName}</h1>
             {first?.city && (
               <p className="text-sm text-neutral-400">
                 {first.city}{first.country ? `, ${first.country}` : ""}

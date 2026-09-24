@@ -37,7 +37,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3 gap-2">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
           Upcoming Races
         </h2>
@@ -60,9 +60,9 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
           rows.map((c, i) => (
             <div key={i} className="px-4 py-3 bg-neutral-900/40">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium truncate flex items-center gap-1.5">
+                <span className="text-sm font-medium flex items-center gap-1.5 min-w-0">
                   <Flag code={c.country} />
-                  {c.name}
+                  <span className="truncate">{c.name}</span>
                 </span>
                 <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400 shrink-0">
                   {c.category}

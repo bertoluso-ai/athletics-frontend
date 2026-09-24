@@ -54,14 +54,23 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Meets/competitions (BigQuery, name search) -- most-recent edition wins
-  // when the same meet name recurs across years (e.g. an annual Diamond
-  // League stop), since that's the one most people mean to find.
+  // Meets/competitions (BigQuery, name search). Different editions of the
+  // same series often carry an ordinal prefix that changes by year ("The
+  // XXVI Olympic Games", "The XXXIII Olympic Games") -- group by the name
+  // with that prefix stripped so the series shows up as ONE result
+  // instead of one per edition; the meet page itself resolves any edition
+  // via the same normalization, so linking with the most recent edition's
+  // exact name still lands on a page listing every edition.
   const meets = await runQuery<{ event_name: string; year: number; n_results: number }>(`
-    SELECT event_name, MAX(year) AS year, COUNT(*) AS n_results
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE @pattern
-    GROUP BY event_name
+    WITH normalized AS (
+      SELECT event_name, year,
+        REGEXP_REPLACE(event_name, r'(?i)^The\\s+([IVXLCDM]+|[0-9]+(st|nd|rd|th)?)\\s+', '') AS core_name
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE @pattern
+    )
+    SELECT event_name, year, COUNT(*) OVER (PARTITION BY core_name) AS n_results
+    FROM normalized
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY core_name ORDER BY year DESC) = 1
     ORDER BY n_results DESC
     LIMIT 8
   `, { pattern: `%${qLower}%` });

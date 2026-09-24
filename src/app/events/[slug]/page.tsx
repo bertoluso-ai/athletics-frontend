@@ -2,13 +2,16 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
+import EventFilters from "@/components/EventFilters";
 import YearSelect from "@/components/YearSelect";
+import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import {
   getEventAllTimeBest, getEventYearBestMarks, getEventAvailableYears,
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
+  getEventYearlyProgression,
   type MarkRow, type RelayMarkRow,
 } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, isRelayEvent } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent } from "@/lib/events";
 import { eventFromSlug } from "@/lib/slugs";
 
 export const revalidate = 3600;
@@ -76,45 +79,71 @@ export default async function EventPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ gender?: string; year?: string }>;
+  searchParams: Promise<{ gender?: string; year?: string; age?: string; limit?: string }>;
 }) {
   const { slug } = await params;
   const event = eventFromSlug(slug);
   if (!event) notFound();
 
-  const { gender: genderParam, year: yearParam } = await searchParams;
+  const { gender: genderParam, year: yearParam, age: ageParam, limit: limitParam } = await searchParams;
   const availableGenders = findGenders(event);
   const gender = (genderParam as "Men" | "Women") ?? availableGenders[0];
   const currentYear = new Date().getFullYear();
   const year = yearParam ? Number(yearParam) : currentYear;
+  const ageCategory = ageParam ?? "";
+  const limit = limitParam ? Number(limitParam) : 10;
   const isRelay = isRelayEvent(event);
 
-  const [allTime, years, yearBest] = await Promise.all([
-    isRelay ? getEventAllTimeBestRelay(event, gender, 10) : getEventAllTimeBest(event, gender, 10),
+  const [allTime, years, yearBest, progression] = await Promise.all([
+    isRelay
+      ? getEventAllTimeBestRelay(event, gender, limit)
+      : getEventAllTimeBest(event, gender, limit, ageCategory || undefined),
     getEventAvailableYears(event, gender),
-    isRelay ? getEventYearBestMarksRelay(event, gender, year, 10) : getEventYearBestMarks(event, gender, year, 10),
+    isRelay
+      ? getEventYearBestMarksRelay(event, gender, year, limit)
+      : getEventYearBestMarks(event, gender, year, limit, ageCategory || undefined),
+    isRelay ? Promise.resolve([]) : getEventYearlyProgression(event, gender, ageCategory || undefined),
   ]);
+
+  const extraParams = `${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
       <main className="mx-auto max-w-6xl px-6 py-6">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
           <h1 className="text-2xl font-bold">{eventLabel(event)}</h1>
-          {availableGenders.length > 1 && (
-            <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
-              {availableGenders.map((g) => (
-                <Link
-                  key={g}
-                  href={`/events/${slug}?gender=${g}${yearParam ? `&year=${yearParam}` : ""}`}
-                  className={`px-3 py-1.5 rounded ${g === gender ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-                >
-                  {g}
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {availableGenders.length > 1 && (
+              <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+                {availableGenders.map((g) => (
+                  <Link
+                    key={g}
+                    href={`/events/${slug}?gender=${g}&year=${year}${extraParams}`}
+                    className={`px-3 py-1.5 rounded ${g === gender ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                  >
+                    {g}
+                  </Link>
+                ))}
+              </div>
+            )}
+            <EventFilters
+              year={year}
+              ageCategory={ageCategory}
+              limit={limit}
+              baseHref={`/events/${slug}?gender=${gender}`}
+            />
+          </div>
         </div>
+
+        {progression.length >= 2 && (
+          <section className="mb-8">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
+              Best Mark by Year
+            </h2>
+            <YearlyProgressionChart data={progression} isField={isFieldEvent(event)} />
+          </section>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <section>
@@ -137,7 +166,7 @@ export default async function EventPage({
               <YearSelect
                 years={years.includes(year) ? years : [year, ...years]}
                 year={year}
-                baseHref={`/events/${slug}?gender=${gender}`}
+                baseHref={`/events/${slug}?gender=${gender}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}`}
               />
             </div>
             <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">

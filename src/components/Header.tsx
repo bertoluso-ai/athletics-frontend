@@ -15,7 +15,7 @@ export default function Header() {
 
   return (
     <header className="border-b border-neutral-800 bg-neutral-900">
-      <div className="mx-auto max-w-6xl px-6 py-3 flex items-center gap-8">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-8">
         <Link href="/" className="flex items-center gap-2 shrink-0">
           <span className="font-black tracking-tight text-lg bg-orange-500 text-black px-2.5 py-1 rounded">
             AIR

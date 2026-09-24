@@ -76,6 +76,8 @@ export type PersonalBestRow = {
   event_name: string;
   year: number;
   all_time_rank: number | null;
+  wind: string | null;
+  wind_legal: boolean | null;
 };
 
 // Personal bests, each annotated with the athlete's all-time world rank in
@@ -83,18 +85,25 @@ export type PersonalBestRow = {
 // same "one entry per athlete" rule as getEventAllTimeBest). Restricted via
 // a join to only the handful of disciplines this athlete has a PB in, so it
 // doesn't rank the entire table.
-export async function getAthletePersonalBests(athleteId: string): Promise<PersonalBestRow[]> {
+export async function getAthletePersonalBests(
+  athleteId: string,
+  includeIllegalWind = false
+): Promise<PersonalBestRow[]> {
+  // By default (matching Rankings), a wind-illegal result is excluded from
+  // an athlete's personal best entirely -- if their only mark in a wind-
+  // affected discipline was illegal, that discipline just doesn't appear.
+  const windFilter = includeIllegalWind ? "" : "AND (wind_legal IS NULL OR wind_legal = TRUE)";
   return runQuery<PersonalBestRow>(`
     WITH my_pbs AS (
-      SELECT athletics_event, gender, mark_display, event_name, year, mark_seconds AS sort_val,
+      SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY mark_seconds ASC) AS rk
       FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE athlete_id = @athleteId AND mark_seconds IS NOT NULL
+      WHERE athlete_id = @athleteId AND mark_seconds IS NOT NULL ${windFilter}
       UNION ALL
-      SELECT athletics_event, gender, mark_display, event_name, year, SAFE_CAST(mark AS FLOAT64) AS sort_val,
+      SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, SAFE_CAST(mark AS FLOAT64) AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY SAFE_CAST(mark AS FLOAT64) DESC) AS rk
       FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE athlete_id = @athleteId AND mark_seconds IS NULL AND SAFE_CAST(mark AS FLOAT64) IS NOT NULL
+      WHERE athlete_id = @athleteId AND mark_seconds IS NULL AND SAFE_CAST(mark AS FLOAT64) IS NOT NULL ${windFilter}
     ),
     my_disciplines AS (
       SELECT DISTINCT athletics_event, gender FROM my_pbs WHERE rk = 1
@@ -115,6 +124,7 @@ export async function getAthletePersonalBests(athleteId: string): Promise<Person
       JOIN my_disciplines d ON d.athletics_event = e.athletics_event AND d.gender = e.gender
       WHERE e.athlete_id IS NOT NULL
         AND (e.mark_seconds IS NOT NULL OR SAFE_CAST(e.mark AS FLOAT64) IS NOT NULL)
+        ${windFilter}
       GROUP BY e.athletics_event, e.gender, e.athlete_id
     ),
     ranked AS (
@@ -125,7 +135,8 @@ export async function getAthletePersonalBests(athleteId: string): Promise<Person
         ) AS rnk
       FROM global_best
     )
-    SELECT p.athletics_event, p.gender, p.mark_display, p.event_name, p.year, r.rnk AS all_time_rank
+    SELECT p.athletics_event, p.gender, p.mark_display, p.event_name, p.year,
+      p.wind, p.wind_legal, r.rnk AS all_time_rank
     FROM my_pbs p
     LEFT JOIN ranked r
       ON r.athletics_event = p.athletics_event AND r.gender = p.gender AND r.athlete_id = @athleteId
@@ -533,10 +544,13 @@ export type MarkRow = {
   record: string | null;
 };
 
-export async function getEventAllTimeBest(event: string, gender: string, limit = 10): Promise<MarkRow[]> {
+export async function getEventAllTimeBest(
+  event: string, gender: string, limit = 10, ageCategory?: string
+): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+  const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
   return runQuery<MarkRow>(`
     SELECT athlete_id, athlete_display_name AS display_name, mark_display, event_name, CAST(date AS STRING) AS date, nationality,
@@ -546,6 +560,7 @@ export async function getEventAllTimeBest(event: string, gender: string, limit =
       AND athlete_display_name IS NOT NULL
       AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
       ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
     ORDER BY ${orderExpr}
     LIMIT ${limit}
@@ -565,11 +580,13 @@ export async function getEventYearBestMarks(
   event: string,
   gender: string,
   year: number,
-  limit = 10
+  limit = 10,
+  ageCategory?: string
 ): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+  const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
   return runQuery<MarkRow>(`
     SELECT athlete_id, athlete_display_name AS display_name, mark_display, event_name, CAST(date AS STRING) AS date, nationality,
@@ -579,6 +596,7 @@ export async function getEventYearBestMarks(
       AND athlete_display_name IS NOT NULL
       AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
       ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
     ORDER BY ${orderExpr}
     LIMIT ${limit}
@@ -648,17 +666,31 @@ export async function getEventYearBestMarksRelay(
 // browsed (e.g. "Prefontaine Classic" 2019, 2020, 2021...).
 // ---------------------------------------------------------------------
 
+// Editions of the same meet series often carry an ordinal prefix that
+// differs by year ("The XXVI Olympic Games", "The XXXIII Olympic Games")
+// even though it's the same recurring competition. events_enriched
+// already has this resolved via display_series_name (curated upstream,
+// covers ~99.9998% of rows) -- match on that instead of the literal
+// event_name, so any edition's link resolves to the same meet page and
+// the year selector there can list every edition. Falls back to a plain
+// event_name match for the handful of rows with no series data.
+const MEET_SERIES_MATCH_SQL = `
+  (display_series_name = (SELECT ANY_VALUE(display_series_name) FROM \`athletics-database.athletics_all.events_enriched\` WHERE event_name = @eventName)
+   OR event_name = @eventName)
+`;
+
 export async function getMeetAvailableYears(eventName: string): Promise<number[]> {
   const rows = await runQuery<{ year: number }>(`
     SELECT DISTINCT year
     FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE event_name = @eventName AND year IS NOT NULL
+    WHERE ${MEET_SERIES_MATCH_SQL} AND year IS NOT NULL
     ORDER BY year DESC
   `, { eventName });
   return rows.map((r) => r.year);
 }
 
 export type MeetResultRow = {
+  event_name: string;
   athletics_event: string;
   gender: string;
   place: number | null;
@@ -676,14 +708,45 @@ export type MeetResultRow = {
 
 export async function getMeetResults(eventName: string, year: number): Promise<MeetResultRow[]> {
   return runQuery<MeetResultRow>(`
-    SELECT athletics_event, gender, place, athlete_id,
+    SELECT event_name, athletics_event, gender, place, athlete_id,
       athlete_display_name AS display_name, mark_display, nationality,
       NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
     FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE event_name = @eventName AND year = @year
+    WHERE ${MEET_SERIES_MATCH_SQL} AND year = @year
       AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%'))
       AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
       AND athlete_display_name IS NOT NULL
     ORDER BY athletics_event, gender, place ASC NULLS LAST
   `, { eventName, year });
+}
+
+// ---------------------------------------------------------------------
+// Year-by-year progression of the best mark, for the evolution chart on
+// the discipline page (one point per year: that year's single best mark).
+// ---------------------------------------------------------------------
+
+export type YearProgressionPoint = { year: number; mark_display: string; mark_value: number };
+
+export async function getEventYearlyProgression(
+  event: string,
+  gender: string,
+  ageCategory?: string
+): Promise<YearProgressionPoint[]> {
+  const isField = isFieldEvent(event);
+  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+  const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
+
+  return runQuery<YearProgressionPoint>(`
+    SELECT year, mark_display,
+      ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE athletics_event = @event AND gender = @gender AND year IS NOT NULL
+      AND athlete_display_name IS NOT NULL
+      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
+      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY year ORDER BY ${orderExpr}) = 1
+    ORDER BY year ASC
+  `, { event, gender });
 }

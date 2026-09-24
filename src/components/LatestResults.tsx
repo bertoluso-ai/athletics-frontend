@@ -69,15 +69,15 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+      <div className="mb-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
           Latest Results
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 sm:flex sm:items-center gap-2">
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
-            className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
             {ALL_EVENTS.map((ev) => (
@@ -89,7 +89,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value)}
-            className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All categories</option>
             {TIERS.map((t) => (
@@ -101,7 +101,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
           <select
             value={nationality}
             onChange={(e) => setNationality(e.target.value)}
-            className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="w-full sm:w-auto bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All nationalities</option>
             {nationalities.map((n) => (
@@ -122,24 +122,24 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
         {!loading &&
           races.map((race) => (
             <div key={race.key} className="border border-neutral-800 rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 bg-neutral-900">
-                <div className="min-w-0">
-                  <Link href={`/events/${eventSlug(race.athletics_event)}`} className="text-sm font-medium hover:text-orange-400">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-4 py-2 bg-neutral-900">
+                <div className="min-w-0 flex flex-wrap items-baseline gap-x-2">
+                  <Link href={`/events/${eventSlug(race.athletics_event)}`} className="text-sm font-medium hover:text-orange-400 shrink-0">
                     {eventLabel(race.athletics_event)}
                   </Link>
-                  <span className="text-neutral-500 mx-2">·</span>
+                  <span className="text-neutral-500 shrink-0">·</span>
                   <Link
                     href={`/meets/${encodeURIComponent(race.event_name)}?year=${race.date.slice(0, 4)}&discipline=${encodeURIComponent(race.athletics_event)}&gender=${race.gender}`}
-                    className="text-sm text-neutral-400 hover:text-orange-400 truncate"
+                    className="text-sm text-neutral-400 hover:text-orange-400 truncate min-w-0"
                   >
                     {race.event_name}
                   </Link>
                   {race.city && (
-                    <span className="text-xs text-neutral-500 ml-2">
+                    <span className="text-xs text-neutral-500 shrink-0">
                       {race.city}{race.country ? `, ${race.country}` : ""}
                     </span>
                   )}
-                  <span className="text-xs text-neutral-500 ml-2">
+                  <span className="text-xs text-neutral-500 shrink-0">
                     {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
                   </span>
                 </div>
