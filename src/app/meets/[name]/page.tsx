@@ -4,7 +4,7 @@ import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getMeetAvailableYears, getMeetResults } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
 
 export const revalidate = 3600;
 
@@ -13,6 +13,10 @@ function formatDate(iso: string | null) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function tierLabel(code: string) {
+  return TIER_LABELS.find((t) => t.value === code)?.label ?? code;
 }
 
 export default async function MeetPage({
@@ -36,6 +40,7 @@ export default async function MeetPage({
   );
   const first = results[0];
   const meetDate = formatDate(first?.date ?? null);
+  const tiers = Array.from(new Set(results.map((r) => r.division_key_resolved).filter((t): t is string => !!t)));
 
   const disciplineOptions = Array.from(new Set(allGroups.map((g) => g.athletics_event)))
     .sort((a, b) => a.localeCompare(b))
@@ -79,6 +84,9 @@ export default async function MeetPage({
                 {first?.city}{first?.country ? `, ${first.country}` : ""}
                 {meetDate && <span className="text-neutral-500">{first?.city ? " · " : ""}{meetDate}</span>}
               </p>
+            )}
+            {tiers.length > 0 && (
+              <p className="text-xs text-neutral-500 mt-1">{tiers.map(tierLabel).join(", ")}</p>
             )}
           </div>
           <YearSelect years={years} year={year} baseHref={`/meets/${encodeURIComponent(eventName)}`} />

@@ -4,6 +4,11 @@ import Header from "@/components/Header";
 import YearSelect from "@/components/YearSelect";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getCompetitionResults, getCompetitionYears } from "@/lib/queries";
+import { TIER_LABELS } from "@/lib/events";
+
+function tierLabel(code: string) {
+  return TIER_LABELS.find((t) => t.value === code)?.label ?? code;
+}
 
 export const revalidate = 3600;
 
@@ -61,7 +66,9 @@ export default async function CompetitionDetailPage({
               </p>
             )}
             {tiers.length > 0 && (
-              <p className="text-xs text-neutral-500 mt-1">Tier: {tiers.join(", ")}</p>
+              <p className="text-xs text-neutral-500 mt-1">
+                Tier: {tiers.map((t) => `${t} (${tierLabel(t)})`).join(", ")}
+              </p>
             )}
           </div>
           <YearSelect years={years} year={year} baseHref={`/competitions/${encodeURIComponent(eventName)}`} />
