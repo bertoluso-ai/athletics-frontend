@@ -13,6 +13,10 @@ const DISCIPLINE_OPTIONS = Array.from(
   .sort((a, b) => eventLabel(a).localeCompare(eventLabel(b)))
   .map((value) => ({ value, label: eventLabel(value) }));
 
+function tierLabel(code: string) {
+  return TIER_LABELS.find((t) => t.value === code)?.label ?? code;
+}
+
 type Gender = "" | "Men" | "Women";
 
 type CompetitionListRow = {
@@ -228,8 +232,12 @@ export default function CompetitionsExplorer() {
                         {r.event_name}
                       </span>
                     </span>
-                    <span className="flex items-center gap-3 shrink-0 text-xs text-neutral-500">
-                      {r.tiers.length > 0 && <span className="font-mono">{r.tiers.join("/")}</span>}
+                    <span className="flex items-center gap-1.5 shrink-0 text-xs text-neutral-500">
+                      {r.tiers.map((t) => (
+                        <span key={t} title={tierLabel(t)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                          {t}
+                        </span>
+                      ))}
                       <span>
                         {r.min_year === r.max_year ? r.min_year : `${r.min_year}–${r.max_year}`}
                         {r.n_editions > 1 && ` (${r.n_editions})`}

@@ -79,14 +79,18 @@ export default async function MeetPage({
         <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-bold">{first?.series_name ?? eventName}</h1>
-            {(first?.city || meetDate) && (
-              <p className="text-sm text-neutral-400">
-                {first?.city}{first?.country ? `, ${first.country}` : ""}
-                {meetDate && <span className="text-neutral-500">{first?.city ? " · " : ""}{meetDate}</span>}
+            {(first?.city || meetDate || tiers.length > 0) && (
+              <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
+                <span>
+                  {first?.city}{first?.country ? `, ${first.country}` : ""}
+                  {meetDate && <span className="text-neutral-500">{first?.city ? " · " : ""}{meetDate}</span>}
+                </span>
+                {tiers.map((t) => (
+                  <span key={t} title={tierLabel(t)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                    {t}
+                  </span>
+                ))}
               </p>
-            )}
-            {tiers.length > 0 && (
-              <p className="text-xs text-neutral-500 mt-1">{tiers.map(tierLabel).join(", ")}</p>
             )}
           </div>
           <YearSelect years={years} year={year} baseHref={`/meets/${encodeURIComponent(eventName)}`} />

@@ -59,15 +59,17 @@ export default async function CompetitionDetailPage({
             {first?.series_name && first.series_name !== eventName && (
               <p className="text-xs text-orange-400 mt-1">Grouped under: {first.series_name}</p>
             )}
-            {(first?.city || date) && (
-              <p className="text-sm text-neutral-400">
-                {first?.city}{first?.country ? `, ${first.country}` : ""}
-                {date && <span className="text-neutral-500">{first?.city ? " · " : ""}{date}</span>}
-              </p>
-            )}
-            {tiers.length > 0 && (
-              <p className="text-xs text-neutral-500 mt-1">
-                Tier: {tiers.map((t) => `${t} (${tierLabel(t)})`).join(", ")}
+            {(first?.city || date || tiers.length > 0) && (
+              <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
+                <span>
+                  {first?.city}{first?.country ? `, ${first.country}` : ""}
+                  {date && <span className="text-neutral-500">{first?.city ? " · " : ""}{date}</span>}
+                </span>
+                {tiers.map((t) => (
+                  <span key={t} title={tierLabel(t)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                    {t}
+                  </span>
+                ))}
               </p>
             )}
           </div>
