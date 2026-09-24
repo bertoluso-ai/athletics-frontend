@@ -1066,6 +1066,7 @@ export async function getMeetResults(eventName: string, year: number): Promise<M
 export type CompetitionListRow = {
   event_name: string;
   display_series_name: string | null;
+  series_key: string | null;
   tiers: string[];
   min_year: number;
   max_year: number;
@@ -1083,6 +1084,14 @@ export async function getCompetitionsList(filters: {
   return runQuery<CompetitionListRow>(`
     SELECT event_name,
       ANY_VALUE(display_series_name) AS display_series_name,
+      -- Same key the real /meets/[name] page groups editions by
+      -- (MEET_SERIES_MATCH_SQL) -- grouping this debug list by the raw
+      -- stored display_series_name instead would show fragmentation
+      -- that isn't actually real: e.g. "World Athletics Championships,
+      -- Budapest" and "World Championships" already merge on the real
+      -- page (both normalize to the same key) even though their stored
+      -- display_series_name differs.
+      ANY_VALUE(${normalizeSeries("display_series_name")}) AS series_key,
       ARRAY_AGG(DISTINCT division_key_resolved IGNORE NULLS) AS tiers,
       MIN(year) AS min_year, MAX(year) AS max_year,
       COUNT(DISTINCT year) AS n_editions

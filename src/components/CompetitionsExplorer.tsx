@@ -18,6 +18,7 @@ type Gender = "" | "Men" | "Women";
 type CompetitionListRow = {
   event_name: string;
   display_series_name: string | null;
+  series_key: string | null;
   tiers: string[];
   min_year: number;
   max_year: number;
@@ -83,24 +84,37 @@ export default function CompetitionsExplorer() {
   const selectClass =
     "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
 
-  // Grouped by canonical name first -- the whole point of this page is
-  // seeing everything that got grouped under one normalized series at a
-  // glance (spotting both over-merging, e.g. "European Team
-  // Championships" wrongly under "European Championships", and under-
-  // merging, e.g. a meet fragmented across sponsor-name spellings).
+  // Grouped by series_key -- the SAME normalized key the real
+  // /meets/[name] page groups editions by (MEET_SERIES_MATCH_SQL
+  // compares normalizeSeries(display_series_name), not the raw stored
+  // value). Grouping this list by the raw display_series_name instead
+  // would show fragmentation that isn't real: e.g. "World Athletics
+  // Championships, Budapest" and "World Championships" already merge on
+  // the real page (both normalize to the same key), even though their
+  // stored display_series_name differs. Since any raw name in the group
+  // works as a /meets/ entry point (the real page pulls in every
+  // sibling via the same key), the group links to whichever raw name has
+  // the most editions -- just the most likely to be recognizable, not a
+  // "canonical" pick.
   const seriesGroups = useMemo(() => {
     const groups = new Map<string, CompetitionListRow[]>();
     for (const r of rows) {
-      const key = r.display_series_name ?? r.event_name;
+      const key = r.series_key ?? r.display_series_name ?? r.event_name;
       const arr = groups.get(key) ?? [];
       arr.push(r);
       groups.set(key, arr);
     }
     return Array.from(groups.entries())
-      .map(([seriesName, entries]) => ({
-        seriesName,
-        entries: entries.sort((a, b) => a.event_name.localeCompare(b.event_name)),
-      }))
+      .map(([seriesKey, entries]) => {
+        const sorted = entries.sort((a, b) => a.event_name.localeCompare(b.event_name));
+        const representative = [...entries].sort((a, b) => b.n_editions - a.n_editions)[0];
+        return {
+          seriesKey,
+          seriesName: representative.display_series_name ?? representative.event_name,
+          linkName: representative.event_name,
+          entries: sorted,
+        };
+      })
       .sort((a, b) => a.seriesName.localeCompare(b.seriesName));
   }, [rows]);
 
@@ -189,9 +203,9 @@ export default function CompetitionsExplorer() {
       {!loading && (
         <div className="flex flex-col gap-4">
           {seriesGroups.map((g) => (
-            <div key={g.seriesName} className="border border-neutral-800 rounded-lg overflow-hidden">
+            <div key={g.seriesKey} className="border border-neutral-800 rounded-lg overflow-hidden">
               <Link
-                href={`/meets/${encodeURIComponent(g.seriesName)}${year ? `?year=${year}` : ""}`}
+                href={`/meets/${encodeURIComponent(g.linkName)}${year ? `?year=${year}` : ""}`}
                 className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-3 hover:bg-neutral-800"
               >
                 <span className="min-w-0">
@@ -210,7 +224,7 @@ export default function CompetitionsExplorer() {
                     className="flex items-center justify-between gap-3 px-4 py-2 hover:bg-neutral-800"
                   >
                     <span className="min-w-0">
-                      <span className={`text-sm block truncate ${r.event_name !== g.seriesName ? "text-neutral-300" : ""}`}>
+                      <span className={`text-sm block truncate ${r.event_name !== g.linkName ? "text-neutral-300" : ""}`}>
                         {r.event_name}
                       </span>
                     </span>
