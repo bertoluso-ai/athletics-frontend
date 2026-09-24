@@ -11,6 +11,7 @@ import { usePathname } from "next/navigation";
 const NAV_ITEMS = [
   { label: "Home", href: "/" },
   { label: "Rankings", href: "/rankings" },
+  { label: "Competitions", href: "/competitions" },
 ];
 
 export default function MobileNav() {

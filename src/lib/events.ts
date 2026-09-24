@@ -111,6 +111,21 @@ export function tierPriority(tier: string | null | undefined): number {
   return TIER_PRIORITY[tier] ?? 50;
 }
 
+// Human-readable label per tier code, ordered highest to lowest (same
+// order as TIER_PRIORITY) -- for the Competitions browser's tier filter.
+export const TIER_LABELS: { value: string; label: string }[] = [
+  { value: "OW", label: "Olympics / World Championships" },
+  { value: "DF", label: "Diamond League Final" },
+  { value: "GW", label: "World-level Championships" },
+  { value: "GL", label: "Continental Championships" },
+  { value: "A", label: "Tier A" },
+  { value: "B", label: "Tier B" },
+  { value: "C", label: "Tier C" },
+  { value: "D", label: "Tier D" },
+  { value: "E", label: "Tier E" },
+  { value: "F", label: "Tier F" },
+];
+
 // Field events are measured in metres (higher/farther is better); everything
 // else is a time (lower is better) -- used to pick sort direction for marks.
 export const FIELD_EVENTS = [

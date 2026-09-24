@@ -1018,6 +1018,7 @@ export type MeetResultRow = {
   date: string | null;
   wind: string | null;
   wind_legal: boolean | null;
+  division_key_resolved: string | null;
 };
 
 // NOTE: some historical sources (mainly dlmeetings) run several unlabelled
@@ -1042,7 +1043,8 @@ export async function getMeetResults(eventName: string, year: number): Promise<M
       athlete_display_name AS display_name, mark_display,
       IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
       nationality,
-      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
+      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal,
+      division_key_resolved
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE ${MEET_SERIES_MATCH_SQL} AND year = @year
       AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
@@ -1115,7 +1117,8 @@ export async function getCompetitionResults(eventName: string, year: number): Pr
       athlete_display_name AS display_name, mark_display,
       IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
       nationality,
-      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal
+      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal,
+      division_key_resolved
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE event_name = @eventName AND year = @year
       AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
