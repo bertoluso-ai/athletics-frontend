@@ -2,7 +2,16 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
+import { EVENT_GROUPS, TIER_LABELS, eventLabel } from "@/lib/events";
+
+// Flattened, deduped list of every individual discipline the site
+// normalizes results into -- same catalog as the Rankings/meet-page
+// discipline selects, just not split by gender here.
+const DISCIPLINE_OPTIONS = Array.from(
+  new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
+)
+  .sort((a, b) => eventLabel(a).localeCompare(eventLabel(b)))
+  .map((value) => ({ value, label: eventLabel(value) }));
 
 type Gender = "" | "Men" | "Women";
 
@@ -30,6 +39,7 @@ export default function CompetitionsExplorer() {
   const [tier, setTier] = useState("");
   const [year, setYear] = useState<number | "">("");
   const [categoryKey, setCategoryKey] = useState("");
+  const [discipline, setDiscipline] = useState("");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -49,10 +59,14 @@ export default function CompetitionsExplorer() {
     if (tier) params.set("tier", tier);
     if (year) params.set("year", String(year));
     if (debouncedSearch) params.set("search", debouncedSearch);
-    const category = EVENT_GROUPS.find((g) => g.key === categoryKey);
-    if (category) {
-      const disciplines = Array.from(new Set([...category.events.Men, ...category.events.Women]));
-      params.set("disciplines", disciplines.join(","));
+    if (discipline) {
+      params.set("disciplines", discipline);
+    } else {
+      const category = EVENT_GROUPS.find((g) => g.key === categoryKey);
+      if (category) {
+        const disciplines = Array.from(new Set([...category.events.Men, ...category.events.Women]));
+        params.set("disciplines", disciplines.join(","));
+      }
     }
     fetch(`/api/competitions?${params.toString()}`)
       .then((r) => r.json())
@@ -64,7 +78,7 @@ export default function CompetitionsExplorer() {
     return () => {
       cancelled = true;
     };
-  }, [gender, tier, year, categoryKey, debouncedSearch]);
+  }, [gender, tier, year, categoryKey, discipline, debouncedSearch]);
 
   const selectClass =
     "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
@@ -102,11 +116,28 @@ export default function CompetitionsExplorer() {
         </select>
       </div>
 
+      <select
+        value={discipline}
+        onChange={(e) => {
+          setDiscipline(e.target.value);
+          if (e.target.value) setCategoryKey("");
+        }}
+        className={`${selectClass} w-full mb-3`}
+      >
+        <option value="">All disciplines (normalized)</option>
+        {DISCIPLINE_OPTIONS.map((d) => (
+          <option key={d.value} value={d.value}>{d.label}</option>
+        ))}
+      </select>
+
       <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 mb-4">
         <button
-          onClick={() => setCategoryKey("")}
+          onClick={() => {
+            setCategoryKey("");
+            setDiscipline("");
+          }}
           className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-            categoryKey === "" ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
+            categoryKey === "" && !discipline ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
           }`}
         >
           All disciplines
@@ -114,9 +145,12 @@ export default function CompetitionsExplorer() {
         {EVENT_GROUPS.map((g) => (
           <button
             key={g.key}
-            onClick={() => setCategoryKey(g.key)}
+            onClick={() => {
+              setCategoryKey(g.key);
+              setDiscipline("");
+            }}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-              categoryKey === g.key ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400"
+              categoryKey === g.key && !discipline ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400"
             }`}
           >
             {g.label}
