@@ -162,7 +162,7 @@ export default async function AthletePage({
                   const c = championships.find((x) => x.kind === kind);
                   const n = c?.editions.length ?? 0;
                   return (
-                    <div key={kind} className="flex items-center gap-2">
+                    <div key={kind} className="hidden lg:flex items-center gap-2">
                       <dt className="w-20 shrink-0 flex items-center" aria-hidden="true">
                         {kind === "olympics" ? (
                           <OlympicRings />
@@ -188,6 +188,28 @@ export default async function AthletePage({
                   );
                 })}
               </dl>
+            </div>
+            {/* phones: Olympian / Worlds / Nationals as one swipeable strip under the bio */}
+            <div className="lg:hidden pill-row flex flex-nowrap overflow-x-auto gap-2 mt-3 -mx-3 px-3">
+              {(["olympics", "worlds", "nationals"] as const).map((kind) => {
+                const c = championships.find((x) => x.kind === kind);
+                const n = c?.editions.length ?? 0;
+                return (
+                  <span
+                    key={kind}
+                    className={`shrink-0 flex items-center gap-1.5 rounded-full border border-neutral-800 bg-neutral-900/60 px-2.5 py-1 text-xs whitespace-nowrap ${
+                      n ? "text-neutral-200" : "text-neutral-500"
+                    }`}
+                  >
+                    {kind === "olympics" ? <OlympicRings /> : kind === "worlds" ? <span>🌍</span> : <Flag code={info.nationality} className="w-4 h-3" />}
+                    {kind === "olympics" ? "Olympian" : kind === "worlds" ? "Worlds" : "Nationals"}
+                    <span className={`font-mono ${n ? "text-orange-400" : "text-neutral-500"}`}>×{n}</span>
+                    {c && c.gold > 0 && <span>🥇{c.gold}</span>}
+                    {c && c.silver > 0 && <span>🥈{c.silver}</span>}
+                    {c && c.bronze > 0 && <span>🥉{c.bronze}</span>}
+                  </span>
+                );
+              })}
             </div>
           </section>
 
