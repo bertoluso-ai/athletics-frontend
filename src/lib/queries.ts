@@ -1180,3 +1180,57 @@ export async function getEventYearlyProgression(
     ORDER BY year ASC
   `, { event, gender });
 }
+
+// ---------------------------------------------------------------------
+// Olympic / World Championships record of an athlete, for the bio box:
+// appearances (distinct editions) and medals. OW tier holds exactly the
+// Olympics and the outdoor Worlds (plus the new Ultimate Championship,
+// left out). Medals only from finals.
+// ---------------------------------------------------------------------
+
+export type ChampionshipRecord = {
+  kind: "olympics" | "worlds";
+  editions: { year: number; event_name: string }[];
+  gold: number;
+  silver: number;
+  bronze: number;
+};
+
+export async function getAthleteChampionships(athleteId: string): Promise<ChampionshipRecord[]> {
+  return runQuery<ChampionshipRecord>(`
+    WITH r AS (
+      SELECT
+        IF(REGEXP_CONTAINS(event_name, r'(?i)olympic games'), 'olympics', 'worlds') AS kind,
+        year, event_name, athletics_event, place, round
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE athlete_id = @athleteId AND division_key_resolved = 'OW'
+        AND NOT REGEXP_CONTAINS(event_name, r'(?i)ultimate')
+    ),
+    editions AS (
+      SELECT kind, year, ANY_VALUE(event_name) AS event_name FROM r GROUP BY kind, year
+    ),
+    medals AS (
+      -- one medal per discipline and edition (100m gold + relay gold the
+      -- same year are two medals), finals only
+      SELECT kind,
+        COUNTIF(place = 1) AS gold, COUNTIF(place = 2) AS silver, COUNTIF(place = 3) AS bronze
+      FROM (
+        SELECT DISTINCT kind, year, athletics_event, place
+        FROM r
+        WHERE place BETWEEN 1 AND 3
+          AND (round IS NULL OR round = ''
+               OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semi%' AND LOWER(round) NOT LIKE '%quarter%'))
+      )
+      GROUP BY kind
+    )
+    SELECT e.kind,
+      ARRAY_AGG(STRUCT(e.year AS year, e.event_name AS event_name) ORDER BY e.year) AS editions,
+      IFNULL(ANY_VALUE(m.gold), 0) AS gold,
+      IFNULL(ANY_VALUE(m.silver), 0) AS silver,
+      IFNULL(ANY_VALUE(m.bronze), 0) AS bronze
+    FROM editions e
+    LEFT JOIN medals m USING (kind)
+    GROUP BY e.kind
+    ORDER BY e.kind DESC
+  `, { athleteId });
+}

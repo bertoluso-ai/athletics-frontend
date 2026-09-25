@@ -11,6 +11,7 @@ import {
   getAthletePersonalBests,
   getAthleteYearlyPoints,
   getAthleteResultsForYear,
+  getAthleteChampionships,
 } from "@/lib/queries";
 import { getAthletePhoto } from "@/lib/wikipedia";
 import { eventCategory, eventLabel } from "@/lib/events";
@@ -34,12 +35,13 @@ export default async function AthletePage({
   const info = await getAthleteInfo(id);
   if (!info) notFound();
 
-  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo] = await Promise.all([
+  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships] = await Promise.all([
     getAthleteEvents(id),
     getAthleteBestResults(id, 5),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
     getAthletePhoto(info.display_name),
+    getAthleteChampionships(id),
   ]);
 
   // Default: every discipline, most recent year -- the full picture of the
@@ -139,6 +141,48 @@ export default async function AthletePage({
                   <dt className="text-neutral-500 w-20 shrink-0">Active</dt>
                   <dd className="text-neutral-300">{info.first_year}–{info.last_year}</dd>
                 </div>
+                {/* Olympic / World Championships record */}
+                {championships.length > 0 && (
+                  <div className="pt-2 flex flex-col gap-2">
+                    {championships.map((c) => (
+                      <div key={c.kind} className="flex items-start gap-2">
+                        <span className="w-6 shrink-0 flex justify-center pt-0.5" aria-hidden="true">
+                          {c.kind === "olympics" ? <OlympicRings /> : <span className="text-base leading-none">🌍</span>}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                            <span className="font-semibold text-neutral-100">
+                              {c.kind === "olympics" ? "Olympian" : "World Championships"}
+                            </span>
+                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                              ×{c.editions.length}
+                            </span>
+                            {c.gold + c.silver + c.bronze > 0 && (
+                              <span className="text-xs text-neutral-300 whitespace-nowrap">
+                                {c.gold > 0 && <span className="mr-1.5">🥇{c.gold}</span>}
+                                {c.silver > 0 && <span className="mr-1.5">🥈{c.silver}</span>}
+                                {c.bronze > 0 && <span>🥉{c.bronze}</span>}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-neutral-500">
+                            {c.editions.map((e, j) => (
+                              <span key={e.year}>
+                                {j > 0 && " · "}
+                                <Link
+                                  href={`/meets/${encodeURIComponent(e.event_name)}?year=${e.year}`}
+                                  className="hover:text-orange-400"
+                                >
+                                  {e.year}
+                                </Link>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </dl>
             </div>
           </section>
@@ -350,5 +394,23 @@ export default async function AthletePage({
         </div>
       </main>
     </div>
+  );
+}
+
+function OlympicRings() {
+  // five rings, official colours; small enough to sit beside a text line
+  const rings = [
+    { cx: 5, cy: 5, c: "#0081C8" },
+    { cx: 12, cy: 5, c: "#E5E5E5" },
+    { cx: 19, cy: 5, c: "#EE334E" },
+    { cx: 8.5, cy: 8.5, c: "#FCB131" },
+    { cx: 15.5, cy: 8.5, c: "#00A651" },
+  ];
+  return (
+    <svg viewBox="0 0 24 14" className="w-6 h-3.5">
+      {rings.map((r) => (
+        <circle key={r.c} cx={r.cx} cy={r.cy} r="3.3" fill="none" stroke={r.c} strokeWidth="1.2" />
+      ))}
+    </svg>
   );
 }
