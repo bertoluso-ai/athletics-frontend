@@ -12,9 +12,10 @@ export const revalidate = 3600;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-function fmtRange(a: string, b: string) {
+function fmtRange(a: string | null, b: string | null) {
+  if (!a) return "—"; // source gives only the year
   const d = (s: string) => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
-  return a === b ? d(a) : `${d(a)} › ${d(b)}`;
+  return !b || a === b ? d(a) : `${d(a)} › ${d(b)}`;
 }
 
 function TierBadge({ tier }: { tier: string | null }) {
@@ -99,7 +100,7 @@ export default async function CalendarPage({
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => {
-              const live = r.kind === "upcoming" && r.date_start <= today && r.date_end >= today;
+              const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
               return (
                 <div
                   key={i}

@@ -44,7 +44,7 @@ function lastName(fullName: string) {
 const GLOBAL_KEY = "global";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const YEARS = Array.from({ length: CURRENT_YEAR - 1979 }, (_, i) => CURRENT_YEAR - i);
+const YEARS = Array.from({ length: CURRENT_YEAR - 1895 }, (_, i) => CURRENT_YEAR - i); // data starts with the 1896 Olympics
 const AGE_CATEGORIES: { value: AgeCategory; label: string }[] = [
   { value: "", label: "Senior (all ages)" },
   { value: "U23", label: "U23" },

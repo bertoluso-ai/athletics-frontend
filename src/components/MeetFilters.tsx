@@ -41,6 +41,18 @@ export default function MeetFilters({
     <div className="flex flex-col gap-2">
       {categories.length > 1 && (
         <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 -mx-3 px-3 sm:mx-0 sm:px-0">
+          {/* "All" clears every filter -- the way back to the whole meet when
+              arriving from a link that pre-selects one discipline */}
+          <button
+            onClick={() => go("", "", "")}
+            className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
+              !category && !discipline && !gender
+                ? "bg-neutral-100 text-black border-neutral-100"
+                : "border-neutral-700 text-neutral-400"
+            }`}
+          >
+            All
+          </button>
           {categories.map((c) => (
             <button
               key={c.key}

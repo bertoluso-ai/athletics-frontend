@@ -154,14 +154,17 @@ export default async function AthletePage({
                       "—"
                     )}
                     {formerNats.length > 0 && (
-                      <span className="text-xs text-neutral-500 whitespace-nowrap">
-                        · formerly{" "}
-                        {formerNats.map((h, j) => (
-                          <span key={h.nationality}>
-                            {j > 0 && ", "}
-                            <Flag code={h.nationality} className="w-3.5 h-2.5 mr-0.5" />
-                            {h.nationality} {h.first_year === h.last_year ? `'${String(h.first_year).slice(2)}` : `'${String(h.first_year).slice(2)}–'${String(h.last_year).slice(2)}`}
-                          </span>
+                      // former countries: just their flag(s); the years live in the tooltip
+                      <span className="flex items-center gap-1">
+                        {formerNats.map((h) => (
+                          <Link
+                            key={h.nationality}
+                            href={`/countries/${h.nationality}`}
+                            title={`Formerly ${h.nationality} (${h.first_year === h.last_year ? h.first_year : `${h.first_year}–${h.last_year}`})`}
+                            className="opacity-80 hover:opacity-100"
+                          >
+                            <Flag code={h.nationality} className="w-4 h-3" />
+                          </Link>
                         ))}
                       </span>
                     )}
@@ -184,7 +187,7 @@ export default async function AthletePage({
                 {/* Olympic / World Championships record: always both lines
                     (x0 when never there), one compact line each so the bio
                     stays within the photo's height */}
-                {(["olympics", "worlds", "nationals"] as const).map((kind) => {
+                {(["olympics", "worlds", "nationals"] as const).filter((k) => k !== "nationals" || championships.some((c) => c.kind === "nationals")).map((kind) => {
                   const c = championships.find((x) => x.kind === kind);
                   const n = c?.editions.length ?? 0;
                   return (
@@ -217,7 +220,7 @@ export default async function AthletePage({
             </div>
             {/* phones: Olympian / Worlds / Nationals as one swipeable strip under the bio */}
             <div className="lg:hidden pill-row flex flex-nowrap overflow-x-auto gap-2 mt-3 -mx-3 px-3">
-              {(["olympics", "worlds", "nationals"] as const).map((kind) => {
+              {(["olympics", "worlds", "nationals"] as const).filter((k) => k !== "nationals" || championships.some((c) => c.kind === "nationals")).map((kind) => {
                 const c = championships.find((x) => x.kind === kind);
                 const n = c?.editions.length ?? 0;
                 return (

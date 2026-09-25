@@ -44,9 +44,33 @@ export const NOC_TO_ISO2: Record<string, string> = {
 
 // Flag code: the country master (country-data.ts, generated from
 // tablasauxiliares.countries) first, this older hand map as fallback.
+// West Germany and Czechoslovakia flew the same flag as today's Germany and
+// Czech Republic.
 function iso2For(nocCode: string) {
   const c = nocCode.toUpperCase();
+  if (c === "FRG") return "de";
+  if (c === "TCH") return "cz";
   return COUNTRIES[c]?.iso2 ?? NOC_TO_ISO2[c] ?? null;
+}
+
+// Countries that no longer exist: flagcdn only has current flags, so these
+// come from Wikimedia Commons (public-domain flag files).
+const HISTORIC_FLAG_FILES: Record<string, string> = {
+  URS: "Flag_of_the_Soviet_Union.svg",
+  YUG: "Flag_of_SFR_Yugoslavia.svg",
+  GDR: "Flag_of_East_Germany.svg",
+  SCG: "Flag_of_Serbia_and_Montenegro.svg",
+  AHO: "Flag_of_the_Netherlands_Antilles_(1986–2010).svg",
+  BWI: "Flag_of_the_West_Indies_Federation.svg",
+  ZAI: "Flag_of_Zaire.svg",
+  RHO: "Flag_of_Rhodesia_(1968–1979).svg",
+  BOH: "Flag_of_Bohemia.svg",
+  EUN: "Olympic_flag.svg", // Unified Team 1992 competed under the Olympic flag
+};
+
+function historicFlag(nocCode: string, width: number) {
+  const file = HISTORIC_FLAG_FILES[nocCode.toUpperCase()];
+  return file ? `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}?width=${width}` : null;
 }
 
 export function countryName(nocCode: string | null | undefined) {
@@ -57,7 +81,7 @@ export function countryName(nocCode: string | null | undefined) {
 export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x18" | "32x24" = "24x18") {
   if (!nocCode) return null;
   const iso2 = iso2For(nocCode);
-  if (!iso2) return null;
+  if (!iso2) return historicFlag(nocCode, 40);
   return `https://flagcdn.com/${size}/${iso2}.png`;
 }
 
@@ -66,6 +90,6 @@ export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x
 export function flagUrlWide(nocCode: string | null | undefined, width: 40 | 80 | 160 | 320 = 160) {
   if (!nocCode) return null;
   const iso2 = iso2For(nocCode);
-  if (!iso2) return null;
+  if (!iso2) return historicFlag(nocCode, width);
   return `https://flagcdn.com/w${width}/${iso2}.png`;
 }

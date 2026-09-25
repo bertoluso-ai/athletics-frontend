@@ -8,8 +8,8 @@ export const TIER_ORDER = ["OW", "DF", "GW", "GL", "A", "B", "C", "D", "E", "F"]
 
 export type CalendarRow = {
   kind: "past" | "upcoming";
-  date_start: string;
-  date_end: string;
+  date_start: string | null; // null: the source gives only the year
+  date_end: string | null;
   name: string;
   city: string | null;
   country: string | null;
@@ -48,7 +48,8 @@ export async function getCalendar(year: number, minTier: string, month?: number)
           STRUCT(athlete_id, athlete_display_name, nationality, athletics_event, mark_display), NULL) IGNORE NULLS
           ORDER BY competition_score DESC LIMIT 1)[SAFE_OFFSET(0)] AS top
       FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE year = @year AND date IS NOT NULL ${monthFilter("date")}
+      -- older sources (sports123) have no dates: keep those editions, undated
+      WHERE year = @year ${monthFilter("date")}
       GROUP BY event_name, year
     ),
     past AS (
@@ -74,7 +75,7 @@ export async function getCalendar(year: number, minTier: string, month?: number)
     SELECT * FROM past
     UNION ALL
     SELECT * FROM upcoming
-    ORDER BY date_start, name
+    ORDER BY date_start IS NULL, date_start, name
   `,
     { year, tiers }
   );
@@ -82,7 +83,7 @@ export async function getCalendar(year: number, minTier: string, month?: number)
 
 export async function getCalendarYears(): Promise<number[]> {
   const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\` WHERE year >= 1990
+    SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\` WHERE year IS NOT NULL
     UNION DISTINCT
     SELECT DISTINCT EXTRACT(YEAR FROM date_start) FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
     ORDER BY year DESC

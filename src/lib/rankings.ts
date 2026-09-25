@@ -135,7 +135,7 @@ export async function getRankingNationalities(gender: string): Promise<{ code: s
 
 export async function getRankingYears(): Promise<number[]> {
   const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM ${T} WHERE competition_score IS NOT NULL AND year >= 1990 ORDER BY year DESC
+    SELECT DISTINCT year FROM ${T} WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
   `);
   return rows.map((r) => r.year);
 }
