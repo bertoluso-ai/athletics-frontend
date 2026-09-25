@@ -45,8 +45,8 @@ export default function ResultsFilters({
     "bg-neutral-800 text-xs rounded px-1.5 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500 min-w-0 truncate";
 
   return (
-    <div className="flex items-center gap-1.5 min-w-0">
-      <select value={event} onChange={(e) => onEventChange(e.target.value)} className={`${selectClass} max-w-[7rem]`}>
+    <div className="flex items-center lg:items-start gap-1.5 min-w-0">
+      <select value={event} onChange={(e) => onEventChange(e.target.value)} className={`${selectClass} max-w-[7rem] lg:max-w-[12rem]`}>
         <option value="all">All</option>
         {events.map((ev) => (
           <option key={ev.value} value={ev.value}>
@@ -54,7 +54,23 @@ export default function ResultsFilters({
           </option>
         ))}
       </select>
-      <select value={year} onChange={(e) => onYearChange(e.target.value)} className={`${selectClass} max-w-[4.5rem]`}>
+      {/* desktop: every year visible as a tab (PCS style); phones keep the select */}
+      <div className="hidden lg:flex flex-wrap gap-1 ml-1">
+        {[...years.map((y) => ({ v: y as YearValue, label: String(y) })), { v: "all" as YearValue, label: "All" }].map((t) => (
+          <button
+            key={t.label}
+            onClick={() => go(event, t.v)}
+            className={`text-xs px-2 py-1 rounded border ${
+              year === t.v
+                ? "bg-neutral-100 text-black border-neutral-100 font-semibold"
+                : "border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:border-neutral-500"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <select value={year} onChange={(e) => onYearChange(e.target.value)} className={`${selectClass} max-w-[4.5rem] lg:hidden`}>
         <option value="all">All years</option>
         {years.map((y) => (
           <option key={y} value={y}>
