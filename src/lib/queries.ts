@@ -975,7 +975,7 @@ export const displaySeries = (expr: string) => `
 
 // Falls back to a plain event_name match for the handful of rows with no
 // series data.
-const MEET_SERIES_MATCH_SQL = `
+export const MEET_SERIES_MATCH_SQL = `
   (
     (
       display_series_name IS NOT NULL

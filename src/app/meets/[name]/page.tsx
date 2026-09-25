@@ -4,6 +4,7 @@ import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getMeetAvailableYears, getMeetResults } from "@/lib/queries";
+import MeetEventStats from "@/components/MeetEventStats";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
 export const revalidate = 3600;
@@ -82,6 +83,13 @@ export default async function MeetPage({
     ? disciplineOptions.filter((d) => categoryDisciplines.has(d.value))
     : disciplineOptions;
 
+  // the event the side column talks about: the selected one, else the first
+  // one shown; same for gender
+  const statsEvent = discipline || groups[0]?.athletics_event || "";
+  const statsGenders = Array.from(new Set(allGroups.filter((g) => g.athletics_event === statsEvent).map((g) => g.gender)))
+    .filter((g) => g === "Men" || g === "Women");
+  const statsGender = (gender && (statsGenders as string[]).includes(gender) ? gender : statsGenders[0]) ?? "";
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
@@ -119,7 +127,27 @@ export default async function MeetPage({
           />
         </div>
 
-        <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
+        {/* results | history of the selected event at this meet */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-8 items-start">
+          <div className="min-w-0">
+            <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
+          </div>
+          {statsEvent && statsGender && (
+            <div className="lg:sticky lg:top-4">
+              <MeetEventStats
+                eventName={eventName}
+                event={statsEvent}
+                gender={statsGender}
+                genders={statsGenders}
+                genderHref={(g) => {
+                  const q = new URLSearchParams({ year: String(year), discipline: statsEvent, gender: g });
+                  if (category) q.set("category", category);
+                  return `/meets/${encodeURIComponent(eventName)}?${q.toString()}`;
+                }}
+              />
+            </div>
+          )}
+        </div>
       </main>
     </div>
   );
