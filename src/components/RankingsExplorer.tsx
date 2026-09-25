@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import YearlyProgressionChart from "./YearlyProgressionChart";
+import type { YearProgressionPoint } from "@/lib/queries";
 import { useSearchParams } from "next/navigation";
-import { EVENT_GROUPS, eventLabel, isRelayEvent } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, isRelayEvent, isFieldEvent } from "@/lib/events";
 import Avatar from "./Avatar";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
@@ -97,6 +99,10 @@ export default function RankingsExplorer() {
   const [rows, setRows] = useState<(RankingRow | RelayRankingRow)[]>([]);
   const [total, setTotal] = useState(0);
   const [pageSize, setPageSize] = useState(50);
+  // summary first: the top 20 and a progression chart; "Show all" opens the
+  // full paginated list
+  const [showAll, setShowAll] = useState(false);
+  const [progression, setProgression] = useState<YearProgressionPoint[]>([]);
   const [nationalities, setNationalities] = useState<{ code: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -144,6 +150,27 @@ export default function RankingsExplorer() {
     };
   }, [event, gender, year, nationality, ageCategory, sortBy, includeIllegalWind, indoor, page]);
 
+  useEffect(() => {
+    setShowAll(false);
+  }, [event, gender, year, nationality, ageCategory, groupKey]);
+
+  useEffect(() => {
+    if (isGlobal || isRelay || !event) {
+      setProgression([]);
+      return;
+    }
+    let cancelled = false;
+    const q = new URLSearchParams({ event, gender, ...(ageCategory ? { ageCategory } : {}) });
+    fetch(`/api/progression?${q.toString()}`)
+      .then((r) => r.json())
+      .then((d) => !cancelled && setProgression(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [event, gender, ageCategory, isGlobal, isRelay]);
+
+  const visibleRows = showAll || page > 1 ? rows : rows.slice(0, 20);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const selectClass =
     "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
@@ -280,10 +307,19 @@ export default function RankingsExplorer() {
         </div>
       </div>
 
+      {progression.length >= 2 && (
+        <div className="mb-4 border border-neutral-800 rounded-lg p-3 bg-neutral-900/40">
+          <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-1">
+            {eventLabel(event)} · best mark by year
+          </div>
+          <YearlyProgressionChart data={progression} isField={isFieldEvent(event)} />
+        </div>
+      )}
+
       <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
         {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
         {!loading && isRelay &&
-          (rows as RelayRankingRow[]).map((r, i) => (
+          (visibleRows as RelayRankingRow[]).map((r, i) => (
             <div
               key={r.nationality}
               className="flex items-center justify-between px-4 py-2"
@@ -313,7 +349,7 @@ export default function RankingsExplorer() {
             </div>
           ))}
         {!loading && !isRelay &&
-          (rows as RankingRow[]).map((r, i) => (
+          (visibleRows as RankingRow[]).map((r, i) => (
             <Link
               key={r.athlete_id}
               href={`/athletes/${r.athlete_id}`}
@@ -350,7 +386,15 @@ export default function RankingsExplorer() {
         )}
       </div>
 
-      {!loading && totalPages > 1 && (
+      {!loading && !showAll && page === 1 && total > 20 && (
+        <div className="flex justify-center mt-3">
+          <button onClick={() => setShowAll(true)} className="text-xs px-3 py-1.5 rounded bg-neutral-800 text-orange-400 hover:bg-neutral-700">
+            Show all {total} ↓
+          </button>
+        </div>
+      )}
+
+      {!loading && (showAll || page > 1) && totalPages > 1 && (
         <div className="flex items-center justify-center gap-2 mt-4">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
