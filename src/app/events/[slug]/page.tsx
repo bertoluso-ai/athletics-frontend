@@ -5,6 +5,7 @@ import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
 import YearSelect from "@/components/YearSelect";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
+import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import {
   getEventAllTimeBest, getEventYearBestMarks, getEventAvailableYears,
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
@@ -109,6 +110,13 @@ export default async function EventPage({
       : getEventYearBestMarks(event, gender, year, limit, ageCategory || undefined, indoor),
     isRelay ? Promise.resolve([]) : getEventYearlyProgression(event, gender, ageCategory || undefined),
   ]);
+  // photo of the all-time best's athlete, for the chart's record card
+  const fieldEvent = isFieldEvent(event);
+  const bestEver = progression.reduce<(typeof progression)[number] | null>(
+    (b, d) => (!b || (fieldEvent ? d.mark_value > b.mark_value : d.mark_value < b.mark_value) ? d : b),
+    null
+  );
+  const bestPhoto = bestEver?.athlete ? await getAthletePhotoInfo(bestEver.athlete) : null;
 
   const extraParams = `${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}${indoor ? "&indoor=true" : ""}`;
 
@@ -147,7 +155,11 @@ export default async function EventPage({
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">
               Best Mark by Year
             </h2>
-            <YearlyProgressionChart data={progression} isField={isFieldEvent(event)} />
+            <YearlyProgressionChart
+              data={progression}
+              isField={fieldEvent}
+              recordPhoto={bestPhoto ? { url: bestPhoto.url, credit: photoCredit(bestPhoto) } : null}
+            />
           </section>
         )}
 

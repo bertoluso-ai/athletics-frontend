@@ -245,19 +245,6 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
-        {discipline && (
-          <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
-            {(["points", "mark"] as const).map((m) => (
-              <Link
-                key={m}
-                href={href({ sort: m === "mark" ? "mark" : "" })}
-                className={`px-2.5 py-1 rounded ${sortBy === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-              >
-                {m === "points" ? "Points" : "Mark"}
-              </Link>
-            ))}
-          </div>
-        )}
         {sortBy === "mark" && <input type="hidden" name="sort" value="mark" />}
         {discipline && (
           <select name="event" defaultValue={event} className={selectClass}>
@@ -353,6 +340,21 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
       {/* Table: discipline view = top 20 + View all, then the chart */}
       {discipline ? (
         <>
+          {/* rank by points or by best mark -- right above the table it sorts */}
+          <div className="flex justify-end mb-2">
+            <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+              {(["points", "mark"] as const).map((m) => (
+                <Link
+                  key={m}
+                  href={href({ sort: m === "mark" ? "mark" : "" })}
+                  scroll={false}
+                  className={`px-3 py-1 rounded ${sortBy === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                >
+                  {m === "points" ? "Points" : "Mark"}
+                </Link>
+              ))}
+            </div>
+          </div>
           <ViewAllList
             noun="athletes"
             initial={20}
@@ -720,11 +722,17 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
 }
 
 // Best mark of every year for the selected event (both discipline views).
-function ProgressionBox({ event, data }: { event: string; data: Awaited<ReturnType<typeof getEventYearlyProgression>> }) {
+async function ProgressionBox({ event, data }: { event: string; data: Awaited<ReturnType<typeof getEventYearlyProgression>> }) {
+  const field = isFieldEvent(event);
+  const best = data.reduce<(typeof data)[number] | null>(
+    (b, d) => (!b || (field ? d.mark_value > b.mark_value : d.mark_value < b.mark_value) ? d : b),
+    null
+  );
+  const photo = best?.athlete ? await getAthletePhotoInfo(best.athlete) : null;
   return (
     <section className="mb-8 border border-neutral-800 rounded-lg p-3 bg-neutral-900/40">
       <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-1">{eventLabel(event)} · best mark by year</div>
-      <YearlyProgressionChart data={data} isField={isFieldEvent(event)} />
+      <YearlyProgressionChart data={data} isField={field} recordPhoto={photo ? { url: photo.url, credit: photoCredit(photo) } : null} />
     </section>
   );
 }
