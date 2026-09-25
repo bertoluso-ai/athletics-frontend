@@ -4,7 +4,7 @@ import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
-import { getAthletePhoto } from "@/lib/wikipedia";
+import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import {
   COUNTED_ATHLETES,
   getCountryDetail,
@@ -80,7 +80,12 @@ export default async function CountryPage({
   const { athletes, lastWins, topResults, seasons } = detail;
 
   const scoring = athletes.filter((a) => a.counts);
-  const photos = await Promise.all(scoring.slice(0, 12).map((a) => getAthletePhoto(a.display_name)));
+  // three lookups at a time: Wikimedia throttles bursts
+  const photos: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
+  const wall = scoring.slice(0, 12);
+  for (let i = 0; i < wall.length; i += 3) {
+    photos.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
+  }
 
   const squad = [...athletes].sort((a, b) => {
     if (sort === "name") return a.display_name.localeCompare(b.display_name);
@@ -183,12 +188,13 @@ export default async function CountryPage({
                   <Link
                     key={a.athlete_id}
                     href={`/athletes/${a.athlete_id}`}
-                    title={`${a.display_name} — ${a.points} pts`}
+                    title={`${a.display_name} — ${a.points} pts${photos[i] ? `
+${photoCredit(photos[i]!)}` : ""}`}
                     className="group relative aspect-[3/4] rounded-md overflow-hidden bg-neutral-800 border border-neutral-800"
                   >
                     {photos[i] ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photos[i]!} alt={a.display_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      <img src={photos[i]!.url} alt={a.display_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     ) : (
                       <span className="w-full h-full flex items-center justify-center text-2xl font-bold text-neutral-500">
                         {a.display_name.charAt(0)}

@@ -14,7 +14,7 @@ import {
   getAthleteChampionships,
   getAthleteRecordStats,
 } from "@/lib/queries";
-import { getAthletePhoto } from "@/lib/wikipedia";
+import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { eventCategory, eventLabel } from "@/lib/events";
 
 export const revalidate = 3600;
@@ -41,7 +41,7 @@ export default async function AthletePage({
     getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
-    getAthletePhoto(info.display_name),
+    getAthletePhotoInfo(info.display_name, info.birth_year),
     getAthleteChampionships(id),
     getAthleteRecordStats(id),
   ]);
@@ -120,10 +120,21 @@ export default async function AthletePage({
                 picture always matches the tallest of the three top cells
                 (bio, top results, key stats) instead of pushing it. */}
             <div className="flex items-start lg:items-stretch gap-4 lg:h-[calc(100%-2rem)]">
-              <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
+              <div className="group relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
                 {photo ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photo} alt={info.display_name} className="absolute inset-0 w-full h-full object-cover" />
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photo.url} alt={info.display_name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
+                    {/* licence credit (CC BY / BY-SA require it) */}
+                    <a
+                      href={photo.sourceUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hidden lg:block absolute bottom-0 inset-x-0 bg-black/75 px-1 py-0.5 text-[9px] leading-tight text-neutral-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {photoCredit(photo)}
+                    </a>
+                  </>
                 ) : (
                   <span className="absolute inset-0 flex items-center justify-center text-3xl font-bold">
                     {info.display_name.charAt(0)}

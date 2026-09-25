@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import H2HPicker from "@/components/H2HPicker";
 import { getAthleteInfo, getAthletePersonalBests } from "@/lib/queries";
-import { getAthletePhoto } from "@/lib/wikipedia";
+import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getH2H, getH2HSuggestions, type H2HKpis, type H2HSeasonPoint } from "@/lib/h2h";
 
@@ -68,8 +68,8 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
   if (!infoB) notFound();
   const [{ shared, kpis, seasons }, photoA, photoB, pbA, pbB] = await Promise.all([
     getH2H(a, b),
-    getAthletePhoto(infoA.display_name),
-    getAthletePhoto(infoB.display_name),
+    getAthletePhotoInfo(infoA.display_name, infoA.birth_year),
+    getAthletePhotoInfo(infoB.display_name, infoB.birth_year),
     getAthletePersonalBests(a),
     getAthletePersonalBests(b),
   ]);
@@ -281,7 +281,7 @@ function DuelSide({
   name: string;
   id: string;
   nationality: string | null;
-  photo: string | null;
+  photo: AthletePhoto | null;
   pct: number | null;
   color: string;
   align: "start" | "end";
@@ -298,7 +298,9 @@ function DuelSide({
       </span>
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo} alt={name} className="w-24 h-28 sm:w-28 sm:h-32 object-cover rounded-md border border-neutral-800" />
+        <a href={photo.sourceUrl} target="_blank" rel="noopener noreferrer" title={photoCredit(photo)}>
+          <img src={photo.url} alt={name} className="w-24 h-28 sm:w-28 sm:h-32 object-cover rounded-md border border-neutral-800" />
+        </a>
       ) : (
         <span className="w-24 h-28 sm:w-28 sm:h-32 rounded-md bg-neutral-800 flex items-center justify-center text-3xl font-bold text-neutral-500">
           {name.charAt(0)}
