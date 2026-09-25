@@ -33,7 +33,8 @@ export type RankingParams = {
   nationalityCodes?: string[]; // ...or every code of that country (sources disagree: NED/NET/NLD)
   age?: string;
   event?: string; // one discipline only
-  sortBy?: "points" | "mark"; // discipline view: rank by best mark instead
+  sortBy?: "points" | "mark";
+  area?: string; // World Athletics area (AFR, ASI, EUR, NAC, SAM, OCE) // discipline view: rank by best mark instead
   page: number;
   pageSize: number;
 };
@@ -107,7 +108,9 @@ export async function getIndividualRanking(p: RankingParams) {
     joined AS (
       SELECT r.*, pr.prev_rank
       FROM ranked r LEFT JOIN prev_ranked pr USING (athlete_id)
-      ${p.nationalityCodes?.length ? "WHERE r.nationality IN UNNEST(@codes)" : p.nationality ? "WHERE r.nationality = @nationality" : ""}
+      WHERE TRUE
+      ${p.nationalityCodes?.length ? "AND r.nationality IN UNNEST(@codes)" : p.nationality ? "AND r.nationality = @nationality" : ""}
+      ${p.area ? "AND r.nationality IN (SELECT code FROM \`athletics-database.tablasauxiliares.countries\` WHERE area = @area)" : ""}
     )
     SELECT *, COUNT(*) OVER () AS total FROM joined
     ORDER BY rank
@@ -118,6 +121,7 @@ export async function getIndividualRanking(p: RankingParams) {
     year: p.year,
     ...(p.nationalityCodes?.length ? { codes: p.nationalityCodes } : p.nationality ? { nationality: p.nationality } : {}),
     ...(p.event ? { event: p.event } : {}),
+    ...(p.area ? { area: p.area } : {}),
   });
   return { rows, total: rows[0]?.total ?? 0 };
 }

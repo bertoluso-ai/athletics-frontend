@@ -252,6 +252,7 @@ export async function getNationRanking(p: {
   year: number;
   age?: string;
   event?: string;
+  area?: string; // World Athletics area; ranks stay world ranks
 }): Promise<NationRankingRow[]> {
   const nowWin = p.view === "rolling" ? "date > DATE_SUB(l.d, INTERVAL 365 DAY) AND date <= l.d" : "year = @year";
   const prevWin =
@@ -290,8 +291,9 @@ export async function getNationRanking(p: {
     FROM ranked r
     LEFT JOIN prev_ranked pr USING (code)
     LEFT JOIN names n USING (code)
+    ${p.area ? "WHERE r.code IN (SELECT code FROM \`athletics-database.tablasauxiliares.countries\` WHERE area = @area)" : ""}
     ORDER BY r.rank
   `,
-    { gender: p.gender, year: p.year, ...(p.event ? { event: p.event } : {}) }
+    { gender: p.gender, year: p.year, ...(p.event ? { event: p.event } : {}), ...(p.area ? { area: p.area } : {}) }
   );
 }

@@ -10,6 +10,7 @@ import { getEventYearlyProgression } from "@/lib/queries";
 import { isFieldEvent } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
 import { flagUrlWide } from "@/lib/flags";
+import { AREAS } from "@/lib/country-data";
 import { EVENT_GROUPS } from "@/lib/events";
 import { eventLabel } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
@@ -54,7 +55,7 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
   },
 ];
 
-type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string; sort?: string };
+type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string; sort?: string; area?: string };
 const NATION_VIEWS = ["n-season", "n-rolling", "n-wins", "n-discipline"] as const;
 
 // Same columns for the table header and every row.
@@ -181,7 +182,8 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
   const nationalities = await getRankingNationalities(gender);
   const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
   const sortBy: "points" | "mark" = discipline && sp.sort === "mark" ? "mark" : "points";
-  const params = { view, gender, year, nationality, nationalityCodes, age, event, sortBy } as const;
+  const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  const params = { view, gender, year, nationality, nationalityCodes, age, event, sortBy, area } as const;
   const [{ rows, total }, top] = await Promise.all([
     getIndividualRanking({ ...params, page, pageSize: PAGE_SIZE }),
     // podium + climbers always come from the top of the (filtered) ranking
@@ -204,7 +206,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", page: "1", ...over };
+    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", area: area ?? "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -264,6 +266,14 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
             ))}
           </select>
         )}
+        <select name="area" defaultValue={area ?? ""} className={selectClass}>
+          <option value="">All areas</option>
+          {Object.entries(AREAS).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
         <select name="nationality" defaultValue={nationality ?? ""} className={`${selectClass} sm:max-w-[11rem]`}>
           <option value="">All nations</option>
           {nationalities.map((n) => (
@@ -280,8 +290,8 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
           ))}
         </select>
         <button className="col-span-2 sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
-        {(nationality || age) && (
-          <Link href={href({ nationality: "", age: "" })} className="text-xs text-neutral-500 hover:text-neutral-300">
+        {(nationality || age || area) && (
+          <Link href={href({ nationality: "", age: "", area: "" })} className="text-xs text-neutral-500 hover:text-neutral-300">
             clear
           </Link>
         )}
@@ -531,8 +541,9 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
   const event = view === "discipline" ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions[0]) : undefined;
+  const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const [rows, progression] = await Promise.all([
-    getNationRanking({ view, gender, year, age, event }),
+    getNationRanking({ view, gender, year, age, event, area }),
     event ? getEventYearlyProgression(event, gender, age) : Promise.resolve([]),
   ]);
   const movement = view === "rolling" || year === currentYear;
@@ -545,7 +556,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
     : [];
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: `n-${view}`, gender, year: String(year), age: age ?? "", event: event ?? "", ...over };
+    const merged = { view: `n-${view}`, gender, year: String(year), age: age ?? "", event: event ?? "", area: area ?? "", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -600,6 +611,14 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             ))}
           </select>
         )}
+        <select name="area" defaultValue={area ?? ""} className={selectClass}>
+          <option value="">All areas</option>
+          {Object.entries(AREAS).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
         <select name="age" defaultValue={age ?? ""} className={selectClass}>
           {AGES.map((a) => (
             <option key={a || "all"} value={a}>
