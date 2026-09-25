@@ -60,9 +60,7 @@ function athletesCte(f: CountryFilters) {
 
 const NAMES_CTE = `
   names AS (
-    SELECT Codigo AS code, ANY_VALUE(Pais) AS name
-    FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\`
-    GROUP BY Codigo
+    SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
   )`;
 
 export type CountryRankingRow = {
@@ -193,7 +191,7 @@ async function getCountrySeasons(code: string, f: CountryFilters): Promise<Count
 
 export async function getCountryName(code: string): Promise<string> {
   const rows = await runQuery<{ name: string }>(
-    `SELECT ANY_VALUE(Pais) AS name FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\` WHERE Codigo = @code`,
+    `SELECT name FROM \`athletics-database.tablasauxiliares.countries\` WHERE code = @code`,
     { code }
   );
   return rows[0]?.name ?? code;

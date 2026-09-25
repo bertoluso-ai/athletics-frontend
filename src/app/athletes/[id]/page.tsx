@@ -13,6 +13,7 @@ import {
   getAthleteResultsForYear,
   getAthleteChampionships,
   getAthleteRecordStats,
+  getAthleteNationalityHistory,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
@@ -37,7 +38,7 @@ export default async function AthletePage({
   const info = await getAthleteInfo(id);
   if (!info) notFound();
 
-  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships, recordStats] = await Promise.all([
+  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships, recordStats, natHistory] = await Promise.all([
     getAthleteEvents(id),
     getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
@@ -45,7 +46,10 @@ export default async function AthletePage({
     getAthletePhotoInfo(info.display_name, info.birth_year),
     getAthleteChampionships(id),
     getAthleteRecordStats(id),
+    getAthleteNationalityHistory(id),
   ]);
+  // earlier countries the athlete competed for (URS -> UKR, transfers...)
+  const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
 
   // Default: every discipline, most recent year -- the full picture of the
   // athlete's latest season, not just one event.
@@ -139,6 +143,18 @@ export default async function AthletePage({
                   <dd className="flex items-center gap-1.5 text-neutral-300">
                     <Flag code={info.nationality} className="w-4 h-3" />
                     {info.nationality ?? "—"}
+                    {formerNats.length > 0 && (
+                      <span className="text-xs text-neutral-500 whitespace-nowrap">
+                        · formerly{" "}
+                        {formerNats.map((h, j) => (
+                          <span key={h.nationality}>
+                            {j > 0 && ", "}
+                            <Flag code={h.nationality} className="w-3.5 h-2.5 mr-0.5" />
+                            {h.nationality} {h.first_year === h.last_year ? `'${String(h.first_year).slice(2)}` : `'${String(h.first_year).slice(2)}–'${String(h.last_year).slice(2)}`}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </dd>
                 </div>
                 <div className="flex gap-2">

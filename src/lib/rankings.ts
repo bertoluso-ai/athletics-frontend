@@ -121,8 +121,7 @@ export async function getRankingNationalities(gender: string): Promise<{ code: s
       GROUP BY 1
     ),
     names AS (
-      SELECT Codigo AS code, ANY_VALUE(Pais) AS name
-      FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\` GROUP BY Codigo
+      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
     )
     SELECT IFNULL(n.name, c.code) AS name,
       ARRAY_AGG(c.code ORDER BY c.n DESC LIMIT 1)[OFFSET(0)] AS code,

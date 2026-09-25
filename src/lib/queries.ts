@@ -584,9 +584,7 @@ export async function getAvailableNationalities(event: string, gender: string, y
       WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = @event AND gender = @gender AND nationality IS NOT NULL
     ),
     names AS (
-      SELECT Codigo AS code, ANY_VALUE(Pais) AS name
-      FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\`
-      GROUP BY Codigo
+      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
     )
     SELECT c.code, IFNULL(n.name, c.code) AS name
     FROM codes c
@@ -747,9 +745,7 @@ export async function getGlobalAvailableNationalities(gender: string, year: numb
       WHERE ${year !== "all" ? `year = ${year} AND` : ""} gender = @gender AND nationality IS NOT NULL
     ),
     names AS (
-      SELECT Codigo AS code, ANY_VALUE(Pais) AS name
-      FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\`
-      GROUP BY Codigo
+      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
     )
     SELECT c.code, IFNULL(n.name, c.code) AS name
     FROM codes c
@@ -1306,4 +1302,22 @@ export async function getAthleteRecordStats(athleteId: string): Promise<AthleteR
     events: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))),
   });
   return rows[0] ?? { wr: 0, nr: 0, wl: 0 };
+}
+
+// Nationality history (athletics_all.athlete_nationality, built by the
+// nationality normalization step): one entry per country the athlete
+// competed for, oldest first. Runs of fewer than 3 results are ignored
+// (stray source slips, not a change of allegiance).
+export type NationalitySpan = { nationality: string; first_year: number; last_year: number; n_results: number };
+
+export async function getAthleteNationalityHistory(athleteId: string): Promise<NationalitySpan[]> {
+  return runQuery<NationalitySpan>(`
+    SELECT nationality, EXTRACT(YEAR FROM MIN(from_date)) AS first_year, EXTRACT(YEAR FROM MAX(to_date)) AS last_year,
+      SUM(a.n_results) AS n_results
+    FROM \`athletics-database.athletics_all.athlete_nationality\` a
+    WHERE athlete_id = @athleteId
+    GROUP BY nationality
+    HAVING SUM(a.n_results) >= 3
+    ORDER BY first_year
+  `, { athleteId });
 }

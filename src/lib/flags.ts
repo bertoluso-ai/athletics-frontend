@@ -1,3 +1,5 @@
+import { COUNTRIES } from "./country-data";
+
 // Maps our NOC/IAAF-style 3-letter nationality codes (as stored in
 // events_enriched.nationality) to ISO 3166-1 alpha-2, which is what flag
 // CDNs (flagcdn.com) expect. Most match loosely, but a real chunk differ
@@ -40,9 +42,21 @@ export const NOC_TO_ISO2: Record<string, string> = {
   ASA: "as", GUM: "gu", COK: "ck", TAH: "pf", NMI: "mp",
 };
 
+// Flag code: the country master (country-data.ts, generated from
+// tablasauxiliares.countries) first, this older hand map as fallback.
+function iso2For(nocCode: string) {
+  const c = nocCode.toUpperCase();
+  return COUNTRIES[c]?.iso2 ?? NOC_TO_ISO2[c] ?? null;
+}
+
+export function countryName(nocCode: string | null | undefined) {
+  if (!nocCode) return null;
+  return COUNTRIES[nocCode.toUpperCase()]?.name ?? nocCode;
+}
+
 export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x18" | "32x24" = "24x18") {
   if (!nocCode) return null;
-  const iso2 = NOC_TO_ISO2[nocCode.toUpperCase()];
+  const iso2 = iso2For(nocCode);
   if (!iso2) return null;
   return `https://flagcdn.com/${size}/${iso2}.png`;
 }
@@ -51,7 +65,7 @@ export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x
 // for the countries grid and country headers.
 export function flagUrlWide(nocCode: string | null | undefined, width: 40 | 80 | 160 | 320 = 160) {
   if (!nocCode) return null;
-  const iso2 = NOC_TO_ISO2[nocCode.toUpperCase()];
+  const iso2 = iso2For(nocCode);
   if (!iso2) return null;
   return `https://flagcdn.com/w${width}/${iso2}.png`;
 }
