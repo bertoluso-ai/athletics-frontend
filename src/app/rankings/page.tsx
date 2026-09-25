@@ -5,6 +5,7 @@ import Flag from "@/components/Flag";
 import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
+import ViewAllList from "@/components/ViewAllList";
 import { getEventYearlyProgression } from "@/lib/queries";
 import { isFieldEvent } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
@@ -245,8 +246,6 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
         )}
       </form>
 
-      {event && progression.length >= 2 && page === 1 && <ProgressionBox event={event} data={progression} />}
-
       {/* Podium: 2 - 1 - 3 */}
       {podium.length === 3 && page === 1 && (
         <section className="grid grid-cols-3 gap-3 sm:gap-5 items-end max-w-2xl mx-auto mb-8">
@@ -297,41 +296,72 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
         </section>
       )}
 
-      {/* Table */}
-      <div className="border border-neutral-800 rounded-lg overflow-hidden">
-        <div className={`grid ${cols(movement)} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
-          <span>#</span>
-          {movement && <span>Prev</span>}
-          {movement && <span>Diff</span>}
-          <span>Athlete</span>
-          <span className="hidden sm:block">{discipline ? "Best mark" : "Main event"}</span>
-          <span className="hidden sm:block text-right">Wins</span>
-          <span className="text-right">Points</span>
+      {/* Table: discipline view = top 20 + View all, then the chart */}
+      {discipline ? (
+        <>
+          <ViewAllList
+            noun="athletes"
+            initial={20}
+            scrollOnMobile
+            header={
+              <div className={`grid ${cols(movement)} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
+                <span>#</span>
+                {movement && <span>Prev</span>}
+                {movement && <span>Diff</span>}
+                <span>Athlete</span>
+                <span className="hidden sm:block">Best mark</span>
+                <span className="hidden sm:block text-right">Wins</span>
+                <span className="text-right">Points</span>
+              </div>
+            }
+            items={top.rows.map((r) => <RankingLine key={r.athlete_id} r={r} movement={movement} discipline />)}
+          />
+          {top.rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
+          {event && progression.length >= 2 && (
+            <div className="mt-8">
+              <ProgressionBox event={event} data={progression} />
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+        {/* Table */}
+        <div className="border border-neutral-800 rounded-lg overflow-hidden">
+          <div className={`grid ${cols(movement)} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
+            <span>#</span>
+            {movement && <span>Prev</span>}
+            {movement && <span>Diff</span>}
+            <span>Athlete</span>
+            <span className="hidden sm:block">{discipline ? "Best mark" : "Main event"}</span>
+            <span className="hidden sm:block text-right">Wins</span>
+            <span className="text-right">Points</span>
+          </div>
+          <div className="divide-y divide-neutral-800">
+            {rows.map((r) => (
+              <RankingLine key={r.athlete_id} r={r} movement={movement} discipline={discipline} />
+            ))}
+            {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
+          </div>
         </div>
-        <div className="divide-y divide-neutral-800">
-          {rows.map((r) => (
-            <RankingLine key={r.athlete_id} r={r} movement={movement} discipline={discipline} />
-          ))}
-          {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
-        </div>
-      </div>
 
-      {pages > 1 && (
-        <div className="flex items-center justify-center gap-2 mt-4 text-sm">
-          {page > 1 && (
-            <Link href={href({ page: String(page - 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
-              ← Prev
-            </Link>
-          )}
-          <span className="text-neutral-500">
-            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
-          </span>
-          {page < pages && (
-            <Link href={href({ page: String(page + 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
-              Next →
-            </Link>
-          )}
-        </div>
+        {pages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4 text-sm">
+            {page > 1 && (
+              <Link href={href({ page: String(page - 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+                ← Prev
+              </Link>
+            )}
+            <span className="text-neutral-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+            </span>
+            {page < pages && (
+              <Link href={href({ page: String(page + 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+                Next →
+              </Link>
+            )}
+          </div>
+        )}
+        </>
       )}
 
       <PhotoCreditsToast
@@ -501,8 +531,6 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
       </form>
 
-      {event && progression.length >= 2 && <ProgressionBox event={event} data={progression} />}
-
       {/* podium of flags: 2 - 1 - 3 */}
       {podium.length === 3 && (
         <section className="grid grid-cols-3 gap-3 sm:gap-5 items-end max-w-2xl mx-auto mb-8">
@@ -556,8 +584,12 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         </section>
       )}
 
-      <div className="border border-neutral-800 rounded-lg overflow-hidden">
-        <div className={`grid ${cols} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
+      <ViewAllList
+        noun="nations"
+        initial={20}
+        scrollOnMobile
+        header={
+        <div className={`grid ${cols} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
           <span>#</span>
           {movement && <span>Prev</span>}
           {movement && <span>Diff</span>}
@@ -566,8 +598,8 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
           <span className="hidden sm:block text-right">Wins</span>
           <span className="text-right">Points</span>
         </div>
-        <div className="divide-y divide-neutral-800">
-          {rows.slice(0, 200).map((r) => {
+        }
+        items={rows.slice(0, 200).map((r) => {
             const t = tierForRank(r.rank);
             const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
             return (
@@ -599,9 +631,13 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
               </Link>
             );
           })}
-          {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No nations for this selection.</div>}
+      />
+      {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No nations for this selection.</div>}
+      {event && progression.length >= 2 && (
+        <div className="mt-8">
+          <ProgressionBox event={event} data={progression} />
         </div>
-      </div>
+      )}
     </>
   );
 }
