@@ -100,6 +100,13 @@ export default async function AthletePage({
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
           <Flag code={info.nationality} className="w-7 h-5 hidden lg:inline-block" />
           {info.display_name}
+          <Link
+            href={`/h2h?a=${id}`}
+            className="ml-auto lg:ml-3 text-xs font-semibold px-2.5 py-1 rounded border border-neutral-700 text-neutral-300 hover:border-orange-500 hover:text-orange-400"
+            title="Head-to-head: compare with another athlete"
+          >
+            H2H
+          </Link>
         </h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] lg:grid-rows-[auto_1fr] gap-x-8 gap-y-8 items-start">
