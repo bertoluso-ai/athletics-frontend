@@ -28,7 +28,8 @@ export type RankingParams = {
   view: RankingView;
   gender: "Men" | "Women";
   year: number;
-  nationality?: string;
+  nationality?: string; // one code...
+  nationalityCodes?: string[]; // ...or every code of that country (sources disagree: NED/NET/NLD)
   age?: string;
   page: number;
   pageSize: number;
@@ -90,7 +91,7 @@ export async function getIndividualRanking(p: RankingParams) {
     joined AS (
       SELECT r.*, pr.prev_rank
       FROM ranked r LEFT JOIN prev_ranked pr USING (athlete_id)
-      ${p.nationality ? "WHERE r.nationality = @nationality" : ""}
+      ${p.nationalityCodes?.length ? "WHERE r.nationality IN UNNEST(@codes)" : p.nationality ? "WHERE r.nationality = @nationality" : ""}
     )
     SELECT *, COUNT(*) OVER () AS total FROM joined
     ORDER BY rank
@@ -99,7 +100,7 @@ export async function getIndividualRanking(p: RankingParams) {
   const rows = await runQuery<IndividualRankingRow & { total: number }>(sql, {
     gender: p.gender,
     year: p.year,
-    ...(p.nationality ? { nationality: p.nationality } : {}),
+    ...(p.nationalityCodes?.length ? { codes: p.nationalityCodes } : p.nationality ? { nationality: p.nationality } : {}),
   });
   return { rows, total: rows[0]?.total ?? 0 };
 }
@@ -109,17 +110,27 @@ export function hasMovement(view: RankingView, year: number, currentYear: number
   return view === "rolling" || year === currentYear;
 }
 
-export async function getRankingNationalities(gender: string): Promise<{ code: string; name: string }[]> {
+// One entry per country NAME: the sources use several codes for the same
+// country (NED/NET/NLD, SUI/SWI/CHE, RSA/SAF/ZAF...). `code` is the most
+// used one (the option value), `codes` all of them (for filtering).
+export async function getRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[] }[]> {
   return runQuery(`
     WITH codes AS (
-      SELECT DISTINCT nationality AS code FROM ${T}
-      WHERE gender = @gender AND nationality IS NOT NULL AND competition_score IS NOT NULL
+      SELECT nationality AS code, COUNT(*) AS n FROM ${T}
+      WHERE gender = @gender AND nationality IS NOT NULL AND TRIM(nationality) != '' AND competition_score IS NOT NULL
+      GROUP BY 1
     ),
     names AS (
       SELECT Codigo AS code, ANY_VALUE(Pais) AS name
       FROM \`athletics-database.tablasauxiliares.paises_traduccion_codigos_v2\` GROUP BY Codigo
     )
-    SELECT c.code, IFNULL(n.name, c.code) AS name FROM codes c LEFT JOIN names n USING (code) ORDER BY name
+    SELECT IFNULL(n.name, c.code) AS name,
+      ARRAY_AGG(c.code ORDER BY c.n DESC LIMIT 1)[OFFSET(0)] AS code,
+      ARRAY_AGG(c.code ORDER BY c.n DESC) AS codes
+    FROM codes c LEFT JOIN names n USING (code)
+    WHERE IFNULL(n.name, '') NOT IN ('Unknown', 'Asia', 'Oceania', 'Africa', 'Europe', 'Americas')
+    GROUP BY 1
+    ORDER BY name
   `, { gender });
 }
 

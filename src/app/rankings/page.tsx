@@ -88,7 +88,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
 
 function SideMenu({ view }: { view: string }) {
   return (
-    <aside className="flex lg:flex-col gap-4 lg:gap-6 order-first lg:order-none overflow-x-auto pill-row">
+    <aside className="min-w-0 flex lg:flex-col gap-4 lg:gap-6 order-first lg:order-none overflow-x-auto pill-row">
       {MENU.map((m) => (
         <section key={m.title} className="shrink-0">
           <h2 className="hidden lg:block text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">{m.title}</h2>
@@ -126,10 +126,11 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const page = Math.max(1, Number(sp.page) || 1);
   const movement = hasMovement(view, year, currentYear);
 
-  const params = { view, gender, year, nationality, age } as const;
-  const [{ rows, total }, nationalities, top] = await Promise.all([
+  const nationalities = await getRankingNationalities(gender);
+  const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
+  const params = { view, gender, year, nationality, nationalityCodes, age } as const;
+  const [{ rows, total }, top] = await Promise.all([
     getIndividualRanking({ ...params, page, pageSize: PAGE_SIZE }),
-    getRankingNationalities(gender),
     // podium + climbers always come from the top of the (filtered) ranking
     getIndividualRanking({ ...params, page: 1, pageSize: 200 }),
   ]);
