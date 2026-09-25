@@ -93,9 +93,10 @@ export async function getMeetEventStats(eventName: string, event: string, gender
       `
       WITH ${meet},
       world AS (
-        SELECT event_row_key, date, ${V} AS v, ${INDOOR} AS indoor
+        -- undated rows (old sports123 championships) are placed mid-year
+        SELECT event_row_key, COALESCE(date, DATE(year, 7, 1)) AS date, ${V} AS v, ${INDOOR} AS indoor
         FROM ${T}
-        WHERE athletics_event = @event AND gender = @gender AND IFNULL(wind_legal, TRUE) AND date IS NOT NULL
+        WHERE athletics_event = @event AND gender = @gender AND IFNULL(wind_legal, TRUE) AND year IS NOT NULL
         UNION ALL
         SELECT CAST(NULL AS STRING), record_date,
           IF(mark_seconds IS NULL, -SAFE_CAST(mark_display AS FLOAT64), mark_seconds), FALSE
@@ -110,8 +111,9 @@ export async function getMeetEventStats(eventName: string, event: string, gender
       )
       SELECT m.year, m.athlete_id, m.athlete_display_name AS display_name, m.nationality, m.mark_display, CAST(NULL AS INT64) AS all_time_rank
       FROM meet m
-      JOIN progression p USING (event_row_key)
+      LEFT JOIN progression p USING (event_row_key)
       WHERE m.year >= 1983 AND IFNULL(m.wind_legal, TRUE)
+        -- the source's own WR flag always counts (e.g. Lewis 9.92, Seoul 1988)
         AND (p.v <= p.best_before OR m.record = 'WR')
       QUALIFY ROW_NUMBER() OVER (PARTITION BY m.year, m.mark_display ORDER BY m.date) = 1
       ORDER BY m.year DESC
