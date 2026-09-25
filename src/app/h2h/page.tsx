@@ -124,127 +124,126 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
         <DuelSide name={infoB.display_name} id={b} nationality={infoB.nationality} photo={photoB} pct={pctB} color="text-sky-400" align="start" />
       </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        <div className="flex flex-col gap-8">
-          {/* Key info */}
-          <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Key info</h2>
-            <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
-              {[
-                { label: "Age", a: age(kA) ?? "—", b: age(kB) ?? "—" },
-                { label: "Nation", a: <><Flag code={kA?.nationality} className="mr-1" />{kA?.nationality ?? "—"}</>, b: <><Flag code={kB?.nationality} className="mr-1" />{kB?.nationality ?? "—"}</> },
-                { label: "First season", a: kA?.first_year ?? "—", b: kB?.first_year ?? "—" },
-                { label: "Last season", a: kA?.last_year ?? "—", b: kB?.last_year ?? "—" },
-                { label: "Disciplines", a: kA?.events ?? "—", b: kB?.events ?? "—" },
-              ].map((r) => (
-                <div key={r.label} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
-                  <span className="text-right">{r.a}</span>
-                  <span className="text-center text-xs text-neutral-500 self-center">{r.label}</span>
-                  <span>{r.b}</span>
+      {/* one centred column, every block the same width */}
+      <div className="max-w-3xl mx-auto flex flex-col gap-8">
+      {/* Key info */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Key info</h2>
+        <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
+          {[
+            { label: "Age", a: age(kA) ?? "—", b: age(kB) ?? "—" },
+            { label: "Nation", a: <><Flag code={kA?.nationality} className="mr-1" />{kA?.nationality ?? "—"}</>, b: <><Flag code={kB?.nationality} className="mr-1" />{kB?.nationality ?? "—"}</> },
+            { label: "First season", a: kA?.first_year ?? "—", b: kB?.first_year ?? "—" },
+            { label: "Last season", a: kA?.last_year ?? "—", b: kB?.last_year ?? "—" },
+            { label: "Disciplines", a: kA?.events ?? "—", b: kB?.events ?? "—" },
+          ].map((r) => (
+            <div key={r.label} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
+              <span className="text-right">{r.a}</span>
+              <span className="text-center text-xs text-neutral-500 self-center">{r.label}</span>
+              <span>{r.b}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Personal bests in common */}
+      {commonPbs.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Personal bests</h2>
+          <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
+            {commonPbs.map(({ event, a: pa, b: pb }) => {
+              const aBetter = (pa.all_time_rank ?? 1e9) < (pb.all_time_rank ?? 1e9);
+              return (
+                <div key={event} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
+                  <span className={`text-right font-mono ${aBetter ? "text-orange-400 font-semibold" : "text-neutral-400"}`}>
+                    {pa.mark_display} <span className="text-[10px] text-neutral-500">({pa.year})</span>
+                  </span>
+                  <span className="text-center text-xs text-neutral-500 self-center">{eventLabel(event)}</span>
+                  <span className={`font-mono ${!aBetter ? "text-sky-400 font-semibold" : "text-neutral-400"}`}>
+                    {pb.mark_display} <span className="text-[10px] text-neutral-500">({pb.year})</span>
+                  </span>
                 </div>
-              ))}
-            </div>
-          </section>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-          {/* Career KPIs: mirrored bars */}
-          <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Career key performance indicators</h2>
-            <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
-              {kpiRows.map((r) => {
-                const max = Math.max(r.a, r.b, 1e-9);
-                const f = r.fmt ?? ((n: number) => String(Math.round(n)));
-                return (
-                  <div key={r.label} className="grid grid-cols-[3.5rem_1fr_9rem_1fr_3.5rem] items-center gap-x-2 px-3 py-1.5 bg-neutral-900/40">
-                    <span className={`text-right tabular-nums ${r.a >= r.b ? "font-semibold" : "text-neutral-400"}`}>{f(r.a)}</span>
-                    <span className="h-2.5 rounded-sm bg-neutral-800 flex justify-end overflow-hidden">
-                      <span className="h-full rounded-sm" style={{ width: `${(r.a / max) * 100}%`, background: COLOR_A }} />
-                    </span>
-                    <span className="text-center text-[11px] text-neutral-500">{r.label}</span>
-                    <span className="h-2.5 rounded-sm bg-neutral-800 overflow-hidden">
-                      <span className="block h-full rounded-sm" style={{ width: `${(r.b / max) * 100}%`, background: COLOR_B }} />
-                    </span>
-                    <span className={`tabular-nums ${r.b >= r.a ? "font-semibold" : "text-neutral-400"}`}>{f(r.b)}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Personal bests in common */}
-          {commonPbs.length > 0 && (
-            <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Personal bests</h2>
-              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
-                {commonPbs.map(({ event, a: pa, b: pb }) => {
-                  const aBetter = (pa.all_time_rank ?? 1e9) < (pb.all_time_rank ?? 1e9);
-                  return (
-                    <div key={event} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
-                      <span className={`text-right font-mono ${aBetter ? "text-orange-400 font-semibold" : "text-neutral-400"}`}>
-                        {pa.mark_display} <span className="text-[10px] text-neutral-500">({pa.year})</span>
-                      </span>
-                      <span className="text-center text-xs text-neutral-500 self-center">{eventLabel(event)}</span>
-                      <span className={`font-mono ${!aBetter ? "text-sky-400 font-semibold" : "text-neutral-400"}`}>
-                        {pb.mark_display} <span className="text-[10px] text-neutral-500">({pb.year})</span>
-                      </span>
-                    </div>
-                  );
-                })}
+      {/* Career KPIs: mirrored bars */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Career key performance indicators</h2>
+        <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
+          {kpiRows.map((r) => {
+            const max = Math.max(r.a, r.b, 1e-9);
+            const f = r.fmt ?? ((n: number) => String(Math.round(n)));
+            return (
+              <div key={r.label} className="grid grid-cols-[3.5rem_1fr_9rem_1fr_3.5rem] items-center gap-x-2 px-3 py-1.5 bg-neutral-900/40">
+                <span className={`text-right tabular-nums ${r.a >= r.b ? "font-semibold" : "text-neutral-400"}`}>{f(r.a)}</span>
+                <span className="h-2.5 rounded-sm bg-neutral-800 flex justify-end overflow-hidden">
+                  <span className="h-full rounded-sm" style={{ width: `${(r.a / max) * 100}%`, background: COLOR_A }} />
+                </span>
+                <span className="text-center text-[11px] text-neutral-500">{r.label}</span>
+                <span className="h-2.5 rounded-sm bg-neutral-800 overflow-hidden">
+                  <span className="block h-full rounded-sm" style={{ width: `${(r.b / max) * 100}%`, background: COLOR_B }} />
+                </span>
+                <span className={`tabular-nums ${r.b >= r.a ? "font-semibold" : "text-neutral-400"}`}>{f(r.b)}</span>
               </div>
-            </section>
-          )}
+            );
+          })}
         </div>
+      </section>
 
-        <div className="flex flex-col gap-8">
-          <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Points per age</h2>
-            <PointsChart seasons={seasons} a={a} b={b} nameA={infoA.display_name} nameB={infoB.display_name} />
-          </section>
+      {/* Points per age */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Points per age</h2>
+        <PointsChart seasons={seasons} a={a} b={b} nameA={infoA.display_name} nameB={infoB.display_name} />
+      </section>
 
-          {/* Shared races */}
-          <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Same race results</h2>
-            {shared.length === 0 ? (
-              <p className="text-sm text-neutral-500">They never raced each other.</p>
-            ) : (
-              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden max-h-[40rem] overflow-y-auto">
-                {shared.map((r, i) => (
-                  <div key={i} className="grid grid-cols-[4.5rem_1fr_2.5rem_2.5rem] items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40">
-                    <span className="text-xs text-neutral-500 tabular-nums">{r.date}</span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <Link
-                          href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}`}
-                          className="truncate hover:text-orange-400"
-                        >
-                          {r.event_name}
-                        </Link>
-                        {r.tier && (
-                          <span
-                            title={TIER_LABELS.find((t) => t.value === r.tier)?.label ?? r.tier}
-                            className="text-[10px] font-mono px-1 rounded bg-neutral-800 text-orange-400 shrink-0"
-                          >
-                            {r.tier}
-                          </span>
-                        )}
+      {/* Shared races */}
+      <section>
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Same race results</h2>
+        {shared.length === 0 ? (
+          <p className="text-sm text-neutral-500">They never raced each other.</p>
+        ) : (
+          <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden max-h-[40rem] overflow-y-auto">
+            {shared.map((r, i) => (
+              <div key={i} className="grid grid-cols-[4.5rem_1fr_2.5rem_2.5rem] items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40">
+                <span className="text-xs text-neutral-500 tabular-nums">{r.date}</span>
+                <span className="min-w-0">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <Link
+                      href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}`}
+                      className="truncate hover:text-orange-400"
+                    >
+                      {r.event_name}
+                    </Link>
+                    {r.tier && (
+                      <span
+                        title={TIER_LABELS.find((t) => t.value === r.tier)?.label ?? r.tier}
+                        className="text-[10px] font-mono px-1 rounded bg-neutral-800 text-orange-400 shrink-0"
+                      >
+                        {r.tier}
                       </span>
-                      <span className="block text-[11px] text-neutral-500 truncate">
-                        {eventLabel(r.athletics_event)}
-                        {r.round ? ` · ${r.round}` : ""} · <span className="font-mono">{r.mark_a}</span> vs{" "}
-                        <span className="font-mono">{r.mark_b}</span>
-                      </span>
-                    </span>
-                    <span className={`text-right tabular-nums ${r.place_a < r.place_b ? "text-orange-400 font-semibold" : "text-neutral-500"}`}>
-                      {r.place_a}
-                    </span>
-                    <span className={`text-right tabular-nums ${r.place_b < r.place_a ? "text-sky-400 font-semibold" : "text-neutral-500"}`}>
-                      {r.place_b}
-                    </span>
-                  </div>
-                ))}
+                    )}
+                  </span>
+                  <span className="block text-[11px] text-neutral-500 truncate">
+                    {eventLabel(r.athletics_event)}
+                    {r.round ? ` · ${r.round}` : ""} · <span className="font-mono">{r.mark_a}</span> vs{" "}
+                    <span className="font-mono">{r.mark_b}</span>
+                  </span>
+                </span>
+                <span className={`text-right tabular-nums ${r.place_a < r.place_b ? "text-orange-400 font-semibold" : "text-neutral-500"}`}>
+                  {r.place_a}
+                </span>
+                <span className={`text-right tabular-nums ${r.place_b < r.place_a ? "text-sky-400 font-semibold" : "text-neutral-500"}`}>
+                  {r.place_b}
+                </span>
               </div>
-            )}
-          </section>
-        </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       </div>
     </Shell>
   );
