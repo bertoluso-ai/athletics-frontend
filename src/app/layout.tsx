@@ -22,9 +22,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-neutral-950`}
     >
-      <body className="min-h-full flex flex-col pb-24 sm:pb-0">
+      <body className="min-h-full flex flex-col pb-24 sm:pb-0 bg-neutral-950">
         {children}
         <MobileNav />
       </body>
