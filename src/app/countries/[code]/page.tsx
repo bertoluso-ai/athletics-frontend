@@ -3,8 +3,9 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
 import ViewAllList from "@/components/ViewAllList";
+import LinkSelect from "@/components/LinkSelect";
 import { flagUrlWide } from "@/lib/flags";
-import { eventLabel, TIER_LABELS } from "@/lib/events";
+import { eventLabel, TIER_LABELS, EVENT_GROUPS } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import {
@@ -58,7 +59,7 @@ export default async function CountryPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ year?: string; gender?: string; age?: string; sort?: string; dir?: string; list?: string }>;
+  searchParams: Promise<{ year?: string; gender?: string; age?: string; sort?: string; dir?: string; list?: string; sevent?: string }>;
 }) {
   const { code: rawCode } = await params;
   const code = rawCode.toUpperCase();
@@ -69,6 +70,9 @@ export default async function CountryPage({
   const sort: SortKey = sp.sort === "name" || sp.sort === "age" ? sp.sort : "points";
   const dir: "asc" | "desc" = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : DEFAULT_DIR[sort];
   const list: "wins" | "top" = sp.list === "top" ? "top" : "wins";
+  // Seasons table discipline: always "all" unless picked in its combo
+  const seasonEvents: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[f.gender]])));
+  const seasonEvent = sp.sevent && seasonEvents.includes(sp.sevent) ? sp.sevent : "";
   const sortHref = (k: SortKey) => {
     const nextDir = sort === k ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[k];
     return `/countries/${code}?${qs(year, f, { sort: k, dir: nextDir, list })}`;
@@ -78,7 +82,7 @@ export default async function CountryPage({
   const [name, ranking, detail] = await Promise.all([
     getCountryName(code),
     getCountryRanking(year, f),
-    getCountryDetail(code, year, f),
+    getCountryDetail(code, year, f, seasonEvent || undefined),
   ]);
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
@@ -366,7 +370,21 @@ ${photoCredit(photos[i]!)}` : ""}`}
             </section>
 
             <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Seasons</h2>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Seasons</h2>
+                <LinkSelect
+                  value={seasonEvent}
+                  className="max-w-[10rem]"
+                  options={[
+                    { value: "", label: "All disciplines", href: `/countries/${code}?${qs(year, f, { sort, dir, list })}` },
+                    ...seasonEvents.map((e) => ({
+                      value: e,
+                      label: eventLabel(e),
+                      href: `/countries/${code}?${qs(year, f, { sort, dir, list, sevent: e })}`,
+                    })),
+                  ]}
+                />
+              </div>
               <ViewAllList
                 noun="seasons"
                 initial={10}

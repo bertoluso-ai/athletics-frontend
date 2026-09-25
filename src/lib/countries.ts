@@ -127,7 +127,7 @@ export type CountryResultRow = {
 
 export type CountrySeasonRow = { year: number; points: number; rank: number };
 
-export async function getCountryDetail(code: string, year: number, f: CountryFilters) {
+export async function getCountryDetail(code: string, year: number, f: CountryFilters, seasonEvent?: string) {
   const params = { code, year, gender: f.gender };
   const resultsSql = (extraWhere: string, order: string, limit: number) => `
     SELECT CAST(date AS STRING) AS date, year, event_name, athletics_event, place, mark_display,
@@ -152,7 +152,7 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     ),
     runQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC", 300), params),
     runQuery<CountryResultRow>(resultsSql("", "competition_score DESC", 200), params),
-    getCountrySeasons(code, f),
+    getCountrySeasons(code, f, seasonEvent),
     // all-time Olympic / World Championships medals of the country (finals,
     // one per discipline and edition; relays count once)
     runQuery<{ olympic: number; worlds: number }>(
@@ -173,7 +173,8 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
 }
 
 // The country's points and rank for every season (same rule as the ranking).
-async function getCountrySeasons(code: string, f: CountryFilters): Promise<CountrySeasonRow[]> {
+// seasonEvent: one discipline only (same 24-best rule, within that event)
+async function getCountrySeasons(code: string, f: CountryFilters, seasonEvent?: string): Promise<CountrySeasonRow[]> {
   return runQuery<CountrySeasonRow>(
     `
     WITH athletes AS (
@@ -182,7 +183,7 @@ async function getCountrySeasons(code: string, f: CountryFilters): Promise<Count
         SUM(competition_score) AS points
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
-        ${ageFilter(f.age)}
+        ${ageFilter(f.age)} ${seasonEvent ? "AND athletics_event = @seasonEvent" : ""}
       GROUP BY year, athlete_id
     ),
     per_country AS (
@@ -199,7 +200,7 @@ async function getCountrySeasons(code: string, f: CountryFilters): Promise<Count
     WHERE code = @code
     ORDER BY year DESC
   `,
-    { code, gender: f.gender }
+    { code, gender: f.gender, ...(seasonEvent ? { seasonEvent } : {}) }
   );
 }
 
