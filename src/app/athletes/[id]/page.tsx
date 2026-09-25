@@ -42,18 +42,9 @@ export default async function AthletePage({
     getAthletePhoto(info.display_name),
   ]);
 
-  // Default discipline: whichever has the athlete's most recent result overall
-  // (not just the most-competed one -- that could easily be a discipline they
-  // haven't raced in for a while, landing on a stale year by default).
-  const mostRecentEvent = athleteEvents.reduce<typeof athleteEvents[number] | null>((best, ev) => {
-    const evYear = ev.years[0] ?? -Infinity;
-    const bestYear = best?.years[0] ?? -Infinity;
-    if (evYear > bestYear) return ev;
-    if (evYear === bestYear && ev.n_results > (best?.n_results ?? -Infinity)) return ev;
-    return best;
-  }, null);
-
-  const event = eventParam ?? mostRecentEvent?.athletics_event ?? athleteEvents[0]?.athletics_event ?? "";
+  // Default: every discipline, most recent year -- the full picture of the
+  // athlete's latest season, not just one event.
+  const event = eventParam ?? "all";
   const allDisciplineYears = Array.from(new Set(athleteEvents.flatMap((ev) => ev.years))).sort((a, b) => b - a);
   const eventYears =
     event === "all" ? allDisciplineYears : athleteEvents.find((ev) => ev.athletics_event === event)?.years ?? [];
