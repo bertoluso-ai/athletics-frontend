@@ -1151,7 +1151,14 @@ export async function getCompetitionYears(eventName: string): Promise<number[]> 
 // the discipline page (one point per year: that year's single best mark).
 // ---------------------------------------------------------------------
 
-export type YearProgressionPoint = { year: number; mark_display: string; mark_value: number };
+export type YearProgressionPoint = {
+  year: number;
+  mark_display: string;
+  mark_value: number;
+  athlete_id?: string | null;
+  athlete?: string | null;
+  nationality?: string | null;
+};
 
 export async function getEventYearlyProgression(
   event: string,
@@ -1165,7 +1172,8 @@ export async function getEventYearlyProgression(
 
   return runQuery<YearProgressionPoint>(`
     SELECT year, mark_display,
-      ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value
+      ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value,
+      athlete_id, athlete_display_name AS athlete, nationality
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE athletics_event = @event AND gender = @gender AND year IS NOT NULL
       AND athlete_display_name IS NOT NULL
