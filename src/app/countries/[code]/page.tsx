@@ -119,7 +119,7 @@ export default async function CountryPage({
             <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span>
           )}
           <span className="text-2xl lg:text-3xl font-bold text-orange-500">» {year}</span>
-          <span className="flex items-center gap-1 w-full sm:w-auto sm:ml-auto text-xs">
+          <span className="flex items-center gap-1 ml-auto text-xs">
             {prevYear && (
               <Link href={`/countries/${code}?${qs(prevYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
                 ← {prevYear}
@@ -129,7 +129,6 @@ export default async function CountryPage({
               years={years}
               year={year}
               baseHref={`/countries/${code}?${new URLSearchParams({ gender: f.gender, ...(f.age ? { age: f.age } : {}), ...(sort !== "points" ? { sort } : {}) }).toString()}`}
-              className="flex-1 sm:flex-none"
             />
             {nextYear && (
               <Link href={`/countries/${code}?${qs(nextYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
@@ -167,17 +166,14 @@ export default async function CountryPage({
           </div>
         </div>
 
-        {/* Key numbers: a grid of equal cards (3 + 3 on phones, one row on desktop) */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
+        {/* Key numbers: equal cards */}
+        <div className="grid grid-cols-3 gap-2 mb-6 sm:max-w-md">
           {[
             { label: "Rank", value: me ? `#${me.rank}` : "—" },
             { label: "Points", value: me?.points ?? 0 },
             { label: "Wins", value: me?.wins ?? 0 },
-            { label: "Podiums", value: me?.podiums ?? 0 },
-            { label: "Scoring", value: `${scoring.length}/${COUNTED_ATHLETES}`, title: "Athletes whose points count for the country" },
-            { label: "With points", value: athletes.length, title: "Athletes with points this season" },
           ].map((k) => (
-            <div key={k.label} title={k.title} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-2 py-2 text-center">
+            <div key={k.label} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-2 py-2 text-center">
               <div className="text-[10px] uppercase tracking-wide text-neutral-500">{k.label}</div>
               <div className="font-mono text-base font-bold text-orange-400 tabular-nums">{k.value}</div>
             </div>
