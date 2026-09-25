@@ -105,7 +105,11 @@ export default async function AthletePage({
       <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
-          <Flag code={info.nationality} className="w-7 h-5 hidden lg:inline-block" />
+          {info.nationality && (
+            <Link href={`/countries/${info.nationality}`} title="Country page" className="hidden lg:inline-block">
+              <Flag code={info.nationality} className="w-7 h-5" />
+            </Link>
+          )}
           {info.display_name}
           <Link
             href={`/h2h?a=${id}`}
@@ -141,8 +145,14 @@ export default async function AthletePage({
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-20 shrink-0">Nationality</dt>
                   <dd className="flex items-center gap-1.5 text-neutral-300">
-                    <Flag code={info.nationality} className="w-4 h-3" />
-                    {info.nationality ?? "—"}
+                    {info.nationality ? (
+                      <Link href={`/countries/${info.nationality}`} className="flex items-center gap-1.5 hover:text-orange-400" title="Country page">
+                        <Flag code={info.nationality} className="w-4 h-3" />
+                        {info.nationality}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                     {formerNats.length > 0 && (
                       <span className="text-xs text-neutral-500 whitespace-nowrap">
                         · formerly{" "}

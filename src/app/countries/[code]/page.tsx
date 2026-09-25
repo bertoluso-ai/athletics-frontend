@@ -25,13 +25,9 @@ export const revalidate = 3600;
 // full squad (sortable), latest wins and best results, and the country's
 // rank season by season.
 
-type SortKey = "points" | "name" | "age" | "event";
-const SORTS: { key: SortKey; label: string }[] = [
-  { key: "points", label: "points" },
-  { key: "name", label: "name" },
-  { key: "age", label: "age" },
-  { key: "event", label: "discipline" },
-];
+type SortKey = "points" | "name" | "age";
+// natural first direction per column; clicking the active one flips it
+const DEFAULT_DIR: Record<SortKey, "asc" | "desc"> = { points: "desc", name: "asc", age: "asc" };
 
 function qs(year: number, f: CountryFilters, extra: Record<string, string> = {}) {
   const q = new URLSearchParams({ year: String(year), gender: f.gender, ...extra });
@@ -61,7 +57,7 @@ export default async function CountryPage({
   searchParams,
 }: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ year?: string; gender?: string; age?: string; sort?: string }>;
+  searchParams: Promise<{ year?: string; gender?: string; age?: string; sort?: string; dir?: string; list?: string }>;
 }) {
   const { code: rawCode } = await params;
   const code = rawCode.toUpperCase();
@@ -69,7 +65,14 @@ export default async function CountryPage({
   const years = await getCountryYears();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const f = parseCountryFilters(sp);
-  const sort: SortKey = SORTS.some((s) => s.key === sp.sort) ? (sp.sort as SortKey) : "points";
+  const sort: SortKey = sp.sort === "name" || sp.sort === "age" ? sp.sort : "points";
+  const dir: "asc" | "desc" = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : DEFAULT_DIR[sort];
+  const list: "wins" | "top" = sp.list === "top" ? "top" : "wins";
+  const sortHref = (k: SortKey) => {
+    const nextDir = sort === k ? (dir === "asc" ? "desc" : "asc") : DEFAULT_DIR[k];
+    return `/countries/${code}?${qs(year, f, { sort: k, dir: nextDir, list })}`;
+  };
+  const arrow = (k: SortKey) => (sort === k ? (dir === "asc" ? " ▲" : " ▼") : "");
 
   const [name, ranking, detail] = await Promise.all([
     getCountryName(code),
@@ -91,10 +94,14 @@ export default async function CountryPage({
   }
 
   const squad = [...athletes].sort((a, b) => {
-    if (sort === "name") return a.display_name.localeCompare(b.display_name);
-    if (sort === "age") return (b.birth_year ?? 0) - (a.birth_year ?? 0);
-    if (sort === "event") return a.main_event.localeCompare(b.main_event) || b.points - a.points;
-    return b.points - a.points;
+    // ascending comparison, flipped for desc; unknown ages always last
+    let c: number;
+    if (sort === "name") c = a.display_name.localeCompare(b.display_name);
+    else if (sort === "age") {
+      if (a.birth_year === null || b.birth_year === null) return a.birth_year === null ? 1 : -1;
+      c = b.birth_year - a.birth_year; // younger = lower age first
+    } else c = a.points - b.points;
+    return dir === "asc" ? c : -c;
   });
   const maxSeasonPoints = Math.max(1, ...seasons.map((s) => s.points));
   const idx = years.indexOf(year);
@@ -165,25 +172,35 @@ export default async function CountryPage({
 
         {/* Top band, same structure as the athlete page: info (flag as the
             picture) | best results of the season | key stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] gap-x-8 gap-y-6 mb-8 lg:[&>section]:self-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_22rem] gap-x-8 gap-y-6 mb-8 lg:[&>section]:self-stretch">
           <section>
             <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
-            <div className="flex items-start gap-4">
-              {flagUrlWide(code, 320) ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={flagUrlWide(code, 320)!} alt={name} className="w-28 lg:w-40 rounded-md border border-neutral-800 shadow shrink-0" />
-              ) : (
-                <span className="w-28 lg:w-40 aspect-[3/2] rounded-md bg-neutral-800 flex items-center justify-center font-bold shrink-0">{code}</span>
-              )}
+            <div className="flex items-stretch gap-4">
+              {/* the flag fills the bio's height (object-cover), never taller */}
+              <div className="flex flex-col gap-1.5 shrink-0 w-28 lg:w-40">
+                <div className="relative flex-1 min-h-16 rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
+                  {flagUrlWide(code, 320) ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={flagUrlWide(code, 320)!} alt={name} className="absolute inset-0 w-full h-full object-cover" />
+                  ) : (
+                    <span className="absolute inset-0 flex items-center justify-center font-bold">{code}</span>
+                  )}
+                </div>
+                {tier && (
+                  <span className={`lg:hidden self-center text-xs font-semibold px-2 py-0.5 rounded border ${tier.border} ${tier.color}`}>
+                    {tier.label}
+                  </span>
+                )}
+              </div>
               <dl className="text-sm space-y-1">
                 {[
-                  { k: "Level", v: tier ? <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span> : "—" },
+                  { k: "Level", v: tier ? <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span> : "—", desktopOnly: true },
                   { k: "Rank", v: me ? `#${me.rank}` : "—" },
                   { k: "Points", v: me?.points ?? 0 },
                   { k: "Scoring", v: `${scoring.length}/${COUNTED_ATHLETES}` },
                   { k: "Athletes", v: athletes.length },
-                ].map((row) => (
-                  <div key={row.k} className="flex gap-2">
+                ].map((row: { k: string; v: React.ReactNode; desktopOnly?: boolean }) => (
+                  <div key={row.k} className={`${row.desktopOnly ? "hidden lg:flex" : "flex"} gap-2`}>
                     <dt className="text-neutral-500 w-16 shrink-0">{row.k}</dt>
                     <dd className="text-neutral-300">{row.v}</dd>
                   </div>
@@ -193,7 +210,14 @@ export default async function CountryPage({
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Top Results</h2>
+            <div className="flex items-baseline justify-between mb-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Top Results</h2>
+              {topResults.length > 7 && (
+                <a href={`/countries/${code}?${qs(year, f, { list: "top", sort, dir })}#results`} className="text-xs text-orange-400 hover:underline">
+                  View all →
+                </a>
+              )}
+            </div>
             <div className="flex flex-col gap-1">
               {topResults.slice(0, 7).map((r, i) => (
                 <div key={i} className="text-sm truncate">
@@ -265,28 +289,51 @@ ${photoCredit(photos[i]!)}` : ""}`}
               </section>
             )}
 
-            <ResultsTable title="Latest wins" rows={lastWins} showPoints={false} />
+            {/* Latest wins / Top results in one table with a switcher; the
+                "View all" of Top Results lands here */}
+            <section id="results" className="scroll-mt-4">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+                  {([
+                    { key: "wins", label: `Latest wins${me?.wins ? ` (${me.wins})` : ""}` },
+                    { key: "top", label: "Top results" },
+                  ] as const).map((t) => (
+                    <a
+                      key={t.key}
+                      href={`/countries/${code}?${qs(year, f, { list: t.key, sort, dir })}#results`}
+                      className={`px-3 py-1.5 rounded ${list === t.key ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                    >
+                      {t.label}
+                    </a>
+                  ))}
+                </div>
+                {list === "wins" && (me?.wins ?? 0) > lastWins.length && (
+                  <span className="text-[11px] text-neutral-500">latest {lastWins.length} of {me!.wins}</span>
+                )}
+              </div>
+              <ResultsTable rows={list === "wins" ? lastWins : topResults} showPoints={list === "top"} />
+            </section>
           </div>
 
           {/* Right column: squad + seasons */}
           <aside className="flex flex-col gap-8">
             <section>
-              <div className="flex items-baseline justify-between mb-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Squad</h2>
-                <span className="flex gap-2 text-[11px]">
-                  {SORTS.map((s) => (
-                    <Link
-                      key={s.key}
-                      href={`/countries/${code}?${qs(year, f, { sort: s.key })}`}
-                      className={sort === s.key ? "text-orange-400" : "text-neutral-500 hover:text-neutral-300"}
-                    >
-                      {s.label}
-                    </Link>
-                  ))}
-                </span>
-              </div>
-              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden max-h-[36rem] overflow-y-auto">
-                {squad.map((a) => (
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Squad</h2>
+              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
+                {/* sortable column headers, each above its own column */}
+                <div className="grid grid-cols-[1.75rem_1fr_2rem_3rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide">
+                  <span className="text-neutral-500">#</span>
+                  <Link href={sortHref("name")} scroll={false} className={sort === "name" ? "text-orange-400" : "text-neutral-500 hover:text-neutral-300"}>
+                    Name{arrow("name")}
+                  </Link>
+                  <Link href={sortHref("age")} scroll={false} className={`text-right ${sort === "age" ? "text-orange-400" : "text-neutral-500 hover:text-neutral-300"}`}>
+                    Age{arrow("age")}
+                  </Link>
+                  <Link href={sortHref("points")} scroll={false} className={`text-right ${sort === "points" ? "text-orange-400" : "text-neutral-500 hover:text-neutral-300"}`}>
+                    Pts{arrow("points")}
+                  </Link>
+                </div>
+                {squad.slice(0, 12).map((a) => (
                   <Link
                     key={a.athlete_id}
                     href={`/athletes/${a.athlete_id}`}
@@ -308,6 +355,32 @@ ${photoCredit(photos[i]!)}` : ""}`}
                 ))}
                 {squad.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes with points.</div>}
               </div>
+              {squad.length > 12 && (
+                <details className="group mt-1">
+                  <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
+                    <span className="group-open:hidden">View all {squad.length} athletes ↓</span>
+                    <span className="hidden group-open:inline">Show fewer ↑</span>
+                  </summary>
+                  <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mt-1">
+                    {squad.slice(12, 500).map((a) => (
+                      <Link
+                        key={a.athlete_id}
+                        href={`/athletes/${a.athlete_id}`}
+                        className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+                      >
+                        <span className={`text-xs tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-600"}`}>{a.rn_in_country}</span>
+                        <span className="min-w-0">
+                          <span className="block truncate">{a.display_name}</span>
+                          <span className="block text-[11px] text-neutral-500 truncate">{eventLabel(a.main_event)}</span>
+                        </span>
+                        <span className="text-xs text-neutral-500 text-right tabular-nums">{a.birth_year ? year - a.birth_year : ""}</span>
+                        <span className={`font-mono text-xs text-right tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-500"}`}>{a.points}</span>
+                      </Link>
+                    ))}
+                  </div>
+                  {squad.length > 500 && <p className="text-[11px] text-neutral-500 mt-1">First 500 of {squad.length}.</p>}
+                </details>
+              )}
               <p className="text-[11px] text-neutral-500 mt-1">
                 Orange = one of the {COUNTED_ATHLETES} athletes whose points count for the country.
               </p>
@@ -321,7 +394,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
                   <span>Points</span>
                   <span className="text-right">#</span>
                 </div>
-                {seasons.map((s) => {
+                {seasons.slice(0, 10).map((s) => {
                   const t = tierForRank(s.rank);
                   return (
                     <Link
@@ -344,6 +417,36 @@ ${photoCredit(photos[i]!)}` : ""}`}
                   );
                 })}
               </div>
+              {seasons.length > 10 && (
+                <details className="group mt-1">
+                  <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
+                    <span className="group-open:hidden">View all {seasons.length} seasons ↓</span>
+                    <span className="hidden group-open:inline">Show fewer ↑</span>
+                  </summary>
+                  <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mt-1">
+                    {seasons.slice(10).map((s) => {
+                      const t = tierForRank(s.rank);
+                      return (
+                        <Link
+                          key={s.year}
+                          href={`/countries/${code}?${qs(s.year, f)}`}
+                          className="grid grid-cols-[2.75rem_1fr_3rem] items-center gap-x-1.5 px-3 py-1.5 hover:bg-neutral-800 bg-neutral-900/40"
+                        >
+                          <span className="text-sm">{s.year}</span>
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span
+                              className="h-3 rounded-sm bg-orange-500/80 shrink-0"
+                              style={{ width: `${Math.max(2, (s.points / maxSeasonPoints) * 70)}%` }}
+                            />
+                            <span className="font-mono text-xs text-orange-400 tabular-nums">{s.points}</span>
+                          </span>
+                          <span className={`font-mono text-sm text-right tabular-nums ${t ? t.color : "text-neutral-400"}`}>{s.rank}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </details>
+              )}
             </section>
           </aside>
         </div>
@@ -358,13 +461,30 @@ ${photoCredit(photos[i]!)}` : ""}`}
   );
 }
 
-function ResultsTable({ title, rows, showPoints }: { title: string; rows: CountryResultRow[]; showPoints: boolean }) {
+function ResultsTable({ rows, showPoints }: { rows: CountryResultRow[]; showPoints: boolean }) {
+  if (rows.length === 0) return <p className="text-sm text-neutral-500">None this season.</p>;
   return (
-    <section>
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">{title}</h2>
-      {rows.length === 0 ? (
-        <p className="text-sm text-neutral-500">None this season.</p>
-      ) : (
+    <>
+      <ResultRows rows={rows.slice(0, 15)} showPoints={showPoints} />
+      {rows.length > 15 && (
+        <details className="group mt-1">
+          <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
+            <span className="group-open:hidden">View all {rows.length} ↓</span>
+            <span className="hidden group-open:inline">Show fewer ↑</span>
+          </summary>
+          <div className="mt-1">
+            <ResultRows rows={rows.slice(15)} showPoints={showPoints} />
+          </div>
+        </details>
+      )}
+    </>
+  );
+}
+
+function ResultRows({ rows, showPoints }: { rows: CountryResultRow[]; showPoints: boolean }) {
+  return (
+    <>
+      {rows.length > 0 && (
         <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
           {rows.map((r, i) => (
             <div
@@ -398,6 +518,6 @@ function ResultsTable({ title, rows, showPoints }: { title: string; rows: Countr
           ))}
         </div>
       )}
-    </section>
+    </>
   );
 }

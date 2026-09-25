@@ -129,7 +129,7 @@ export type CountrySeasonRow = { year: number; points: number; rank: number };
 
 export async function getCountryDetail(code: string, year: number, f: CountryFilters) {
   const params = { code, year, gender: f.gender };
-  const resultsSql = (extraWhere: string, order: string) => `
+  const resultsSql = (extraWhere: string, order: string, limit: number) => `
     SELECT CAST(date AS STRING) AS date, year, event_name, athletics_event, place, mark_display,
       division_key_resolved AS competition_level, ROUND(competition_score, 0) AS competition_score,
       athlete_id, athlete_display_name AS display_name
@@ -137,7 +137,7 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     WHERE year = @year AND nationality = @code AND gender = @gender AND athlete_id IS NOT NULL
       AND competition_score IS NOT NULL ${ageFilter(f.age)} ${extraWhere}
     ORDER BY ${order}
-    LIMIT 15`;
+    LIMIT ${limit}`;
 
   const [athletes, lastWins, topResults, seasons, owMedals] = await Promise.all([
     runQuery<CountryAthleteRow>(
@@ -150,8 +150,8 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     `,
       params
     ),
-    runQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC"), params),
-    runQuery<CountryResultRow>(resultsSql("", "competition_score DESC"), params),
+    runQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC", 300), params),
+    runQuery<CountryResultRow>(resultsSql("", "competition_score DESC", 200), params),
     getCountrySeasons(code, f),
     // all-time Olympic / World Championships medals of the country (finals,
     // one per discipline and edition; relays count once)
