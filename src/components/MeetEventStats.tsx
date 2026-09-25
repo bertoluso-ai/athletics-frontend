@@ -2,6 +2,8 @@ import Link from "next/link";
 import Flag from "./Flag";
 import { eventLabel } from "@/lib/events";
 import { getMeetEventStats } from "@/lib/meetStats";
+import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import PhotoCreditsToast from "./PhotoCreditsToast";
 
 // Right-hand column of the meet page: the history of one event (discipline
 // + gender) at this meet series.
@@ -28,6 +30,9 @@ export default async function MeetEventStats({
   genderHref: (g: string) => string;
 }) {
   const s = await getMeetEventStats(eventName, event, gender);
+  // record holder's photo (not for relays: that's a team)
+  const recordPhoto =
+    s.meetRecord && !s.relay && s.meetRecord.display_name ? await getAthletePhotoInfo(s.meetRecord.display_name) : null;
   const person = (id: string | null, name: string | null, nat: string | null) => (
     <span className="flex items-center gap-1.5 min-w-0">
       <Flag code={nat} />
@@ -66,14 +71,27 @@ export default async function MeetEventStats({
       {s.meetRecord && (
         <section className="rounded-lg border border-orange-500/30 bg-orange-500/5 px-3 py-2">
           <Title hint="Best wind-legal mark ever at this meet in this event">Meet record</Title>
-          <div className="flex items-baseline justify-between gap-2">
-            <span className="font-mono text-lg font-bold text-orange-400">{s.meetRecord.mark_display}</span>
-            <span className="text-xs text-neutral-500">{s.meetRecord.year}</span>
+          <div className="flex items-stretch gap-3">
+            {recordPhoto && (
+              <Link
+                href={s.meetRecord.athlete_id ? `/athletes/${s.meetRecord.athlete_id}` : "#"}
+                className="relative w-16 shrink-0 rounded-md overflow-hidden border border-neutral-800 bg-neutral-800"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={recordPhoto.url} alt={s.meetRecord.display_name ?? ""} title={photoCredit(recordPhoto)} className="absolute inset-0 w-full h-full object-cover" />
+              </Link>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-mono text-lg font-bold text-orange-400">{s.meetRecord.mark_display}</span>
+                <span className="text-xs text-neutral-500">{s.meetRecord.year}</span>
+              </div>
+              {person(s.meetRecord.athlete_id, s.meetRecord.display_name, s.meetRecord.nationality)}
+              {s.meetRecord.all_time_rank && (
+                <div className="text-[11px] text-neutral-500 mt-0.5">#{s.meetRecord.all_time_rank} performance of all time</div>
+              )}
+            </div>
           </div>
-          {person(s.meetRecord.athlete_id, s.meetRecord.display_name, s.meetRecord.nationality)}
-          {s.meetRecord.all_time_rank && (
-            <div className="text-[11px] text-neutral-500 mt-0.5">#{s.meetRecord.all_time_rank} performance of all time</div>
-          )}
         </section>
       )}
 
@@ -165,6 +183,11 @@ export default async function MeetEventStats({
       )}
 
       {s.winners.length === 0 && !s.meetRecord && <p className="text-xs text-neutral-500">No history for this event yet.</p>}
+      {recordPhoto && s.meetRecord && (
+        <div className="-mx-3 sm:-mx-6">
+          <PhotoCreditsToast items={[{ who: s.meetRecord.display_name ?? "", credit: photoCredit(recordPhoto), url: recordPhoto.sourceUrl }]} />
+        </div>
+      )}
     </aside>
   );
 }
