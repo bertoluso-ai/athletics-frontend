@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { eventLabel, isFieldEvent } from "@/lib/events";
+import { eventLabel, isFieldEvent, TIER_LABELS } from "@/lib/events";
 import type { AthleteYearResultRow } from "@/lib/queries";
 import WindBadge from "./WindBadge";
 import ResultsFilters, { type EventOption, type YearValue } from "./ResultsFilters";
@@ -144,7 +144,17 @@ export default function ResultsList({
                   <span className="ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">WR</span>
                 )}
               </div>
-              <div className="text-xs text-neutral-500">{eventLabel(r.athletics_event)}</div>
+              <div className="flex items-center gap-1.5 text-xs text-neutral-500">
+                {eventLabel(r.athletics_event)}
+                {r.competition_level && (
+                  <span
+                    title={TIER_LABELS.find((t) => t.value === r.competition_level)?.label ?? r.competition_level}
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400"
+                  >
+                    {r.competition_level}
+                  </span>
+                )}
+              </div>
             </span>
             <span className="text-right whitespace-nowrap">
               {effectiveSortBy === "mark" ? (
