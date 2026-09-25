@@ -54,7 +54,7 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
   },
 ];
 
-type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string };
+type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string; sort?: string };
 const NATION_VIEWS = ["n-season", "n-rolling", "n-wins", "n-discipline"] as const;
 
 // Same columns for the table header and every row.
@@ -180,7 +180,8 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
 
   const nationalities = await getRankingNationalities(gender);
   const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
-  const params = { view, gender, year, nationality, nationalityCodes, age, event } as const;
+  const sortBy: "points" | "mark" = discipline && sp.sort === "mark" ? "mark" : "points";
+  const params = { view, gender, year, nationality, nationalityCodes, age, event, sortBy } as const;
   const [{ rows, total }, top] = await Promise.all([
     getIndividualRanking({ ...params, page, pageSize: PAGE_SIZE }),
     // podium + climbers always come from the top of the (filtered) ranking
@@ -203,7 +204,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", page: "1", ...over };
+    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -232,7 +233,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
       {/* Filters */}
       <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
         <input type="hidden" name="view" value={discipline ? "discipline" : view} />
-        <div className="flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
+        <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
           {(["Men", "Women"] as const).map((g) => (
             <Link
               key={g}
@@ -244,6 +245,20 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
+        {discipline && (
+          <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
+            {(["points", "mark"] as const).map((m) => (
+              <Link
+                key={m}
+                href={href({ sort: m === "mark" ? "mark" : "" })}
+                className={`px-2.5 py-1 rounded ${sortBy === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              >
+                {m === "points" ? "Points" : "Mark"}
+              </Link>
+            ))}
+          </div>
+        )}
+        {sortBy === "mark" && <input type="hidden" name="sort" value="mark" />}
         {discipline && (
           <select name="event" defaultValue={event} className={selectClass}>
             {eventOptions.map((e) => (
@@ -348,12 +363,15 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
                 {movement && <span>Prev</span>}
                 {movement && <span>Diff</span>}
                 <span>Athlete</span>
-                <span className="hidden sm:block">Best mark</span>
+                <span className={`hidden sm:block ${sortBy === "mark" ? "text-orange-400" : ""}`}>Best mark</span>
                 <span className="hidden sm:block text-right">Wins</span>
-                <span className="text-right">Points</span>
+                <span className="text-right">
+                  <span className="sm:hidden">{sortBy === "mark" ? "Mark" : "Points"}</span>
+                  <span className={`hidden sm:inline ${sortBy === "points" ? "text-orange-400" : ""}`}>Points</span>
+                </span>
               </div>
             }
-            items={top.rows.map((r) => <RankingLine key={r.athlete_id} r={r} movement={movement} discipline />)}
+            items={top.rows.map((r) => <RankingLine key={r.athlete_id} r={r} movement={movement} discipline markFirst={sortBy === "mark"} />)}
           />
           {top.rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
           {event && progression.length >= 2 && (
@@ -446,7 +464,17 @@ function PodiumCard({ r, pos, photo, view }: { r: IndividualRankingRow; pos: num
   );
 }
 
-function RankingLine({ r, movement, discipline = false }: { r: IndividualRankingRow; movement: boolean; discipline?: boolean }) {
+function RankingLine({
+  r,
+  movement,
+  discipline = false,
+  markFirst = false,
+}: {
+  r: IndividualRankingRow;
+  movement: boolean;
+  discipline?: boolean;
+  markFirst?: boolean;
+}) {
   const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
   return (
     <Link
@@ -476,7 +504,17 @@ function RankingLine({ r, movement, discipline = false }: { r: IndividualRanking
         {discipline ? r.best_mark ?? "" : r.main_event ? eventLabel(r.main_event) : ""}
       </span>
       <span className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins || ""}</span>
-      <span className="text-right font-mono text-orange-400 tabular-nums">{r.points}</span>
+      {/* phones: the chosen metric; desktop: points (mark has its own column) */}
+      <span className="text-right font-mono text-orange-400 tabular-nums">
+        {markFirst ? (
+          <>
+            <span className="sm:hidden">{r.best_mark ?? "—"}</span>
+            <span className="hidden sm:inline text-neutral-300">{r.points}</span>
+          </>
+        ) : (
+          r.points
+        )}
+      </span>
     </Link>
   );
 }
@@ -534,7 +572,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
 
       <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
         <input type="hidden" name="view" value={`n-${view}`} />
-        <div className="flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
+        <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
           {(["Men", "Women"] as const).map((g) => (
             <Link key={g} href={href({ gender: g, event: "" })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
               {g}

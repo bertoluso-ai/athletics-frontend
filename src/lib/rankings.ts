@@ -33,6 +33,7 @@ export type RankingParams = {
   nationalityCodes?: string[]; // ...or every code of that country (sources disagree: NED/NET/NLD)
   age?: string;
   event?: string; // one discipline only
+  sortBy?: "points" | "mark"; // discipline view: rank by best mark instead
   page: number;
   pageSize: number;
 };
@@ -54,7 +55,9 @@ export async function getIndividualRanking(p: RankingParams) {
   const w = windows(p.view);
   const ageMax = p.age ? AGE_CATEGORIES[p.age] : undefined;
   const ageSql = ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : "";
-  const order = p.view === "wins" ? "wins DESC, points DESC" : "points DESC";
+  const byMark = p.sortBy === "mark" && !!p.event;
+  // best_v: lower is better for every event (field marks negated)
+  const order = byMark ? "best_v ASC, points DESC" : p.view === "wins" ? "wins DESC, points DESC" : "points DESC";
   const offset = (p.page - 1) * p.pageSize;
 
   const sql = `
@@ -63,7 +66,8 @@ export async function getIndividualRanking(p: RankingParams) {
       SELECT athlete_id, athlete_display_name, nationality, birth_year, date, year,
         competition_score, place, athletics_event, athletics_discipline, wind_legal, mark_display, mark, mark_seconds
       FROM ${T}
-      WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL ${ageSql}
+      WHERE gender = @gender AND athlete_id IS NOT NULL ${ageSql}
+        ${byMark ? "" : "AND competition_score IS NOT NULL"}
         ${p.event ? "AND athletics_event = @event" : ""}
     ),
     now_agg AS (
@@ -74,24 +78,31 @@ export async function getIndividualRanking(p: RankingParams) {
         ROUND(SUM(competition_score), 0) AS points,
         COUNTIF(place = 1) AS wins,
         ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event,
-        ARRAY_AGG(IF(IFNULL(wind_legal, TRUE), mark_display, NULL) IGNORE NULLS
-          ORDER BY IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds) LIMIT 1)[SAFE_OFFSET(0)] AS best_mark
+        -- only real marks (DNS / NM / DNF have no value and would sort first)
+        ARRAY_AGG(IF(IFNULL(wind_legal, TRUE)
+            AND IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), SAFE_CAST(mark AS FLOAT64), mark_seconds) > 0,
+            mark_display, NULL) IGNORE NULLS
+          ORDER BY IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds) LIMIT 1)[SAFE_OFFSET(0)] AS best_mark,
+        MIN(IF(IFNULL(wind_legal, TRUE), IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds), NULL)) AS best_v
       FROM base, latest
       WHERE ${w.now.replaceAll("@d14", "DATE_SUB(latest.d, INTERVAL 14 DAY)").replaceAll("@d", "latest.d")}
       GROUP BY athlete_id
     ),
     prev_agg AS (
-      SELECT athlete_id, SUM(competition_score) AS points, COUNTIF(place = 1) AS wins
+      SELECT athlete_id, SUM(competition_score) AS points, COUNTIF(place = 1) AS wins,
+        MIN(IF(IFNULL(wind_legal, TRUE), IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds), NULL)) AS best_v
       FROM base, latest
       WHERE ${w.prev.replaceAll("@d14", "DATE_SUB(latest.d, INTERVAL 14 DAY)").replaceAll("@d", "latest.d")}
       GROUP BY athlete_id
     ),
     ranked AS (
-      SELECT n.*, RANK() OVER (ORDER BY ${order.replaceAll("wins", "n.wins").replaceAll("points", "n.points")}) AS rank
+      SELECT n.*, RANK() OVER (ORDER BY ${order.replaceAll("wins", "n.wins").replaceAll("points", "n.points").replaceAll("best_v", "n.best_v")}) AS rank
       FROM now_agg n
+      ${byMark ? "WHERE n.best_v IS NOT NULL" : ""}
     ),
     prev_ranked AS (
-      SELECT athlete_id, RANK() OVER (ORDER BY ${order}) AS prev_rank FROM prev_agg WHERE points > 0
+      SELECT athlete_id, RANK() OVER (ORDER BY ${order}) AS prev_rank FROM prev_agg
+      WHERE ${byMark ? "best_v IS NOT NULL" : "points > 0"}
     ),
     joined AS (
       SELECT r.*, pr.prev_rank
