@@ -9,7 +9,7 @@ export default function Flag({ code, className = "" }: { code: string | null | u
       src={url}
       alt={code ?? ""}
       title={code ?? ""}
-      className={`inline-block w-4 h-3 rounded-sm object-cover ${className}`}
+      className={`inline-block w-4 h-3 rounded-sm object-cover object-left ${className}`}
     />
   );
 }

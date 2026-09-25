@@ -81,7 +81,7 @@ export function countryName(nocCode: string | null | undefined) {
 export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x18" | "32x24" = "24x18") {
   if (!nocCode) return null;
   const iso2 = iso2For(nocCode);
-  if (!iso2) return historicFlag(nocCode, 40);
+  if (!iso2) return historicFlag(nocCode, 80); // 2x for sharp emblems at small sizes
   return `https://flagcdn.com/${size}/${iso2}.png`;
 }
 
