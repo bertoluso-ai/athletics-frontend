@@ -4,6 +4,7 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
+import { getCountryRanking, getCountryYears, tierForRank, COUNTED_ATHLETES } from "@/lib/countries";
 import { eventLabel } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import {
@@ -33,14 +34,12 @@ const MENU: { title: string; items: { label: string; view?: string; href?: strin
       { label: "Season", view: "season", help: "Points scored in the selected season" },
       { label: "Rolling 12 months", view: "rolling", help: "Points over the last 365 days" },
       { label: "Wins", view: "wins", help: "Most wins, points as tie-break" },
+      { label: "By discipline", view: "discipline", help: "Per event: points or marks, wind, indoor, relays" },
     ],
   },
   {
-    title: "More",
-    items: [
-      { label: "By discipline", view: "discipline", help: "Per event: points or marks, wind, indoor, relays" },
-      { label: "Nations", href: "/countries", help: "Countries by their 24 best athletes" },
-    ],
+    title: "Nations",
+    items: [{ label: "Nations", view: "nations", help: "Countries by the points of their 24 best athletes" }],
   },
 ];
 
@@ -56,9 +55,10 @@ function cols(movement: boolean) {
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   // links across the site (/rankings?event=...) mean the per-discipline explorer
-  const view = (["season", "rolling", "wins", "discipline"].includes(sp.view ?? "") ? sp.view : sp.event ? "discipline" : "season") as
+  const view = (["season", "rolling", "wins", "discipline", "nations"].includes(sp.view ?? "") ? sp.view : sp.event ? "discipline" : "season") as
     | RankingView
-    | "discipline";
+    | "discipline"
+    | "nations";
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -75,6 +75,8 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
                   <RankingsExplorer />
                 </Suspense>
               </>
+            ) : view === "nations" ? (
+              <NationsRanking sp={sp} />
             ) : (
               <IndividualRanking view={view} sp={sp} />
             )}
@@ -380,5 +382,102 @@ function RankingLine({ r, movement }: { r: IndividualRankingRow; movement: boole
       <span className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins || ""}</span>
       <span className="text-right font-mono text-orange-400 tabular-nums">{r.points}</span>
     </Link>
+  );
+}
+
+// Nations: same ranking as the Countries page (24 best athletes per
+// country), as a PCS-style table inside Rankings.
+async function NationsRanking({ sp }: { sp: SP }) {
+  const years = await getCountryYears();
+  const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
+  const gender = sp.gender === "Women" ? "Women" : "Men";
+  const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
+  const rows = await getCountryRanking(year, { gender, age });
+  const href = (over: Partial<SP>) => {
+    const q = new URLSearchParams();
+    const merged = { view: "nations", gender, year: String(year), age: age ?? "", ...over };
+    for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
+    return `/rankings?${q.toString()}`;
+  };
+  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const maxPoints = Math.max(1, ...rows.map((r) => r.points));
+
+  return (
+    <>
+      <h1 className="text-2xl font-bold mb-1">
+        Ranking <span className="text-orange-500">» Nations {year}</span>
+      </h1>
+      <p className="text-sm text-neutral-500 mb-4">
+        Each country scores the season points of its {COUNTED_ATHLETES} best athletes. Top 8 Gold, next 8 Silver, next 8 Bronze.
+      </p>
+      <form action="/rankings" className="flex flex-wrap items-center gap-2 mb-6">
+        <input type="hidden" name="view" value="nations" />
+        <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+          {(["Men", "Women"] as const).map((g) => (
+            <Link key={g} href={href({ gender: g })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
+              {g}
+            </Link>
+          ))}
+        </div>
+        <input type="hidden" name="gender" value={gender} />
+        <select name="year" defaultValue={year} className={selectClass}>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <select name="age" defaultValue={age ?? ""} className={selectClass}>
+          {AGES.map((a) => (
+            <option key={a || "all"} value={a}>
+              {a || "All ages"}
+            </option>
+          ))}
+        </select>
+        <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+      </form>
+
+      <div className="border border-neutral-800 rounded-lg overflow-hidden">
+        <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_4rem] gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          <span>#</span>
+          <span>Nation</span>
+          <span className="hidden sm:block" />
+          <span className="hidden sm:block text-right">Wins</span>
+          <span className="text-right">Points</span>
+        </div>
+        <div className="divide-y divide-neutral-800">
+          {rows.slice(0, 200).map((r) => {
+            const t = tierForRank(r.rank);
+            return (
+              <Link
+                key={r.code}
+                href={`/countries/${r.code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`}
+                className="grid grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_4rem] gap-x-2 items-center px-3 py-2 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+              >
+                <span className={`tabular-nums font-semibold ${t ? t.color : "text-neutral-400"}`}>{r.rank}</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <Flag code={r.code} />
+                  <span className="truncate">{r.name}</span>
+                </span>
+                {/* points bar, scaled to the leader */}
+                <span className="hidden sm:flex items-center">
+                  <span className="h-2 rounded-sm bg-orange-500/70" style={{ width: `${Math.max(2, (r.points / maxPoints) * 100)}%` }} />
+                </span>
+                <span className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins}</span>
+                <span className="text-right font-mono text-orange-400 tabular-nums">{r.points}</span>
+              </Link>
+            );
+          })}
+          {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No nations for this selection.</div>}
+        </div>
+      </div>
+      <p className="text-[11px] text-neutral-500 mt-2">
+        Numbers in gold / silver / bronze = the country&apos;s block. Full blocks and flags on the{" "}
+        <Link href={`/countries?year=${year}&gender=${gender}`} className="underline hover:text-neutral-300">
+          Countries
+        </Link>{" "}
+        page.
+      </p>
+    </>
   );
 }
