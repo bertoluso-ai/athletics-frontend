@@ -96,32 +96,71 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
 }
 
 function SideMenu({ view }: { view: string }) {
+  const nations = view.startsWith("n-");
+  const section = MENU[nations ? 1 : 0];
+  const short: Record<string, string> = { Season: "Season", "Rolling 12 months": "12 months", Wins: "Wins", "By discipline": "Discipline" };
   return (
-    <aside className="min-w-0 flex lg:flex-col gap-4 lg:gap-6 order-first lg:order-none overflow-x-auto pill-row">
-      {MENU.map((m) => (
-        <section key={m.title} className="shrink-0">
-          <h2 className="hidden lg:block text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">{m.title}</h2>
-          <ul className="flex lg:flex-col gap-1">
-            {m.items.map((it) => {
-              const active = it.view === view;
-              return (
-                <li key={it.label}>
-                  <Link
-                    href={`/rankings?view=${it.view}`}
-                    title={it.help}
-                    className={`block whitespace-nowrap text-sm px-2.5 py-1.5 rounded ${
-                      active ? "bg-orange-500/15 text-orange-400 font-semibold" : "text-neutral-300 hover:bg-neutral-900"
-                    }`}
-                  >
-                    {it.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ))}
-    </aside>
+    <>
+      {/* phones: section toggle + the section's four views, full width */}
+      <div className="lg:hidden order-first flex flex-col gap-2">
+        <div className="grid grid-cols-2 rounded-lg bg-neutral-800 p-1 text-sm">
+          {MENU.map((m, i) => {
+            const active = (i === 1) === nations;
+            // switching section keeps the same kind of view (season <-> n-season)
+            const target = i === 1 ? (nations ? view : `n-${view}`) : nations ? view.slice(2) : view;
+            return (
+              <Link
+                key={m.title}
+                href={`/rankings?view=${target}`}
+                className={`text-center py-2 rounded-md font-semibold ${active ? "bg-orange-500 text-black" : "text-neutral-400"}`}
+              >
+                {m.title}
+              </Link>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-4 gap-1 text-xs">
+          {section.items.map((it) => (
+            <Link
+              key={it.view}
+              href={`/rankings?view=${it.view}`}
+              className={`text-center py-1.5 rounded-md border ${
+                it.view === view ? "border-orange-500/60 bg-orange-500/15 text-orange-400 font-semibold" : "border-neutral-800 text-neutral-400"
+              }`}
+            >
+              {short[it.label] ?? it.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* desktop: side menu */}
+      <aside className="hidden lg:flex flex-col gap-6 min-w-0">
+        {MENU.map((m) => (
+          <section key={m.title}>
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">{m.title}</h2>
+            <ul className="flex flex-col gap-1">
+              {m.items.map((it) => {
+                const active = it.view === view;
+                return (
+                  <li key={it.view}>
+                    <Link
+                      href={`/rankings?view=${it.view}`}
+                      title={it.help}
+                      className={`block whitespace-nowrap text-sm px-2.5 py-1.5 rounded ${
+                        active ? "bg-orange-500/15 text-orange-400 font-semibold" : "text-neutral-300 hover:bg-neutral-900"
+                      }`}
+                    >
+                      {it.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))}
+      </aside>
+    </>
   );
 }
 
@@ -172,7 +211,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
   const title = discipline
     ? `${eventLabel(event!)} ${year}`
     : view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`;
-  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
     <>
@@ -191,9 +230,9 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
       </p>
 
       {/* Filters */}
-      <form action="/rankings" className="flex flex-wrap items-center gap-2 mb-6">
+      <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
         <input type="hidden" name="view" value={discipline ? "discipline" : view} />
-        <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+        <div className="flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
           {(["Men", "Women"] as const).map((g) => (
             <Link
               key={g}
@@ -223,7 +262,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
             ))}
           </select>
         )}
-        <select name="nationality" defaultValue={nationality ?? ""} className={`${selectClass} max-w-[11rem]`}>
+        <select name="nationality" defaultValue={nationality ?? ""} className={`${selectClass} sm:max-w-[11rem]`}>
           <option value="">All nations</option>
           {nationalities.map((n) => (
             <option key={n.code} value={n.code}>
@@ -238,7 +277,7 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
             </option>
           ))}
         </select>
-        <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+        <button className="col-span-2 sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
         {(nationality || age) && (
           <Link href={href({ nationality: "", age: "" })} className="text-xs text-neutral-500 hover:text-neutral-300">
             clear
@@ -471,7 +510,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
     return `/rankings?${q.toString()}`;
   };
   const countryHref = (code: string) => `/countries/${code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`;
-  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const maxPoints = Math.max(1, ...rows.map((r) => r.points));
   const title =
     view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : view === "discipline" ? `${eventLabel(event!)} ${year}` : `Season ${year}`;
@@ -493,9 +532,9 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         {movement && "Arrows compare with two weeks ago."}
       </p>
 
-      <form action="/rankings" className="flex flex-wrap items-center gap-2 mb-6">
+      <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
         <input type="hidden" name="view" value={`n-${view}`} />
-        <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+        <div className="flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
           {(["Men", "Women"] as const).map((g) => (
             <Link key={g} href={href({ gender: g, event: "" })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
               {g}
@@ -528,7 +567,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             </option>
           ))}
         </select>
-        <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+        <button className="col-span-2 sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
       </form>
 
       {/* podium of flags: 2 - 1 - 3 */}
