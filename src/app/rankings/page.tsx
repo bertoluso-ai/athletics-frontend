@@ -41,7 +41,6 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
       { label: "Season", view: "season", help: "Points scored in the selected season" },
       { label: "Rolling 12 months", view: "rolling", help: "Points over the last 365 days" },
       { label: "Wins", view: "wins", help: "Most wins, points as tie-break" },
-      { label: "By discipline", view: "discipline", help: "Per event: points or marks, wind, indoor, relays" },
     ],
   },
   {
@@ -50,7 +49,6 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
       { label: "Season", view: "n-season", help: "Countries by the season points of their 24 best athletes" },
       { label: "Rolling 12 months", view: "n-rolling", help: "Same rule over the last 365 days" },
       { label: "Wins", view: "n-wins", help: "Countries by total wins" },
-      { label: "By discipline", view: "n-discipline", help: "Countries in one event (24 best athletes in that event)" },
     ],
   },
 ];
@@ -68,7 +66,10 @@ function cols(movement: boolean) {
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   // links across the site (/rankings?event=...) mean the per-discipline explorer
-  const requested = sp.view === "nations" ? "n-season" : sp.view; // old links
+  // old links: "nations", and the former "By discipline" tabs (the event is
+  // now a filter of every view)
+  const requested =
+    sp.view === "nations" || sp.view === "n-discipline" ? "n-season" : sp.view === "discipline" ? "season" : sp.view;
   const view = (["season", "rolling", "wins", "discipline", ...NATION_VIEWS].includes(requested ?? "")
     ? requested
     : sp.event
@@ -81,9 +82,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_14rem] gap-8 items-start">
           <div className="min-w-0">
-            {view === "discipline" ? (
-              <IndividualRanking view="season" discipline sp={sp} />
-            ) : view.startsWith("n-") ? (
+            {view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
             ) : (
               <IndividualRanking view={view as RankingView} sp={sp} />
@@ -120,7 +119,7 @@ function SideMenu({ view }: { view: string }) {
             );
           })}
         </div>
-        <div className="grid grid-cols-4 gap-1 text-xs">
+        <div className="grid grid-cols-3 gap-1 text-xs">
           {section.items.map((it) => (
             <Link
               key={it.view}
@@ -165,7 +164,7 @@ function SideMenu({ view }: { view: string }) {
   );
 }
 
-async function IndividualRanking({ view, sp, discipline = false }: { view: RankingView; sp: SP; discipline?: boolean }) {
+async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const years = await getRankingYears();
   const currentYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
@@ -174,9 +173,10 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
   const nationality = sp.nationality || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const movement = hasMovement(view, year, currentYear);
-  // "By discipline": the same ranking restricted to one event
+  // optional discipline filter: the same ranking restricted to one event
   const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
-  const event = discipline ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions.includes("100 Metres") ? "100 Metres" : eventOptions[0]) : undefined;
+  const event = sp.event && eventOptions.includes(sp.event) ? sp.event : undefined;
+  const discipline = !!event;
   const progression = event ? await getEventYearlyProgression(event, gender, age) : [];
 
   const nationalities = await getRankingNationalities(gender);
@@ -206,14 +206,14 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", area: area ?? "", page: "1", ...over };
+    const merged = { view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", area: area ?? "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const title = discipline
-    ? `${eventLabel(event!)} ${year}`
-    : view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`;
+  const title =
+    (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) +
+    (event ? ` · ${eventLabel(event)}` : "");
   const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
@@ -223,18 +223,17 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
       </h1>
       <p className="text-sm text-neutral-500 mb-4">
         {view === "rolling"
-          ? "Sum of points over the last 365 days."
+          ? "Sum of points over the last 365 days"
           : view === "wins"
-          ? "Wins in the season, points as tie-break."
-          : discipline
-          ? "Points scored in this event in the season."
-          : "Sum of points scored in the season."}{" "}
+          ? "Wins in the season, points as tie-break"
+          : "Sum of points scored in the season"}
+        {event ? `, ${eventLabel(event)} only.` : "."}{" "}
         {movement && "Up/down arrows compare with the ranking two weeks ago."}
       </p>
 
       {/* Filters */}
       <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
-        <input type="hidden" name="view" value={discipline ? "discipline" : view} />
+        <input type="hidden" name="view" value={view} />
         <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
           {(["Men", "Women"] as const).map((g) => (
             <Link
@@ -248,8 +247,9 @@ async function IndividualRanking({ view, sp, discipline = false }: { view: Ranki
         </div>
         <input type="hidden" name="gender" value={gender} />
         {sortBy === "mark" && <input type="hidden" name="sort" value="mark" />}
-        {discipline && (
-          <select name="event" defaultValue={event} className={selectClass}>
+        {(
+          <select name="event" defaultValue={event ?? ""} className={selectClass}>
+            <option value="">All disciplines</option>
             {eventOptions.map((e) => (
               <option key={e} value={e}>
                 {eventLabel(e)}
@@ -540,7 +540,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const gender = sp.gender === "Women" ? "Women" : "Men";
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
-  const event = view === "discipline" ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions[0]) : undefined;
+  const event = sp.event && eventOptions.includes(sp.event) ? sp.event : undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const [rows, progression] = await Promise.all([
     getNationRanking({ view, gender, year, age, event, area }),
@@ -564,7 +564,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const maxPoints = Math.max(1, ...rows.map((r) => r.points));
   const title =
-    view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : view === "discipline" ? `${eventLabel(event!)} ${year}` : `Season ${year}`;
+    (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) + (event ? ` · ${eventLabel(event)}` : "");
   const cols = movement
     ? "grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]"
     : "grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]";
@@ -577,7 +577,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
       <p className="text-sm text-neutral-500 mb-4">
         {view === "wins"
           ? "Total wins of each country's athletes, points as tie-break."
-          : `Each country scores the points of its ${COUNTED_ATHLETES} best athletes${view === "discipline" ? " in this event" : ""}${
+          : `Each country scores the points of its ${COUNTED_ATHLETES} best athletes${event ? ` in ${eventLabel(event)}` : ""}${
               view === "rolling" ? " over the last 365 days" : ""
             }.`}{" "}
         {movement && "Arrows compare with two weeks ago."}
@@ -593,8 +593,9 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
-        {view === "discipline" && (
-          <select name="event" defaultValue={event} className={selectClass}>
+        {(
+          <select name="event" defaultValue={event ?? ""} className={selectClass}>
+            <option value="">All disciplines</option>
             {eventOptions.map((e) => (
               <option key={e} value={e}>
                 {eventLabel(e)}
