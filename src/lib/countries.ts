@@ -40,6 +40,7 @@ function athletesCte(f: CountryFilters) {
         ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
         ROUND(SUM(competition_score), 0) AS points,
         COUNTIF(place = 1) AS wins,
+        COUNTIF(place BETWEEN 1 AND 3) AS podiums,
         -- main discipline: where the athlete scored most that season
         ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event
       FROM \`athletics-database.athletics_all.events_enriched\`
@@ -72,6 +73,7 @@ export type CountryRankingRow = {
   n_counted: number;
   n_athletes: number;
   wins: number;
+  podiums: number;
 };
 
 export async function getCountryRanking(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
@@ -84,13 +86,14 @@ export async function getCountryRanking(year: number, f: CountryFilters): Promis
         ROUND(SUM(IF(counts, points, 0)), 0) AS points,
         COUNTIF(counts) AS n_counted,
         COUNT(*) AS n_athletes,
-        SUM(wins) AS wins
+        SUM(wins) AS wins,
+        SUM(podiums) AS podiums
       FROM counted
       GROUP BY nationality
     )
     SELECT c.code, IFNULL(n.name, c.code) AS name,
       RANK() OVER (ORDER BY c.points DESC) AS rank,
-      c.points, c.n_counted, c.n_athletes, c.wins
+      c.points, c.n_counted, c.n_athletes, c.wins, c.podiums
     FROM per_country c
     LEFT JOIN names n USING (code)
     WHERE c.points > 0

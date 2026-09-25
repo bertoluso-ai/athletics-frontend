@@ -119,7 +119,7 @@ export default async function CountryPage({
             <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span>
           )}
           <span className="text-2xl lg:text-3xl font-bold text-orange-500">» {year}</span>
-          <span className="flex items-center gap-1 ml-auto text-xs">
+          <span className="flex items-center gap-1 w-full sm:w-auto sm:ml-auto text-xs">
             {prevYear && (
               <Link href={`/countries/${code}?${qs(prevYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
                 ← {prevYear}
@@ -129,6 +129,7 @@ export default async function CountryPage({
               years={years}
               year={year}
               baseHref={`/countries/${code}?${new URLSearchParams({ gender: f.gender, ...(f.age ? { age: f.age } : {}), ...(sort !== "points" ? { sort } : {}) }).toString()}`}
+              className="flex-1 sm:flex-none"
             />
             {nextYear && (
               <Link href={`/countries/${code}?${qs(nextYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
@@ -138,45 +139,48 @@ export default async function CountryPage({
           </span>
         </div>
 
-        {/* Gender / category, same as the list */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
-          <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
+        {/* Gender / category: segmented controls across the full width */}
+        <div className="grid grid-cols-[2fr_4fr] sm:grid-cols-[12rem_20rem] gap-2 mb-4 text-xs">
+          <div className="flex rounded bg-neutral-800 p-0.5">
             {(["Men", "Women"] as const).map((g) => (
               <Link
                 key={g}
                 href={`/countries/${code}?${qs(year, { ...f, gender: g })}`}
-                className={`px-2.5 py-1 rounded ${f.gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                className={`flex-1 text-center py-1.5 rounded ${f.gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
               >
                 {g}
               </Link>
             ))}
           </div>
-          {(["", "U23", "U20", "U18"] as const).map((a) => (
-            <Link
-              key={a || "all"}
-              href={`/countries/${code}?${qs(year, { ...f, age: a || undefined })}`}
-              className={`text-xs px-2.5 py-1 rounded-full border ${
-                (f.age ?? "") === a ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400"
-              }`}
-            >
-              {a || "All ages"}
-            </Link>
-          ))}
+          <div className="flex rounded bg-neutral-800 p-0.5">
+            {(["", "U23", "U20", "U18"] as const).map((a) => (
+              <Link
+                key={a || "all"}
+                href={`/countries/${code}?${qs(year, { ...f, age: a || undefined })}`}
+                className={`flex-1 text-center py-1.5 rounded whitespace-nowrap ${
+                  (f.age ?? "") === a ? "bg-neutral-100 text-black font-semibold" : "text-neutral-400"
+                }`}
+              >
+                {a || "All"}
+              </Link>
+            ))}
+          </div>
         </div>
 
-        {/* Key numbers */}
-        <div className="flex flex-wrap gap-2 mb-6 text-sm">
+        {/* Key numbers: a grid of equal cards (3 + 3 on phones, one row on desktop) */}
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-6">
           {[
             { label: "Rank", value: me ? `#${me.rank}` : "—" },
             { label: "Points", value: me?.points ?? 0 },
             { label: "Wins", value: me?.wins ?? 0 },
-            { label: "Scoring athletes", value: `${scoring.length}/${COUNTED_ATHLETES}` },
-            { label: "Athletes with points", value: athletes.length },
+            { label: "Podiums", value: me?.podiums ?? 0 },
+            { label: "Scoring", value: `${scoring.length}/${COUNTED_ATHLETES}`, title: "Athletes whose points count for the country" },
+            { label: "With points", value: athletes.length, title: "Athletes with points this season" },
           ].map((k) => (
-            <span key={k.label} className="flex items-center gap-1.5">
-              <span className="text-neutral-400">{k.label}</span>
-              <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">{k.value}</span>
-            </span>
+            <div key={k.label} title={k.title} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-2 py-2 text-center">
+              <div className="text-[10px] uppercase tracking-wide text-neutral-500">{k.label}</div>
+              <div className="font-mono text-base font-bold text-orange-400 tabular-nums">{k.value}</div>
+            </div>
           ))}
         </div>
 

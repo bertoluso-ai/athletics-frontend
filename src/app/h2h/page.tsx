@@ -126,12 +126,6 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
       </section>
 
       {/* one centred column, every block the same width */}
-      <PhotoCreditsToast
-        items={[
-          ...(photoA ? [{ who: infoA.display_name, credit: photoCredit(photoA), url: photoA.sourceUrl }] : []),
-          ...(photoB ? [{ who: infoB.display_name, credit: photoCredit(photoB), url: photoB.sourceUrl }] : []),
-        ]}
-      />
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
       {/* Key info */}
       <section>
@@ -252,6 +246,12 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
       </section>
 
       </div>
+      <PhotoCreditsToast
+        items={[
+          ...(photoA ? [{ who: infoA.display_name, credit: photoCredit(photoA), url: photoA.sourceUrl }] : []),
+          ...(photoB ? [{ who: infoB.display_name, credit: photoCredit(photoB), url: photoB.sourceUrl }] : []),
+        ]}
+      />
     </Shell>
   );
 }
