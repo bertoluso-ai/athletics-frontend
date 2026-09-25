@@ -227,3 +227,71 @@ export function parseCountryFilters(sp: { gender?: string; age?: string }): Coun
     age: sp.age && sp.age in AGE_CATEGORIES ? sp.age : undefined,
   };
 }
+
+// ---------------------------------------------------------------------
+// Nations ranking in the four views of the Rankings page (same 24-best
+// rule): season, rolling 12 months, wins, and one discipline. prev_rank =
+// the same ranking as of two weeks before the latest result (movement).
+// ---------------------------------------------------------------------
+
+export type NationView = "season" | "rolling" | "wins" | "discipline";
+
+export type NationRankingRow = {
+  code: string;
+  name: string;
+  rank: number;
+  prev_rank: number | null;
+  points: number;
+  wins: number;
+  n_counted: number;
+};
+
+export async function getNationRanking(p: {
+  view: NationView;
+  gender: CountryGender;
+  year: number;
+  age?: string;
+  event?: string;
+}): Promise<NationRankingRow[]> {
+  const nowWin = p.view === "rolling" ? "date > DATE_SUB(l.d, INTERVAL 365 DAY) AND date <= l.d" : "year = @year";
+  const prevWin =
+    p.view === "rolling"
+      ? "date > DATE_SUB(DATE_SUB(l.d, INTERVAL 14 DAY), INTERVAL 365 DAY) AND date <= DATE_SUB(l.d, INTERVAL 14 DAY)"
+      : "year = @year AND date <= DATE_SUB(l.d, INTERVAL 14 DAY)";
+  const order = p.view === "wins" ? "wins DESC, points DESC" : "points DESC";
+  const agg = (win: string) => `
+    SELECT nationality AS code,
+      ROUND(SUM(IF(rn <= ${COUNTED_ATHLETES}, points, 0)), 0) AS points,
+      COUNTIF(rn <= ${COUNTED_ATHLETES}) AS n_counted,
+      SUM(wins) AS wins
+    FROM (
+      SELECT *, ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY points DESC) AS rn
+      FROM (
+        SELECT athlete_id,
+          ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
+          SUM(competition_score) AS points, COUNTIF(place = 1) AS wins
+        FROM \`athletics-database.athletics_all.events_enriched\`, latest l
+        WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
+          AND ${win} ${ageFilter(p.age)} ${p.event ? "AND athletics_event = @event" : ""}
+        GROUP BY athlete_id
+      )
+      WHERE nationality IS NOT NULL
+    )
+    GROUP BY nationality`;
+  return runQuery<NationRankingRow>(
+    `
+    WITH latest AS (SELECT MAX(date) AS d FROM \`athletics-database.athletics_all.events_enriched\` WHERE date <= CURRENT_DATE()),
+    ${NAMES_CTE},
+    now_c AS (${agg(nowWin)}),
+    prev_c AS (${agg(prevWin)}),
+    ranked AS (SELECT *, RANK() OVER (ORDER BY ${order}) AS rank FROM now_c WHERE points > 0 OR wins > 0),
+    prev_ranked AS (SELECT code, RANK() OVER (ORDER BY ${order}) AS prev_rank FROM prev_c WHERE points > 0 OR wins > 0)
+    SELECT r.code, IFNULL(n.name, r.code) AS name, r.rank, pr.prev_rank, r.points, r.wins, r.n_counted
+    FROM ranked r
+    LEFT JOIN prev_ranked pr USING (code)
+    LEFT JOIN names n USING (code)
+    ORDER BY r.rank
+  `,
+    { gender: p.gender, year: p.year, ...(p.event ? { event: p.event } : {}) }
+  );
+}

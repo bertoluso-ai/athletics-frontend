@@ -4,7 +4,9 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
-import { getCountryRanking, getCountryYears, tierForRank, COUNTED_ATHLETES } from "@/lib/countries";
+import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
+import { flagUrlWide } from "@/lib/flags";
+import { EVENT_GROUPS } from "@/lib/events";
 import { eventLabel } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import {
@@ -27,9 +29,9 @@ export const revalidate = 3600;
 const PAGE_SIZE = 50;
 const AGES = ["", "U23", "U20", "U18"] as const;
 
-const MENU: { title: string; items: { label: string; view?: string; href?: string; help: string }[] }[] = [
+const MENU: { title: string; items: { label: string; view: string; help: string }[] }[] = [
   {
-    title: "Ranking",
+    title: "Athletes",
     items: [
       { label: "Season", view: "season", help: "Points scored in the selected season" },
       { label: "Rolling 12 months", view: "rolling", help: "Points over the last 365 days" },
@@ -39,11 +41,17 @@ const MENU: { title: string; items: { label: string; view?: string; href?: strin
   },
   {
     title: "Nations",
-    items: [{ label: "Nations", view: "nations", help: "Countries by the points of their 24 best athletes" }],
+    items: [
+      { label: "Season", view: "n-season", help: "Countries by the season points of their 24 best athletes" },
+      { label: "Rolling 12 months", view: "n-rolling", help: "Same rule over the last 365 days" },
+      { label: "Wins", view: "n-wins", help: "Countries by total wins" },
+      { label: "By discipline", view: "n-discipline", help: "Countries in one event (24 best athletes in that event)" },
+    ],
   },
 ];
 
 type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string };
+const NATION_VIEWS = ["n-season", "n-rolling", "n-wins", "n-discipline"] as const;
 
 // Same columns for the table header and every row.
 function cols(movement: boolean) {
@@ -55,10 +63,12 @@ function cols(movement: boolean) {
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   // links across the site (/rankings?event=...) mean the per-discipline explorer
-  const view = (["season", "rolling", "wins", "discipline", "nations"].includes(sp.view ?? "") ? sp.view : sp.event ? "discipline" : "season") as
-    | RankingView
-    | "discipline"
-    | "nations";
+  const requested = sp.view === "nations" ? "n-season" : sp.view; // old links
+  const view = (["season", "rolling", "wins", "discipline", ...NATION_VIEWS].includes(requested ?? "")
+    ? requested
+    : sp.event
+    ? "discipline"
+    : "season") as RankingView | "discipline" | (typeof NATION_VIEWS)[number];
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -75,10 +85,10 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
                   <RankingsExplorer />
                 </Suspense>
               </>
-            ) : view === "nations" ? (
-              <NationsRanking sp={sp} />
+            ) : view.startsWith("n-") ? (
+              <NationsRanking view={view.slice(2) as NationView} sp={sp} />
             ) : (
-              <IndividualRanking view={view} sp={sp} />
+              <IndividualRanking view={view as RankingView} sp={sp} />
             )}
           </div>
           <SideMenu view={view} />
@@ -100,7 +110,7 @@ function SideMenu({ view }: { view: string }) {
               return (
                 <li key={it.label}>
                   <Link
-                    href={it.href ?? `/rankings?view=${it.view}`}
+                    href={`/rankings?view=${it.view}`}
                     title={it.help}
                     className={`block whitespace-nowrap text-sm px-2.5 py-1.5 rounded ${
                       active ? "bg-orange-500/15 text-orange-400 font-semibold" : "text-neutral-300 hover:bg-neutral-900"
@@ -385,48 +395,82 @@ function RankingLine({ r, movement }: { r: IndividualRankingRow; movement: boole
   );
 }
 
-// Nations: same ranking as the Countries page (24 best athletes per
-// country), as a PCS-style table inside Rankings.
-async function NationsRanking({ sp }: { sp: SP }) {
+// Nations, as complete as the athletes' views: podium of flags, biggest
+// climbers, Prev/Diff table. Same 24-best-athletes rule as Countries.
+async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const years = await getCountryYears();
+  const currentYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const gender = sp.gender === "Women" ? "Women" : "Men";
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
-  const rows = await getCountryRanking(year, { gender, age });
+  const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const event = view === "discipline" ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions[0]) : undefined;
+  const rows = await getNationRanking({ view, gender, year, age, event });
+  const movement = view === "rolling" || year === currentYear;
+  const podium = rows.slice(0, 3);
+  const climbers = movement
+    ? rows
+        .filter((r) => r.prev_rank !== null && r.prev_rank - r.rank >= 1)
+        .sort((a, b) => b.prev_rank! - b.rank - (a.prev_rank! - a.rank))
+        .slice(0, 4)
+    : [];
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: "nations", gender, year: String(year), age: age ?? "", ...over };
+    const merged = { view: `n-${view}`, gender, year: String(year), age: age ?? "", event: event ?? "", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
+  const countryHref = (code: string) => `/countries/${code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`;
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const maxPoints = Math.max(1, ...rows.map((r) => r.points));
+  const title =
+    view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : view === "discipline" ? `${eventLabel(event!)} ${year}` : `Season ${year}`;
+  const cols = movement
+    ? "grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]"
+    : "grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]";
 
   return (
     <>
       <h1 className="text-2xl font-bold mb-1">
-        Ranking <span className="text-orange-500">» Nations {year}</span>
+        Nations <span className="text-orange-500">» {title}</span>
       </h1>
       <p className="text-sm text-neutral-500 mb-4">
-        Each country scores the season points of its {COUNTED_ATHLETES} best athletes. Top 8 Gold, next 8 Silver, next 8 Bronze.
+        {view === "wins"
+          ? "Total wins of each country's athletes, points as tie-break."
+          : `Each country scores the points of its ${COUNTED_ATHLETES} best athletes${view === "discipline" ? " in this event" : ""}${
+              view === "rolling" ? " over the last 365 days" : ""
+            }.`}{" "}
+        {movement && "Arrows compare with two weeks ago."}
       </p>
+
       <form action="/rankings" className="flex flex-wrap items-center gap-2 mb-6">
-        <input type="hidden" name="view" value="nations" />
+        <input type="hidden" name="view" value={`n-${view}`} />
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as const).map((g) => (
-            <Link key={g} href={href({ gender: g })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
+            <Link key={g} href={href({ gender: g, event: "" })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
               {g}
             </Link>
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
-        <select name="year" defaultValue={year} className={selectClass}>
-          {years.map((y) => (
-            <option key={y} value={y}>
-              {y}
-            </option>
-          ))}
-        </select>
+        {view === "discipline" && (
+          <select name="event" defaultValue={event} className={selectClass}>
+            {eventOptions.map((e) => (
+              <option key={e} value={e}>
+                {eventLabel(e)}
+              </option>
+            ))}
+          </select>
+        )}
+        {view !== "rolling" && (
+          <select name="year" defaultValue={year} className={selectClass}>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        )}
         <select name="age" defaultValue={age ?? ""} className={selectClass}>
           {AGES.map((a) => (
             <option key={a || "all"} value={a}>
@@ -437,9 +481,64 @@ async function NationsRanking({ sp }: { sp: SP }) {
         <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
       </form>
 
+      {/* podium of flags: 2 - 1 - 3 */}
+      {podium.length === 3 && (
+        <section className="grid grid-cols-3 gap-3 sm:gap-5 items-end max-w-2xl mx-auto mb-8">
+          {[
+            { r: podium[1], pos: 2 },
+            { r: podium[0], pos: 1 },
+            { r: podium[2], pos: 3 },
+          ].map(({ r, pos }) => {
+            const ring = pos === 1 ? "border-yellow-400/60" : pos === 2 ? "border-neutral-300/50" : "border-orange-600/60";
+            const src = flagUrlWide(r.code, 320);
+            return (
+              <Link key={r.code} href={countryHref(r.code)} className={`flex flex-col rounded-xl border ${ring} bg-neutral-900/60 overflow-hidden hover:bg-neutral-800`}>
+                <span className={`relative w-full ${pos === 1 ? "aspect-[4/3]" : "aspect-[3/2]"} bg-neutral-800`}>
+                  {src && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={src} alt={r.name} className="absolute inset-0 w-full h-full object-cover" />
+                  )}
+                  <span className="absolute top-1.5 left-1.5 text-xl sm:text-2xl drop-shadow">{["🥇", "🥈", "🥉"][pos - 1]}</span>
+                </span>
+                <span className="px-2 py-2 text-center">
+                  <span className="block text-xs sm:text-sm font-semibold truncate">{r.name}</span>
+                  <span className="block font-mono text-orange-400 text-base sm:text-lg font-bold">
+                    {view === "wins" ? `${r.wins} wins` : r.points}
+                  </span>
+                </span>
+              </Link>
+            );
+          })}
+        </section>
+      )}
+
+      {climbers.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Biggest climbers · last 2 weeks</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {climbers.map((r) => (
+              <Link key={r.code} href={countryHref(r.code)} className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800">
+                <Flag code={r.code} className="w-8 h-6" />
+                <span className="min-w-0">
+                  <span className="block text-sm truncate">{r.name}</span>
+                  <span className="flex items-center gap-1.5 text-xs">
+                    <span className="text-green-400 font-semibold">▲{r.prev_rank! - r.rank}</span>
+                    <span className="text-neutral-500">
+                      #{r.prev_rank} → #{r.rank}
+                    </span>
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="border border-neutral-800 rounded-lg overflow-hidden">
-        <div className="grid grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_4rem] gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+        <div className={`grid ${cols} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
           <span>#</span>
+          {movement && <span>Prev</span>}
+          {movement && <span>Diff</span>}
           <span>Nation</span>
           <span className="hidden sm:block" />
           <span className="hidden sm:block text-right">Wins</span>
@@ -448,18 +547,28 @@ async function NationsRanking({ sp }: { sp: SP }) {
         <div className="divide-y divide-neutral-800">
           {rows.slice(0, 200).map((r) => {
             const t = tierForRank(r.rank);
+            const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
             return (
-              <Link
-                key={r.code}
-                href={`/countries/${r.code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`}
-                className="grid grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1fr)_3.5rem_4rem] gap-x-2 items-center px-3 py-2 text-sm bg-neutral-900/40 hover:bg-neutral-800"
-              >
+              <Link key={r.code} href={countryHref(r.code)} className={`grid ${cols} gap-x-2 items-center px-3 py-2 text-sm bg-neutral-900/40 hover:bg-neutral-800`}>
                 <span className={`tabular-nums font-semibold ${t ? t.color : "text-neutral-400"}`}>{r.rank}</span>
+                {movement && <span className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
+                {movement && (
+                  <span className="text-xs tabular-nums">
+                    {diff === null ? (
+                      <span className="text-sky-400">new</span>
+                    ) : diff > 0 ? (
+                      <span className="text-green-400">▲{diff}</span>
+                    ) : diff < 0 ? (
+                      <span className="text-red-400">▼{-diff}</span>
+                    ) : (
+                      <span className="text-neutral-600">–</span>
+                    )}
+                  </span>
+                )}
                 <span className="flex items-center gap-2 min-w-0">
                   <Flag code={r.code} />
                   <span className="truncate">{r.name}</span>
                 </span>
-                {/* points bar, scaled to the leader */}
                 <span className="hidden sm:flex items-center">
                   <span className="h-2 rounded-sm bg-orange-500/70" style={{ width: `${Math.max(2, (r.points / maxPoints) * 100)}%` }} />
                 </span>
@@ -471,13 +580,6 @@ async function NationsRanking({ sp }: { sp: SP }) {
           {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No nations for this selection.</div>}
         </div>
       </div>
-      <p className="text-[11px] text-neutral-500 mt-2">
-        Numbers in gold / silver / bronze = the country&apos;s block. Full blocks and flags on the{" "}
-        <Link href={`/countries?year=${year}&gender=${gender}`} className="underline hover:text-neutral-300">
-          Countries
-        </Link>{" "}
-        page.
-      </p>
     </>
   );
 }
