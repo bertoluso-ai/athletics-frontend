@@ -109,7 +109,7 @@ export default async function CountriesPage({
                 {t.label}
                 <span className="text-neutral-500 normal-case font-normal">· {t.from}–{t.to}</span>
               </h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-1 mb-4">
+              <div className="sm:columns-2 gap-x-10 mb-4">
                 {block.map((r) => (
                   <CountryLine key={r.code} r={r} href={countryHref(r.code, year, f)} />
                 ))}
@@ -144,7 +144,7 @@ export default async function CountriesPage({
         {rows.length > 24 && (
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-neutral-400">Rest of the world</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-1">
+            <div className="sm:columns-2 lg:columns-3 gap-x-10">
               {rows
                 .filter((r) => r.rank > 24)
                 .map((r) => (
@@ -162,7 +162,7 @@ export default async function CountriesPage({
 
 function CountryLine({ r, href }: { r: CountryRankingRow; href: string }) {
   return (
-    <Link href={href} className="flex items-center gap-2 py-0.5 text-sm hover:text-orange-400">
+    <Link href={href} className="flex items-center gap-2 py-1 text-sm hover:text-orange-400 break-inside-avoid">
       <span className="w-6 text-right text-xs text-neutral-500 tabular-nums">{r.rank}</span>
       <Flag code={r.code} />
       <span className="truncate">{r.name}</span>
