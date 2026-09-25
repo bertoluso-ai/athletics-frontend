@@ -161,9 +161,10 @@ export default async function AthletePage({
                             key={h.nationality}
                             href={`/countries/${h.nationality}`}
                             title={`Formerly ${h.nationality} (${h.first_year === h.last_year ? h.first_year : `${h.first_year}–${h.last_year}`})`}
-                            className="opacity-80 hover:opacity-100"
+                            className="flex items-center gap-1 text-neutral-500 hover:text-orange-400"
                           >
                             <Flag code={h.nationality} className="w-4 h-3" />
+                            {h.nationality}
                           </Link>
                         ))}
                       </span>
