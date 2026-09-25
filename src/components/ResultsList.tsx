@@ -44,8 +44,12 @@ function sortValue(r: AthleteYearResultRow, col: SortBy): number | null {
 // The date column widens when "All years" is selected -- the year gets
 // appended to the date text then ("02 Mar 2002" vs "02 Mar"), and the
 // narrower width overflowed into the Pos column.
+// From sm up there's room for Mark and Points side by side, so the
+// Mark/Points toggle only exists on phones.
 function gridCols(showYear: boolean) {
-  return showYear ? "grid-cols-[5.4rem_2rem_1fr_auto]" : "grid-cols-[3.4rem_2rem_1fr_auto]";
+  return showYear
+    ? "grid-cols-[5.4rem_2rem_1fr_auto] sm:grid-cols-[5.4rem_2rem_1fr_auto_3rem]"
+    : "grid-cols-[3.4rem_2rem_1fr_auto] sm:grid-cols-[3.4rem_2rem_1fr_auto_3rem]";
 }
 
 export default function ResultsList({
@@ -65,7 +69,7 @@ export default function ResultsList({
   year: YearValue;
   baseHref: string;
 }) {
-  const [sortBy, setSortBy] = useState<SortBy>("points");
+  const [sortBy, setSortBy] = useState<SortBy>("date");
   const [sortDir, setSortDir] = useState<1 | -1 | null>(null);
   const isField = isFieldEvent(event);
   // Raw marks mix seconds and metres once disciplines are mixed together --
@@ -118,10 +122,25 @@ export default function ResultsList({
         <span>Race</span>
         <button
           onClick={() => handleSort(metric === "mark" ? "points" : isAll ? "points" : "mark")}
-          className="text-right flex items-center justify-end gap-0.5 hover:text-neutral-300"
+          className="sm:hidden text-right flex items-center justify-end gap-0.5 hover:text-neutral-300"
           title="Click to switch between Mark and Points, or click again to flip the sort direction"
         >
           {metric === "mark" ? "Mark" : "Points"} {arrow(metric)}
+        </button>
+        {/* desktop: both columns, each sorts on its own. Mark isn't sortable
+            with every discipline mixed (seconds vs metres). */}
+        <button
+          onClick={() => !isAll && handleSort("mark")}
+          disabled={isAll}
+          className="hidden sm:flex text-right items-center justify-end gap-0.5 enabled:hover:text-neutral-300"
+        >
+          Mark {effectiveSortBy === "mark" && arrow("mark")}
+        </button>
+        <button
+          onClick={() => handleSort("points")}
+          className="hidden sm:flex text-right items-center justify-end gap-0.5 hover:text-neutral-300"
+        >
+          Pts {effectiveSortBy === "points" && arrow("points")}
         </button>
       </div>
       <div className="divide-y divide-neutral-800">
@@ -156,7 +175,7 @@ export default function ResultsList({
                 )}
               </div>
             </span>
-            <span className="text-right whitespace-nowrap">
+            <span className="sm:hidden text-right whitespace-nowrap">
               {effectiveSortBy === "mark" ? (
                 <span className="flex items-center justify-end gap-1.5">
                   <WindBadge wind={r.wind} windLegal={r.wind_legal} />
@@ -167,6 +186,13 @@ export default function ResultsList({
                   {r.competition_score !== null ? r.competition_score : ""}
                 </span>
               )}
+            </span>
+            <span className="hidden sm:flex items-center justify-end gap-1.5 whitespace-nowrap">
+              <WindBadge wind={r.wind} windLegal={r.wind_legal} />
+              <span className="font-mono text-sm text-neutral-200">{r.mark_display}</span>
+            </span>
+            <span className="hidden sm:block text-right font-mono text-sm text-orange-400 whitespace-nowrap">
+              {r.competition_score !== null ? r.competition_score : ""}
             </span>
           </div>
         ))}

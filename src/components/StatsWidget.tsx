@@ -74,7 +74,10 @@ export default function StatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1">
+      {/* Touch: swipeable pills. Mouse (pointer-fine): a hidden-scrollbar
+          pill row can't be scrolled, so the group becomes a dropdown on the
+          same line as the discipline one. */}
+      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 pointer-fine:hidden">
         {EVENT_GROUPS.map((g) => (
           <button
             key={g.key}
@@ -90,12 +93,27 @@ export default function StatsWidget({ year }: { year: number }) {
         ))}
       </div>
 
-      {(group.events[gender] as readonly string[]).length > 1 && (
-        <div className="px-4 py-2 border-b border-neutral-800">
+      <div
+        className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
+          (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden pointer-fine:flex"
+        }`}
+      >
+        <select
+          value={groupKey}
+          onChange={(e) => setGroupKey(e.target.value)}
+          className="hidden pointer-fine:block flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700"
+        >
+          {EVENT_GROUPS.map((g) => (
+            <option key={g.key} value={g.key}>
+              {g.label}
+            </option>
+          ))}
+        </select>
+        {(group.events[gender] as readonly string[]).length > 1 && (
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
-            className="bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700 w-full"
+            className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700"
           >
             {(group.events[gender] as readonly string[]).map((ev) => (
               <option key={ev} value={ev}>
@@ -103,8 +121,8 @@ export default function StatsWidget({ year }: { year: number }) {
               </option>
             ))}
           </select>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="divide-y divide-neutral-800">
         {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}

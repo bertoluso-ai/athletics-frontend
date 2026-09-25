@@ -246,20 +246,18 @@ export default async function AthletePage({
                   <Link
                     key={i}
                     href={`/rankings?event=${encodeURIComponent(pb.athletics_event)}&gender=${info.gender ?? ""}&year=all`}
-                    className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
+                    className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
                   >
-                    <span className="text-sm">{eventLabel(pb.athletics_event)}</span>
-                    <span className="font-mono text-sm text-orange-400 flex items-center gap-1.5">
-                      <WindBadge wind={pb.wind} windLegal={pb.wind_legal} />
-                      {pb.mark_display}
-                      {pb.all_time_rank && (
-                        <span
-                          className="text-neutral-500 ml-1"
-                          title={`All-time world rank: ${pb.all_time_rank}`}
-                        >
-                          (#{pb.all_time_rank})
-                        </span>
-                      )}
+                    {/* fixed columns so marks and ranks line up row to row */}
+                    <span className="text-sm min-w-0 truncate">{eventLabel(pb.athletics_event)}</span>
+                    {/* wrapper keeps the grid cell even when WindBadge renders nothing */}
+                    <span><WindBadge wind={pb.wind} windLegal={pb.wind_legal} /></span>
+                    <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{pb.mark_display}</span>
+                    <span
+                      className="font-mono text-sm text-neutral-500 text-right tabular-nums"
+                      title={pb.all_time_rank ? `All-time world rank: ${pb.all_time_rank}` : undefined}
+                    >
+                      {pb.all_time_rank ? `(#${pb.all_time_rank})` : ""}
                     </span>
                   </Link>
                 ))}
@@ -281,28 +279,25 @@ export default async function AthletePage({
                   <Link
                     key={y.year}
                     href={`/rankings?event=all&gender=${info.gender ?? ""}&year=${y.year}`}
-                    className={`flex items-center justify-between px-4 py-2 hover:bg-neutral-800 ${
+                    className={`grid grid-cols-[1fr_3rem_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 hover:bg-neutral-800 ${
                       y.year === year ? "bg-neutral-800" : "bg-neutral-900/40"
                     }`}
                   >
+                    {/* same column widths as Personal Bests above, so both
+                        panels' numbers sit on the same vertical lines */}
                     <span className="text-sm">{y.year}</span>
-                    <span className="flex items-center gap-2">
-                      {y.wins > 0 && (
-                        <span className="text-xs" title={`${y.wins} win${y.wins > 1 ? "s" : ""} in ${y.year}`}>
-                          🥇 {y.wins}
-                        </span>
-                      )}
-                      <span className="font-mono text-sm text-orange-400">
-                        {y.points}
-                        {y.rank && (
-                          <span
-                            className="text-neutral-500 ml-1"
-                            title={`Rank in ${y.year} by total points (same gender): ${y.rank}`}
-                          >
-                            (#{y.rank})
-                          </span>
-                        )}
-                      </span>
+                    <span
+                      className="text-xs text-right tabular-nums whitespace-nowrap"
+                      title={y.wins > 0 ? `${y.wins} win${y.wins > 1 ? "s" : ""} in ${y.year}` : undefined}
+                    >
+                      {y.wins > 0 ? `🥇 ${y.wins}` : ""}
+                    </span>
+                    <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{y.points}</span>
+                    <span
+                      className="font-mono text-sm text-neutral-500 text-right tabular-nums"
+                      title={y.rank ? `Rank in ${y.year} by total points (same gender): ${y.rank}` : undefined}
+                    >
+                      {y.rank ? `(#${y.rank})` : ""}
                     </span>
                   </Link>
                 ))}
