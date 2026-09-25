@@ -2,6 +2,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
+import ViewAllList from "@/components/ViewAllList";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
@@ -319,9 +320,12 @@ ${photoCredit(photos[i]!)}` : ""}`}
           <aside className="flex flex-col gap-8">
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Squad</h2>
-              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
-                {/* sortable column headers, each above its own column */}
-                <div className="grid grid-cols-[1.75rem_1fr_2rem_3rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide">
+              <ViewAllList
+                noun="athletes"
+                initial={12}
+                scrollOnMobile
+                header={
+                  <div className="grid grid-cols-[1.75rem_1fr_2rem_3rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide">
                   <span className="text-neutral-500">#</span>
                   <Link href={sortHref("name")} scroll={false} className={sort === "name" ? "text-orange-400" : "text-neutral-500 hover:text-neutral-300"}>
                     Name{arrow("name")}
@@ -333,7 +337,8 @@ ${photoCredit(photos[i]!)}` : ""}`}
                     Pts{arrow("points")}
                   </Link>
                 </div>
-                {squad.slice(0, 12).map((a) => (
+                }
+                items={squad.slice(0, 500).map((a) => (
                   <Link
                     key={a.athlete_id}
                     href={`/athletes/${a.athlete_id}`}
@@ -353,34 +358,8 @@ ${photoCredit(photos[i]!)}` : ""}`}
                     </span>
                   </Link>
                 ))}
-                {squad.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes with points.</div>}
-              </div>
-              {squad.length > 12 && (
-                <details className="group mt-1">
-                  <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
-                    <span className="group-open:hidden">View all {squad.length} athletes ↓</span>
-                    <span className="hidden group-open:inline">Show fewer ↑</span>
-                  </summary>
-                  <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mt-1">
-                    {squad.slice(12, 500).map((a) => (
-                      <Link
-                        key={a.athlete_id}
-                        href={`/athletes/${a.athlete_id}`}
-                        className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
-                      >
-                        <span className={`text-xs tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-600"}`}>{a.rn_in_country}</span>
-                        <span className="min-w-0">
-                          <span className="block truncate">{a.display_name}</span>
-                          <span className="block text-[11px] text-neutral-500 truncate">{eventLabel(a.main_event)}</span>
-                        </span>
-                        <span className="text-xs text-neutral-500 text-right tabular-nums">{a.birth_year ? year - a.birth_year : ""}</span>
-                        <span className={`font-mono text-xs text-right tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-500"}`}>{a.points}</span>
-                      </Link>
-                    ))}
-                  </div>
-                  {squad.length > 500 && <p className="text-[11px] text-neutral-500 mt-1">First 500 of {squad.length}.</p>}
-                </details>
-              )}
+              />
+              {squad.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes with points.</div>}
               <p className="text-[11px] text-neutral-500 mt-1">
                 Orange = one of the {COUNTED_ATHLETES} athletes whose points count for the country.
               </p>
@@ -388,13 +367,17 @@ ${photoCredit(photos[i]!)}` : ""}`}
 
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Seasons</h2>
-              <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
+              <ViewAllList
+                noun="seasons"
+                initial={10}
+                header={
                 <div className="grid grid-cols-[2.75rem_1fr_3rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
                   <span />
                   <span>Points</span>
                   <span className="text-right">#</span>
                 </div>
-                {seasons.slice(0, 10).map((s) => {
+                }
+                items={seasons.map((s) => {
                   const t = tierForRank(s.rank);
                   return (
                     <Link
@@ -416,37 +399,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
                     </Link>
                   );
                 })}
-              </div>
-              {seasons.length > 10 && (
-                <details className="group mt-1">
-                  <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
-                    <span className="group-open:hidden">View all {seasons.length} seasons ↓</span>
-                    <span className="hidden group-open:inline">Show fewer ↑</span>
-                  </summary>
-                  <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mt-1">
-                    {seasons.slice(10).map((s) => {
-                      const t = tierForRank(s.rank);
-                      return (
-                        <Link
-                          key={s.year}
-                          href={`/countries/${code}?${qs(s.year, f)}`}
-                          className="grid grid-cols-[2.75rem_1fr_3rem] items-center gap-x-1.5 px-3 py-1.5 hover:bg-neutral-800 bg-neutral-900/40"
-                        >
-                          <span className="text-sm">{s.year}</span>
-                          <span className="flex items-center gap-1.5 min-w-0">
-                            <span
-                              className="h-3 rounded-sm bg-orange-500/80 shrink-0"
-                              style={{ width: `${Math.max(2, (s.points / maxSeasonPoints) * 70)}%` }}
-                            />
-                            <span className="font-mono text-xs text-orange-400 tabular-nums">{s.points}</span>
-                          </span>
-                          <span className={`font-mono text-sm text-right tabular-nums ${t ? t.color : "text-neutral-400"}`}>{s.rank}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </details>
-              )}
+              />
             </section>
           </aside>
         </div>
@@ -463,61 +416,37 @@ ${photoCredit(photos[i]!)}` : ""}`}
 
 function ResultsTable({ rows, showPoints }: { rows: CountryResultRow[]; showPoints: boolean }) {
   if (rows.length === 0) return <p className="text-sm text-neutral-500">None this season.</p>;
-  return (
-    <>
-      <ResultRows rows={rows.slice(0, 15)} showPoints={showPoints} />
-      {rows.length > 15 && (
-        <details className="group mt-1">
-          <summary className="cursor-pointer list-none text-xs text-orange-400 hover:underline py-1">
-            <span className="group-open:hidden">View all {rows.length} ↓</span>
-            <span className="hidden group-open:inline">Show fewer ↑</span>
-          </summary>
-          <div className="mt-1">
-            <ResultRows rows={rows.slice(15)} showPoints={showPoints} />
-          </div>
-        </details>
-      )}
-    </>
-  );
+  return <ViewAllList noun="results" initial={15} scrollOnMobile items={rows.map((r, i) => <ResultRow key={i} r={r} showPoints={showPoints} />)} />;
 }
 
-function ResultRows({ rows, showPoints }: { rows: CountryResultRow[]; showPoints: boolean }) {
+function ResultRow({ r, showPoints }: { r: CountryResultRow; showPoints: boolean }) {
   return (
-    <>
-      {rows.length > 0 && (
-        <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
-          {rows.map((r, i) => (
-            <div
-              key={i}
-              className={`grid ${showPoints ? "grid-cols-[3.25rem_1.75rem_1fr_3rem]" : "grid-cols-[3.25rem_1fr]"} items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40`}
-            >
-              <span className="text-xs text-neutral-500 whitespace-nowrap">{formatDate(r.date)}</span>
-              {showPoints && <span className="text-xs text-neutral-400 tabular-nums">{r.place}</span>}
-              <span className="min-w-0">
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <Link
-                    href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}`}
-                    className="truncate hover:text-orange-400"
-                  >
-                    {r.event_name}
-                  </Link>
-                  <TierBadge tier={r.competition_level} />
-                </span>
-                <span className="block text-[11px] text-neutral-500 truncate">
-                  {eventLabel(r.athletics_event)} ·{" "}
-                  <Link href={`/athletes/${r.athlete_id}`} className="text-neutral-300 hover:text-orange-400">
-                    {r.display_name}
-                  </Link>{" "}
-                  · <span className="font-mono">{r.mark_display}</span>
-                </span>
-              </span>
-              {showPoints && (
-                <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{r.competition_score}</span>
-              )}
-            </div>
-          ))}
-        </div>
+    <div
+      className={`grid ${showPoints ? "grid-cols-[3.25rem_1.75rem_1fr_3rem]" : "grid-cols-[3.25rem_1fr]"} items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40`}
+    >
+      <span className="text-xs text-neutral-500 whitespace-nowrap">{formatDate(r.date)}</span>
+      {showPoints && <span className="text-xs text-neutral-400 tabular-nums">{r.place}</span>}
+      <span className="min-w-0">
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Link
+            href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}`}
+            className="truncate hover:text-orange-400"
+          >
+            {r.event_name}
+          </Link>
+          <TierBadge tier={r.competition_level} />
+        </span>
+        <span className="block text-[11px] text-neutral-500 truncate">
+          {eventLabel(r.athletics_event)} ·{" "}
+          <Link href={`/athletes/${r.athlete_id}`} className="text-neutral-300 hover:text-orange-400">
+            {r.display_name}
+          </Link>{" "}
+          · <span className="font-mono">{r.mark_display}</span>
+        </span>
+      </span>
+      {showPoints && (
+        <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{r.competition_score}</span>
       )}
-    </>
+    </div>
   );
 }
