@@ -370,6 +370,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
               <ViewAllList
                 noun="seasons"
                 initial={10}
+                scrollOnMobile
                 header={
                 <div className="grid grid-cols-[2.75rem_1fr_3rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
                   <span />
