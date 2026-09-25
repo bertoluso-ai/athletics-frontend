@@ -22,6 +22,7 @@ export type IndividualRankingRow = {
   points: number;
   wins: number;
   main_event: string | null;
+  best_mark: string | null; // best wind-legal mark (discipline view)
 };
 
 export type RankingParams = {
@@ -31,6 +32,7 @@ export type RankingParams = {
   nationality?: string; // one code...
   nationalityCodes?: string[]; // ...or every code of that country (sources disagree: NED/NET/NLD)
   age?: string;
+  event?: string; // one discipline only
   page: number;
   pageSize: number;
 };
@@ -59,9 +61,10 @@ export async function getIndividualRanking(p: RankingParams) {
     WITH latest AS (SELECT MAX(date) AS d FROM ${T} WHERE date <= CURRENT_DATE()),
     base AS (
       SELECT athlete_id, athlete_display_name, nationality, birth_year, date, year,
-        competition_score, place, athletics_event
+        competition_score, place, athletics_event, athletics_discipline, wind_legal, mark_display, mark, mark_seconds
       FROM ${T}
       WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL ${ageSql}
+        ${p.event ? "AND athletics_event = @event" : ""}
     ),
     now_agg AS (
       SELECT athlete_id,
@@ -70,7 +73,9 @@ export async function getIndividualRanking(p: RankingParams) {
         ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
         ROUND(SUM(competition_score), 0) AS points,
         COUNTIF(place = 1) AS wins,
-        ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event
+        ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event,
+        ARRAY_AGG(IF(IFNULL(wind_legal, TRUE), mark_display, NULL) IGNORE NULLS
+          ORDER BY IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds) LIMIT 1)[SAFE_OFFSET(0)] AS best_mark
       FROM base, latest
       WHERE ${w.now.replaceAll("@d14", "DATE_SUB(latest.d, INTERVAL 14 DAY)").replaceAll("@d", "latest.d")}
       GROUP BY athlete_id
@@ -101,6 +106,7 @@ export async function getIndividualRanking(p: RankingParams) {
     gender: p.gender,
     year: p.year,
     ...(p.nationalityCodes?.length ? { codes: p.nationalityCodes } : p.nationality ? { nationality: p.nationality } : {}),
+    ...(p.event ? { event: p.event } : {}),
   });
   return { rows, total: rows[0]?.total ?? 0 };
 }

@@ -4,6 +4,9 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
+import YearlyProgressionChart from "@/components/YearlyProgressionChart";
+import { getEventYearlyProgression } from "@/lib/queries";
+import { isFieldEvent } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
 import { flagUrlWide } from "@/lib/flags";
 import { EVENT_GROUPS } from "@/lib/events";
@@ -77,14 +80,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_14rem] gap-8 items-start">
           <div className="min-w-0">
             {view === "discipline" ? (
-              <>
-                <h1 className="text-2xl font-bold mb-6">
-                  Ranking <span className="text-orange-500">» By discipline</span>
-                </h1>
-                <Suspense fallback={<div className="text-sm text-neutral-500">Loading…</div>}>
-                  <RankingsExplorer />
-                </Suspense>
-              </>
+              <IndividualRanking view="season" discipline sp={sp} />
             ) : view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
             ) : (
@@ -128,7 +124,7 @@ function SideMenu({ view }: { view: string }) {
   );
 }
 
-async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
+async function IndividualRanking({ view, sp, discipline = false }: { view: RankingView; sp: SP; discipline?: boolean }) {
   const years = await getRankingYears();
   const currentYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
@@ -137,10 +133,14 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const nationality = sp.nationality || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const movement = hasMovement(view, year, currentYear);
+  // "By discipline": the same ranking restricted to one event
+  const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const event = discipline ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions.includes("100 Metres") ? "100 Metres" : eventOptions[0]) : undefined;
+  const progression = event ? await getEventYearlyProgression(event, gender, age) : [];
 
   const nationalities = await getRankingNationalities(gender);
   const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
-  const params = { view, gender, year, nationality, nationalityCodes, age } as const;
+  const params = { view, gender, year, nationality, nationalityCodes, age, event } as const;
   const [{ rows, total }, top] = await Promise.all([
     getIndividualRanking({ ...params, page, pageSize: PAGE_SIZE }),
     // podium + climbers always come from the top of the (filtered) ranking
@@ -163,12 +163,14 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", page: "1", ...over };
+    const merged = { view: discipline ? "discipline" : view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const title = view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`;
+  const title = discipline
+    ? `${eventLabel(event!)} ${year}`
+    : view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`;
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
@@ -181,18 +183,20 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           ? "Sum of points over the last 365 days."
           : view === "wins"
           ? "Wins in the season, points as tie-break."
+          : discipline
+          ? "Points scored in this event in the season."
           : "Sum of points scored in the season."}{" "}
         {movement && "Up/down arrows compare with the ranking two weeks ago."}
       </p>
 
       {/* Filters */}
       <form action="/rankings" className="flex flex-wrap items-center gap-2 mb-6">
-        <input type="hidden" name="view" value={view} />
+        <input type="hidden" name="view" value={discipline ? "discipline" : view} />
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as const).map((g) => (
             <Link
               key={g}
-              href={href({ gender: g, nationality: "" })}
+              href={href({ gender: g, nationality: "", event: "" })}
               className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
             >
               {g}
@@ -200,6 +204,15 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
+        {discipline && (
+          <select name="event" defaultValue={event} className={selectClass}>
+            {eventOptions.map((e) => (
+              <option key={e} value={e}>
+                {eventLabel(e)}
+              </option>
+            ))}
+          </select>
+        )}
         {view !== "rolling" && (
           <select name="year" defaultValue={year} className={selectClass}>
             {years.map((y) => (
@@ -231,6 +244,8 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           </Link>
         )}
       </form>
+
+      {event && progression.length >= 2 && page === 1 && <ProgressionBox event={event} data={progression} />}
 
       {/* Podium: 2 - 1 - 3 */}
       {podium.length === 3 && page === 1 && (
@@ -289,13 +304,13 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           {movement && <span>Prev</span>}
           {movement && <span>Diff</span>}
           <span>Athlete</span>
-          <span className="hidden sm:block">Main event</span>
+          <span className="hidden sm:block">{discipline ? "Best mark" : "Main event"}</span>
           <span className="hidden sm:block text-right">Wins</span>
           <span className="text-right">Points</span>
         </div>
         <div className="divide-y divide-neutral-800">
           {rows.map((r) => (
-            <RankingLine key={r.athlete_id} r={r} movement={movement} />
+            <RankingLine key={r.athlete_id} r={r} movement={movement} discipline={discipline} />
           ))}
           {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
         </div>
@@ -362,7 +377,7 @@ function PodiumCard({ r, pos, photo, view }: { r: IndividualRankingRow; pos: num
   );
 }
 
-function RankingLine({ r, movement }: { r: IndividualRankingRow; movement: boolean }) {
+function RankingLine({ r, movement, discipline = false }: { r: IndividualRankingRow; movement: boolean; discipline?: boolean }) {
   const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
   return (
     <Link
@@ -388,7 +403,9 @@ function RankingLine({ r, movement }: { r: IndividualRankingRow; movement: boole
         <Flag code={r.nationality} />
         <span className="truncate">{r.display_name}</span>
       </span>
-      <span className="hidden sm:block text-xs text-neutral-500 truncate">{r.main_event ? eventLabel(r.main_event) : ""}</span>
+      <span className={`hidden sm:block text-xs truncate ${discipline ? "font-mono text-neutral-300" : "text-neutral-500"}`}>
+        {discipline ? r.best_mark ?? "" : r.main_event ? eventLabel(r.main_event) : ""}
+      </span>
       <span className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins || ""}</span>
       <span className="text-right font-mono text-orange-400 tabular-nums">{r.points}</span>
     </Link>
@@ -405,7 +422,10 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
   const event = view === "discipline" ? (sp.event && eventOptions.includes(sp.event) ? sp.event : eventOptions[0]) : undefined;
-  const rows = await getNationRanking({ view, gender, year, age, event });
+  const [rows, progression] = await Promise.all([
+    getNationRanking({ view, gender, year, age, event }),
+    event ? getEventYearlyProgression(event, gender, age) : Promise.resolve([]),
+  ]);
   const movement = view === "rolling" || year === currentYear;
   const podium = rows.slice(0, 3);
   const climbers = movement
@@ -480,6 +500,8 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         </select>
         <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
       </form>
+
+      {event && progression.length >= 2 && <ProgressionBox event={event} data={progression} />}
 
       {/* podium of flags: 2 - 1 - 3 */}
       {podium.length === 3 && (
@@ -581,5 +603,15 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         </div>
       </div>
     </>
+  );
+}
+
+// Best mark of every year for the selected event (both discipline views).
+function ProgressionBox({ event, data }: { event: string; data: Awaited<ReturnType<typeof getEventYearlyProgression>> }) {
+  return (
+    <section className="mb-8 border border-neutral-800 rounded-lg p-3 bg-neutral-900/40">
+      <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-1">{eventLabel(event)} · best mark by year</div>
+      <YearlyProgressionChart data={data} isField={isFieldEvent(event)} />
+    </section>
   );
 }
