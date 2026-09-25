@@ -40,11 +40,14 @@ export async function GET(req: NextRequest) {
     SELECT athlete_id, ANY_VALUE(athlete_display_name) AS display_name,
       ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality
     FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athlete_id IS NOT NULL AND LOWER(athlete_display_name) LIKE @pattern
+    -- accent-insensitive on both sides ("hanzekovic" finds "Hanžeković")
+    WHERE athlete_id IS NOT NULL
+      AND LOWER(REGEXP_REPLACE(NORMALIZE(athlete_display_name, NFD), r'\\p{M}', '')) LIKE @pattern
     GROUP BY athlete_id
-    ORDER BY COUNT(*) DESC
+    -- best athletes first: career points, then number of results
+    ORDER BY IFNULL(SUM(competition_score), 0) DESC, COUNT(*) DESC
     LIMIT 8
-  `, { pattern: `%${qLower}%` });
+  `, { pattern: `%${qLower.normalize("NFD").replace(/\p{M}/gu, "")}%` });
 
   for (const a of athletes) {
     results.push({
