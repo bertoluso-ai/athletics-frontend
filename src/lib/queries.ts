@@ -53,6 +53,7 @@ export type BestResultRow = {
   place: 1 | 2 | 3; // exact medal colour -- never mixed with other colours in one row
   n: number; // how many times they got exactly this medal in this discipline+series
   years: number[]; // one entry per time, most recent first
+  editions: { year: number; event_name: string }[]; // same order as years, each with its own raw name
 };
 
 // A palmares, not a highlight reel: grouped by discipline + series + EXACT
@@ -97,6 +98,8 @@ export async function getAthleteBestResults(athleteId: string, limit = 5): Promi
       SELECT athletics_event, gender, series_key, place, COUNT(*) AS n,
         SUM(best.competition_score) AS total_points,
         ARRAY_AGG(year ORDER BY year DESC) AS years,
+        -- each year's own raw edition name, so every year links to its edition
+        ARRAY_AGG(STRUCT(year, best.event_name AS event_name) ORDER BY year DESC) AS editions,
         -- Display name keeps its real casing, with org-branding
         -- ("Iaaf "/"World Athletics ") and the trailing ", <city>"
         -- stripped, from whichever edition scored highest.
@@ -108,7 +111,7 @@ export async function getAthleteBestResults(athleteId: string, limit = 5): Promi
       FROM per_edition
       GROUP BY athletics_event, gender, series_key, place
     )
-    SELECT athletics_event, gender, top.display_series_name AS series_name, place, n, years,
+    SELECT athletics_event, gender, top.display_series_name AS series_name, place, n, years, editions,
       top.event_name AS event_name
     FROM grouped
     ORDER BY total_points DESC

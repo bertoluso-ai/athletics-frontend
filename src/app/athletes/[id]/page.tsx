@@ -148,22 +148,33 @@ export default async function AthletePage({
             <section className="lg:col-start-2 lg:row-start-1">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Top Results</h2>
               <div className="flex flex-col gap-1">
-                {bestResults.map((r, i) => (
-                  <Link
-                    key={i}
-                    href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.years[0]}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${r.gender}`}
-                    title={`${r.n}x ${["gold", "silver", "bronze"][r.place - 1]}`}
-                    className="text-sm hover:text-orange-400"
-                  >
-                    <span className="text-neutral-500">{r.n}x </span>
-                    <span className="mr-1">{MEDAL[r.place - 1]}</span>
-                    <span className="font-medium">{r.series_name}</span>
-                    {" "}
-                    <span className="text-neutral-400">{eventLabel(r.athletics_event)}</span>
-                    {" "}
-                    <span className="text-neutral-500">({r.years.map((y) => `'${String(y).slice(2)}`).join(", ")})</span>
-                  </Link>
-                ))}
+                {bestResults.map((r, i) => {
+                  const meetHref = (eventName: string, y: number) =>
+                    `/meets/${encodeURIComponent(eventName)}?year=${y}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${r.gender}`;
+                  return (
+                    <div key={i} className="text-sm" title={`${r.n}x ${["gold", "silver", "bronze"][r.place - 1]}`}>
+                      <span className="text-neutral-500">{r.n}x </span>
+                      <span className="mr-1">{MEDAL[r.place - 1]}</span>
+                      <Link href={meetHref(r.editions[0].event_name, r.editions[0].year)} className="font-medium hover:text-orange-400">
+                        {r.series_name}
+                      </Link>{" "}
+                      <span className="text-neutral-400">{eventLabel(r.athletics_event)}</span>{" "}
+                      {/* each year opens that year's edition */}
+                      <span className="text-neutral-500">
+                        (
+                        {r.editions.map((e, j) => (
+                          <span key={e.year}>
+                            {j > 0 && ", "}
+                            <Link href={meetHref(e.event_name, e.year)} className="hover:text-orange-400 hover:underline">
+                              &apos;{String(e.year).slice(2)}
+                            </Link>
+                          </span>
+                        ))}
+                        )
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}
