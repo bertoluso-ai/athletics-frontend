@@ -1189,7 +1189,7 @@ export async function getEventYearlyProgression(
 // ---------------------------------------------------------------------
 
 export type ChampionshipRecord = {
-  kind: "olympics" | "worlds";
+  kind: "olympics" | "worlds" | "nationals";
   editions: { year: number; event_name: string }[];
   gold: number;
   silver: number;
@@ -1198,13 +1198,27 @@ export type ChampionshipRecord = {
 
 export async function getAthleteChampionships(athleteId: string): Promise<ChampionshipRecord[]> {
   return runQuery<ChampionshipRecord>(`
-    WITH r AS (
+    WITH me AS (
+      SELECT ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nat
+      FROM \`athletics-database.athletics_all.events_enriched\` WHERE athlete_id = @athleteId
+    ),
+    r AS (
       SELECT
         IF(REGEXP_CONTAINS(event_name, r'(?i)olympic games'), 'olympics', 'worlds') AS kind,
         year, event_name, athletics_event, place, round
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE athlete_id = @athleteId AND division_key_resolved = 'OW'
         AND NOT REGEXP_CONTAINS(event_name, r'(?i)ultimate')
+      UNION ALL
+      -- senior national championships: "<Nationality> Championships", tier B,
+      -- held in the athlete's own country; no NCAA, age groups, indoor or
+      -- area championships
+      SELECT 'nationals', e.year, e.event_name, e.athletics_event, e.place, e.round
+      FROM \`athletics-database.athletics_all.events_enriched\` e, me
+      WHERE e.athlete_id = @athleteId AND e.division_key_resolved = 'B'
+        AND e.country = me.nat
+        AND REGEXP_CONTAINS(e.event_name, r'(?i)championships')
+        AND NOT REGEXP_CONTAINS(e.event_name, r'(?i)world|europe|asia|africa|continental|olympic|commonwealth|ncaa|college|universit|u18|u20|u23|junior|youth|indoor|masters|area|balkan|nordic|ibero|pan am|oceania|south american|nacac')
     ),
     editions AS (
       SELECT kind, year, ANY_VALUE(event_name) AS event_name FROM r GROUP BY kind, year

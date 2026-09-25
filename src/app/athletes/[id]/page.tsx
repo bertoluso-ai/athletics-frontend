@@ -155,16 +155,22 @@ export default async function AthletePage({
                 {/* Olympic / World Championships record: always both lines
                     (x0 when never there), one compact line each so the bio
                     stays within the photo's height */}
-                {(["olympics", "worlds"] as const).map((kind) => {
+                {(["olympics", "worlds", "nationals"] as const).map((kind) => {
                   const c = championships.find((x) => x.kind === kind);
                   const n = c?.editions.length ?? 0;
                   return (
                     <div key={kind} className="flex items-center gap-2">
                       <dt className="w-20 shrink-0 flex items-center" aria-hidden="true">
-                        {kind === "olympics" ? <OlympicRings /> : <span className="text-base leading-none">🌍</span>}
+                        {kind === "olympics" ? (
+                          <OlympicRings />
+                        ) : kind === "worlds" ? (
+                          <span className="text-base leading-none">🌍</span>
+                        ) : (
+                          <Flag code={info.nationality} className="w-5 h-3.5" />
+                        )}
                       </dt>
                       <dd className={`flex items-center gap-1.5 whitespace-nowrap ${n ? "text-neutral-300" : "text-neutral-500"}`}>
-                        {kind === "olympics" ? "Olympian" : "Worlds"}
+                        {kind === "olympics" ? "Olympian" : kind === "worlds" ? "Worlds" : "Nationals"}
                         <span
                           className={`text-xs font-mono px-1.5 rounded bg-neutral-800 ${n ? "text-orange-400" : "text-neutral-500"}`}
                           title={c ? c.editions.map((e) => e.year).join(", ") : undefined}
