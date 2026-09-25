@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { YearProgressionPoint } from "@/lib/queries";
 
 // Best mark by year, readable:
@@ -13,8 +13,6 @@ import type { YearProgressionPoint } from "@/lib/queries";
 //   - hover: year, mark, athlete, country
 // Always "up = better", for timed (lower) and measured (higher) events.
 
-const W = 760;
-const H = 260;
 const PAD = { l: 48, r: 16, t: 16, b: 28 };
 const RANGES = [
   { key: "2000", label: "Since 2000", from: 2000 },
@@ -23,8 +21,54 @@ const RANGES = [
 ] as const;
 
 export default function YearlyProgressionChart({ data, isField }: { data: YearProgressionPoint[]; isField: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <>
+      <Chart data={data} isField={isField} onExpand={() => setExpanded(true)} />
+      {expanded && (
+        // full-screen view (best with the phone in landscape)
+        <div className="fixed inset-0 z-[60] bg-neutral-950/95 backdrop-blur p-3 sm:p-8 flex flex-col" onClick={() => setExpanded(false)}>
+          <div className="flex justify-end mb-2">
+            <button onClick={() => setExpanded(false)} className="text-sm px-3 py-1 rounded bg-neutral-800 text-neutral-200">
+              ✕ Close
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 flex items-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-full">
+              <Chart data={data} isField={isField} tall />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function Chart({
+  data,
+  isField,
+  onExpand,
+  tall = false,
+}: {
+  data: YearProgressionPoint[];
+  isField: boolean;
+  onExpand?: () => void;
+  tall?: boolean;
+}) {
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("2000");
   const [hover, setHover] = useState<number | null>(null);
+  // draw at the container's real pixel width, so text and dots keep their
+  // size on phones instead of shrinking with a fixed viewBox; taller there
+  const box = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(760);
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setW(Math.max(280, Math.round(e.contentRect.width))));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const H = tall ? Math.round(Math.min(W * 0.55, typeof window !== "undefined" ? window.innerHeight * 0.7 : 500)) : W < 640 ? Math.round(W * 0.75) : 260;
 
   // all-time best up to each year, computed on the FULL history so a
   // record from before the visible range still sets the level
@@ -99,6 +143,12 @@ export default function YearlyProgressionChart({ data, isField }: { data: YearPr
             </span>
           )}
         </div>
+        <div className="flex items-center gap-1.5">
+        {onExpand && (
+          <button onClick={onExpand} title="Enlarge" className="text-[11px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 hover:text-white">
+            ⤢
+          </button>
+        )}
         <div className="flex rounded bg-neutral-800 p-0.5 text-[11px]">
           {RANGES.map((r) => (
             <button
@@ -110,10 +160,11 @@ export default function YearlyProgressionChart({ data, isField }: { data: YearPr
             </button>
           ))}
         </div>
+        </div>
       </div>
 
-      <div className="relative">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" onMouseLeave={() => setHover(null)}>
+      <div className="relative" ref={box}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block w-full h-auto" onMouseLeave={() => setHover(null)}>
           {gridVals.map((v) => (
             <g key={v}>
               <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#262626" />
