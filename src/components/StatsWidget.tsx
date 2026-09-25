@@ -6,6 +6,19 @@ import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import Flag from "./Flag";
 import Avatar from "./Avatar";
 
+// "All" pseudo-group first: every discipline of every group in one dropdown.
+const GROUPS = [
+  {
+    key: "all",
+    label: "All",
+    events: {
+      Men: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men]))),
+      Women: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Women]))),
+    },
+  },
+  ...EVENT_GROUPS,
+];
+
 type Mode = "ranking" | "marks";
 type Gender = "Men" | "Women";
 
@@ -16,7 +29,7 @@ export default function StatsWidget({ year }: { year: number }) {
   const [mode, setMode] = useState<Mode>("ranking");
   const [gender, setGender] = useState<Gender>("Men");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
-  const group = EVENT_GROUPS.find((g) => g.key === groupKey)!;
+  const group = GROUPS.find((g) => g.key === groupKey)!;
   const [event, setEvent] = useState<string>(group.events[gender][0]);
 
   const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
@@ -74,11 +87,11 @@ export default function StatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      {/* Touch: swipeable pills. Mouse (pointer-fine): a hidden-scrollbar
+      {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
           pill row can't be scrolled, so the group becomes a dropdown on the
           same line as the discipline one. */}
-      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 pointer-fine:hidden">
-        {EVENT_GROUPS.map((g) => (
+      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
+        {GROUPS.map((g) => (
           <button
             key={g.key}
             onClick={() => setGroupKey(g.key)}
@@ -95,15 +108,15 @@ export default function StatsWidget({ year }: { year: number }) {
 
       <div
         className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
-          (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden pointer-fine:flex"
+          (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
         }`}
       >
         <select
           value={groupKey}
           onChange={(e) => setGroupKey(e.target.value)}
-          className="hidden pointer-fine:block flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700"
+          className="hidden lg:block flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700"
         >
-          {EVENT_GROUPS.map((g) => (
+          {GROUPS.map((g) => (
             <option key={g.key} value={g.key}>
               {g.label}
             </option>
