@@ -46,3 +46,12 @@ export function flagUrl(nocCode: string | null | undefined, size: "16x12" | "24x
   if (!iso2) return null;
   return `https://flagcdn.com/${size}/${iso2}.png`;
 }
+
+// Wider flag images (flagcdn "w" sizes keep each flag's own aspect ratio),
+// for the countries grid and country headers.
+export function flagUrlWide(nocCode: string | null | undefined, width: 40 | 80 | 160 | 320 = 160) {
+  if (!nocCode) return null;
+  const iso2 = NOC_TO_ISO2[nocCode.toUpperCase()];
+  if (!iso2) return null;
+  return `https://flagcdn.com/w${width}/${iso2}.png`;
+}

@@ -20,6 +20,11 @@ const NAV_ITEMS = [
     icon: <path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z" />,
   },
   {
+    label: "Countries",
+    href: "/countries",
+    icon: <path d="M5 21V4h1.5v1H19l-2.5 4.5L19 14H6.5v7H5Z" />,
+  },
+  {
     label: "Competitions",
     href: "/competitions",
     icon: (
