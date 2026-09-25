@@ -148,48 +148,32 @@ export default async function AthletePage({
                   <dt className="text-neutral-500 w-20 shrink-0">Active</dt>
                   <dd className="text-neutral-300">{info.first_year}–{info.last_year}</dd>
                 </div>
-                {/* Olympic / World Championships record */}
-                {championships.length > 0 && (
-                  <div className="pt-2 flex flex-col gap-2">
-                    {championships.map((c) => (
-                      <div key={c.kind} className="flex items-start gap-2">
-                        <span className="w-6 shrink-0 flex justify-center pt-0.5" aria-hidden="true">
-                          {c.kind === "olympics" ? <OlympicRings /> : <span className="text-base leading-none">🌍</span>}
+                {/* Olympic / World Championships record: always both lines
+                    (x0 when never there), one compact line each so the bio
+                    stays within the photo's height */}
+                {(["olympics", "worlds"] as const).map((kind) => {
+                  const c = championships.find((x) => x.kind === kind);
+                  const n = c?.editions.length ?? 0;
+                  return (
+                    <div key={kind} className="flex items-center gap-2">
+                      <dt className="w-20 shrink-0 flex items-center" aria-hidden="true">
+                        {kind === "olympics" ? <OlympicRings /> : <span className="text-base leading-none">🌍</span>}
+                      </dt>
+                      <dd className={`flex items-center gap-1.5 whitespace-nowrap ${n ? "text-neutral-300" : "text-neutral-500"}`}>
+                        {kind === "olympics" ? "Olympian" : "Worlds"}
+                        <span
+                          className={`text-xs font-mono px-1.5 rounded bg-neutral-800 ${n ? "text-orange-400" : "text-neutral-500"}`}
+                          title={c ? c.editions.map((e) => e.year).join(", ") : undefined}
+                        >
+                          ×{n}
                         </span>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span className="font-semibold text-neutral-100">
-                              {c.kind === "olympics" ? "Olympian" : "World Championships"}
-                            </span>
-                            <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
-                              ×{c.editions.length}
-                            </span>
-                            {c.gold + c.silver + c.bronze > 0 && (
-                              <span className="text-xs text-neutral-300 whitespace-nowrap">
-                                {c.gold > 0 && <span className="mr-1.5">🥇{c.gold}</span>}
-                                {c.silver > 0 && <span className="mr-1.5">🥈{c.silver}</span>}
-                                {c.bronze > 0 && <span>🥉{c.bronze}</span>}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-neutral-500">
-                            {c.editions.map((e, j) => (
-                              <span key={e.year}>
-                                {j > 0 && " · "}
-                                <Link
-                                  href={`/meets/${encodeURIComponent(e.event_name)}?year=${e.year}`}
-                                  className="hover:text-orange-400"
-                                >
-                                  {e.year}
-                                </Link>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        {c && c.gold > 0 && <span className="text-xs">🥇{c.gold}</span>}
+                        {c && c.silver > 0 && <span className="text-xs">🥈{c.silver}</span>}
+                        {c && c.bronze > 0 && <span className="text-xs">🥉{c.bronze}</span>}
+                      </dd>
+                    </div>
+                  );
+                })}
               </dl>
             </div>
           </section>
