@@ -5,6 +5,7 @@ import YearSelect from "@/components/YearSelect";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import {
   COUNTED_ATHLETES,
   getCountryDetail,
@@ -292,6 +293,12 @@ ${photoCredit(photos[i]!)}` : ""}`}
           </aside>
         </div>
       </main>
+      <PhotoCreditsToast
+        items={wall.flatMap((a, i) => {
+          const ph = photos[i];
+          return ph ? [{ who: a.display_name, credit: photoCredit(ph), url: ph.sourceUrl }] : [];
+        })}
+      />
     </div>
   );
 }

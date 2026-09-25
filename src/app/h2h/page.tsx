@@ -5,6 +5,7 @@ import Flag from "@/components/Flag";
 import H2HPicker from "@/components/H2HPicker";
 import { getAthleteInfo, getAthletePersonalBests } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
+import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getH2H, getH2HSuggestions, type H2HKpis, type H2HSeasonPoint } from "@/lib/h2h";
 
@@ -125,6 +126,12 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
       </section>
 
       {/* one centred column, every block the same width */}
+      <PhotoCreditsToast
+        items={[
+          ...(photoA ? [{ who: infoA.display_name, credit: photoCredit(photoA), url: photoA.sourceUrl }] : []),
+          ...(photoB ? [{ who: infoB.display_name, credit: photoCredit(photoB), url: photoB.sourceUrl }] : []),
+        ]}
+      />
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
       {/* Key info */}
       <section>
