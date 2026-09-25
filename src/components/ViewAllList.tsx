@@ -3,7 +3,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 // A list that behaves differently per device:
-//   desktop (lg+): the first `initial` rows and a "View all" toggle
+//   desktop (lg+): the first `initial` rows; "View all" turns the list into
+//   a scroll box holding every row
 //   phones: every row -- inside a scroll box when `scrollOnMobile`, as the
 //   lists always worked on phones
 // `header` (e.g. sortable column titles) stays on top in both cases.
@@ -33,8 +34,10 @@ export default function ViewAllList({
 
   const showAll = !isDesktop || expanded;
   const shown = showAll ? items : items.slice(0, initial);
+  // expanded on desktop = every row inside a scroll box (the page doesn't grow)
+  const scroll = isDesktop ? expanded : scrollOnMobile;
   const box = `border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden ${
-    !isDesktop && scrollOnMobile ? "max-h-[36rem] overflow-y-auto" : ""
+    scroll ? "max-h-[36rem] overflow-y-auto" : ""
   }`;
 
   return (

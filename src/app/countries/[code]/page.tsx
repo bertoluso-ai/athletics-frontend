@@ -251,7 +251,7 @@ export default async function CountryPage({
                 { n: goldSeasons, label: "Seasons in Gold" },
               ].map((k) => (
                 <div key={k.label} className="flex items-center gap-2" title={k.title}>
-                  <span className="min-w-[2.75rem] text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
+                  <span className="w-14 shrink-0 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
                     {k.n}
                   </span>
                   <span className="text-neutral-300">{k.label}</span>
