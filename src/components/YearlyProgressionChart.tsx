@@ -40,7 +40,7 @@ export default function YearlyProgressionChart({
         <polyline points={points} fill="none" stroke="#f97316" strokeWidth="2" />
         {data.map((d, i) => (
           <circle key={i} cx={x(d.year)} cy={y(d.mark_value)} r="3" fill="#f97316" stroke="#0a0a0a" strokeWidth="1">
-            <title>{d.year}: {d.mark_display}</title>
+            <title>{`${d.year}: ${d.mark_display}`}</title>
           </circle>
         ))}
         <text x={x(minYear)} y={HEIGHT - 4} fontSize="11" fill="#737373">{minYear}</text>
