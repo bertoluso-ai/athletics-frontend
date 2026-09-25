@@ -78,7 +78,9 @@ export default async function CountryPage({
   ]);
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
-  const { athletes, lastWins, topResults, seasons } = detail;
+  const { athletes, lastWins, topResults, seasons, owMedals } = detail;
+  const bestRankEver = seasons.length ? Math.min(...seasons.map((x) => x.rank)) : null;
+  const goldSeasons = seasons.filter((x) => x.rank <= 8).length;
 
   const scoring = athletes.filter((a) => a.counts);
   // three lookups at a time: Wikimedia throttles bursts
@@ -95,7 +97,6 @@ export default async function CountryPage({
     return b.points - a.points;
   });
   const maxSeasonPoints = Math.max(1, ...seasons.map((s) => s.points));
-  const bigFlag = flagUrlWide(code, 80);
   const idx = years.indexOf(year);
   const prevYear = years[idx + 1];
   const nextYear = years[idx - 1];
@@ -110,14 +111,10 @@ export default async function CountryPage({
 
         {/* Header */}
         <div className="flex flex-wrap items-center gap-3 mt-1 mb-3">
-          {bigFlag && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={bigFlag} alt={name} className="h-8 rounded shadow" />
-          )}
-          <h1 className="text-2xl lg:text-3xl font-bold">{name}</h1>
-          {tier && (
-            <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span>
-          )}
+          <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
+            <Flag code={code} className="w-7 h-5" />
+            {name}
+          </h1>
           <span className="text-2xl lg:text-3xl font-bold text-orange-500">» {year}</span>
           <span className="flex items-center gap-1 ml-auto text-xs">
             {prevYear && (
@@ -166,18 +163,77 @@ export default async function CountryPage({
           </div>
         </div>
 
-        {/* Key numbers: equal cards */}
-        <div className="grid grid-cols-3 gap-2 mb-6 sm:max-w-md">
-          {[
-            { label: "Rank", value: me ? `#${me.rank}` : "—" },
-            { label: "Points", value: me?.points ?? 0 },
-            { label: "Wins", value: me?.wins ?? 0 },
-          ].map((k) => (
-            <div key={k.label} className="rounded-lg border border-neutral-800 bg-neutral-900/40 px-2 py-2 text-center">
-              <div className="text-[10px] uppercase tracking-wide text-neutral-500">{k.label}</div>
-              <div className="font-mono text-base font-bold text-orange-400 tabular-nums">{k.value}</div>
+        {/* Top band, same structure as the athlete page: info (flag as the
+            picture) | best results of the season | key stats */}
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] gap-x-8 gap-y-6 mb-8 lg:[&>section]:self-stretch">
+          <section>
+            <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
+            <div className="flex items-start gap-4">
+              {flagUrlWide(code, 320) ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={flagUrlWide(code, 320)!} alt={name} className="w-28 lg:w-40 rounded-md border border-neutral-800 shadow shrink-0" />
+              ) : (
+                <span className="w-28 lg:w-40 aspect-[3/2] rounded-md bg-neutral-800 flex items-center justify-center font-bold shrink-0">{code}</span>
+              )}
+              <dl className="text-sm space-y-1">
+                {[
+                  { k: "Level", v: tier ? <span className={`text-xs font-semibold px-1.5 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span> : "—" },
+                  { k: "Rank", v: me ? `#${me.rank}` : "—" },
+                  { k: "Points", v: me?.points ?? 0 },
+                  { k: "Scoring", v: `${scoring.length}/${COUNTED_ATHLETES}` },
+                  { k: "Athletes", v: athletes.length },
+                ].map((row) => (
+                  <div key={row.k} className="flex gap-2">
+                    <dt className="text-neutral-500 w-16 shrink-0">{row.k}</dt>
+                    <dd className="text-neutral-300">{row.v}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
-          ))}
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Top Results</h2>
+            <div className="flex flex-col gap-1">
+              {topResults.slice(0, 7).map((r, i) => (
+                <div key={i} className="text-sm truncate">
+                  <span className="mr-1">{["🥇", "🥈", "🥉"][r.place - 1] ?? <span className="text-neutral-500 text-xs">{r.place}th</span>}</span>
+                  <Link
+                    href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}`}
+                    className="font-medium hover:text-orange-400"
+                  >
+                    {r.event_name}
+                  </Link>{" "}
+                  <span className="text-neutral-400">{eventLabel(r.athletics_event)}</span>{" "}
+                  <Link href={`/athletes/${r.athlete_id}`} className="text-neutral-500 hover:text-orange-400">
+                    {r.display_name}
+                  </Link>
+                </div>
+              ))}
+              {topResults.length === 0 && <span className="text-sm text-neutral-500">No results this season.</span>}
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
+            <div className="flex flex-col gap-1.5 text-sm">
+              {[
+                { n: me?.wins ?? 0, label: "Wins" },
+                { n: me?.podiums ?? 0, label: "Podiums" },
+                { n: owMedals.olympic, label: "Olympic medals", title: "All-time, this gender" },
+                { n: owMedals.worlds, label: "World Championships medals", title: "All-time, this gender" },
+                { n: bestRankEver ? `#${bestRankEver}` : "—", label: "Best rank ever" },
+                { n: goldSeasons, label: "Seasons in Gold" },
+              ].map((k) => (
+                <div key={k.label} className="flex items-center gap-2" title={k.title}>
+                  <span className="min-w-[2.75rem] text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
+                    {k.n}
+                  </span>
+                  <span className="text-neutral-300">{k.label}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem] gap-8 items-start">
@@ -210,7 +266,6 @@ ${photoCredit(photos[i]!)}` : ""}`}
             )}
 
             <ResultsTable title="Latest wins" rows={lastWins} showPoints={false} />
-            <ResultsTable title="Top results" rows={topResults} showPoints />
           </div>
 
           {/* Right column: squad + seasons */}

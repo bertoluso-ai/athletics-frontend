@@ -139,7 +139,7 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     ORDER BY ${order}
     LIMIT 15`;
 
-  const [athletes, lastWins, topResults, seasons] = await Promise.all([
+  const [athletes, lastWins, topResults, seasons, owMedals] = await Promise.all([
     runQuery<CountryAthleteRow>(
       `
       WITH ${athletesCte(f)}
@@ -153,9 +153,23 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     runQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC"), params),
     runQuery<CountryResultRow>(resultsSql("", "competition_score DESC"), params),
     getCountrySeasons(code, f),
+    // all-time Olympic / World Championships medals of the country (finals,
+    // one per discipline and edition; relays count once)
+    runQuery<{ olympic: number; worlds: number }>(
+      `
+      SELECT
+        COUNT(DISTINCT IF(REGEXP_CONTAINS(event_name, r'(?i)olympic games'), CONCAT(year, athletics_event, place), NULL)) AS olympic,
+        COUNT(DISTINCT IF(NOT REGEXP_CONTAINS(event_name, r'(?i)olympic games'), CONCAT(year, athletics_event, place), NULL)) AS worlds
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE nationality = @code AND gender = @gender AND division_key_resolved = 'OW'
+        AND NOT REGEXP_CONTAINS(event_name, r'(?i)ultimate') AND place BETWEEN 1 AND 3
+        AND (round IS NULL OR round = '' OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semi%' AND LOWER(round) NOT LIKE '%quarter%'))
+    `,
+      { code, gender: f.gender }
+    ),
   ]);
 
-  return { athletes, lastWins, topResults, seasons };
+  return { athletes, lastWins, topResults, seasons, owMedals: owMedals[0] ?? { olympic: 0, worlds: 0 } };
 }
 
 // The country's points and rank for every season (same rule as the ranking).
