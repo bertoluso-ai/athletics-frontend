@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
+import YearSelect from "@/components/YearSelect";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getAthletePhoto } from "@/lib/wikipedia";
@@ -112,12 +113,17 @@ export default async function CountryPage({
             <span className={`text-xs font-semibold px-2 py-0.5 rounded border ${tier.border} ${tier.color}`}>{tier.label}</span>
           )}
           <span className="text-2xl lg:text-3xl font-bold text-orange-500">» {year}</span>
-          <span className="flex gap-1 ml-auto text-xs">
+          <span className="flex items-center gap-1 ml-auto text-xs">
             {prevYear && (
               <Link href={`/countries/${code}?${qs(prevYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
                 ← {prevYear}
               </Link>
             )}
+            <YearSelect
+              years={years}
+              year={year}
+              baseHref={`/countries/${code}?${new URLSearchParams({ gender: f.gender, ...(f.age ? { age: f.age } : {}), ...(sort !== "points" ? { sort } : {}) }).toString()}`}
+            />
             {nextYear && (
               <Link href={`/countries/${code}?${qs(nextYear, f)}`} className="px-2 py-1 rounded border border-neutral-700 text-neutral-400 hover:text-neutral-200">
                 {nextYear} →
