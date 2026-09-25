@@ -12,6 +12,7 @@ import {
   getAthleteYearlyPoints,
   getAthleteResultsForYear,
   getAthleteChampionships,
+  getAthleteRecordStats,
 } from "@/lib/queries";
 import { getAthletePhoto } from "@/lib/wikipedia";
 import { eventCategory, eventLabel } from "@/lib/events";
@@ -35,13 +36,14 @@ export default async function AthletePage({
   const info = await getAthleteInfo(id);
   if (!info) notFound();
 
-  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships] = await Promise.all([
+  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships, recordStats] = await Promise.all([
     getAthleteEvents(id),
-    getAthleteBestResults(id, 5),
+    getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
     getAthletePhoto(info.display_name),
     getAthleteChampionships(id),
+    getAthleteRecordStats(id),
   ]);
 
   // Default: every discipline, most recent year -- the full picture of the
@@ -109,23 +111,25 @@ export default async function AthletePage({
           </Link>
         </h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] lg:grid-rows-[auto_1fr] gap-x-8 gap-y-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] lg:grid-rows-[auto_1fr] gap-x-8 gap-y-8 items-start lg:[&>section:nth-child(-n+3)]:self-stretch">
           {/* Info */}
           <section className="lg:col-start-1 lg:row-start-1">
             <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
-            <div className="flex items-start gap-4">
-              {photo ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={photo}
-                  alt={info.display_name}
-                  className="w-20 h-20 rounded-full lg:w-32 lg:h-40 lg:rounded-md object-cover shrink-0 border border-neutral-800"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full lg:w-32 lg:h-40 lg:rounded-md bg-neutral-800 flex items-center justify-center text-3xl font-bold shrink-0">
-                  {info.display_name.charAt(0)}
-                </div>
-              )}
+            {/* On desktop the photo takes no height of its own: it's absolutely
+                positioned in a wrapper that stretches to the row, so the
+                picture always matches the tallest of the three top cells
+                (bio, top results, key stats) instead of pushing it. */}
+            <div className="flex items-start lg:items-stretch gap-4 lg:h-[calc(100%-2rem)]">
+              <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
+                {photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photo} alt={info.display_name} className="absolute inset-0 w-full h-full object-cover" />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center text-3xl font-bold">
+                    {info.display_name.charAt(0)}
+                  </span>
+                )}
+              </div>
               <dl className="text-sm space-y-1">
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-20 shrink-0">Nationality</dt>
@@ -214,17 +218,19 @@ export default async function AthletePage({
             </section>
           )}
 
-          {/* Right column: key stats, seasons, personal bests */}
-          <aside className="flex flex-col gap-8 lg:col-start-3 lg:row-start-1 lg:row-span-2 order-last lg:order-none">
-            <section>
+          {/* Key stats: third cell of the top band */}
+          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none">
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
                   { n: totalWins, label: "Wins" },
                   { n: yearlyPoints.length, label: "Seasons" },
                   { n: bestSeasonRank ? `#${bestSeasonRank}` : "—", label: "Best season rank" },
+                  { n: recordStats.wr, label: "World records", title: "Official events where the athlete holds the best outdoor, wind-legal mark in our data" },
+                  { n: recordStats.nr, label: "National records", title: "Official events where the athlete holds the best mark of their country in our data" },
+                  { n: recordStats.wl, label: "World leads", title: "Seasons x events in which the athlete had the year's best mark" },
                 ].map((k) => (
-                  <div key={k.label} className="flex items-center gap-2">
+                  <div key={k.label} className="flex items-center gap-2" title={k.title}>
                     <span className="min-w-[2.75rem] text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
                       {k.n}
                     </span>
@@ -234,6 +240,8 @@ export default async function AthletePage({
               </div>
             </section>
 
+          {/* Right column below the top band: seasons, personal bests */}
+          <aside className="flex flex-col gap-8 lg:col-start-3 lg:row-start-2 order-last lg:order-none">
             <section>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Stats by Year</h2>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">

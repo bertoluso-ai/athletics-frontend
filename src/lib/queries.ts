@@ -1,5 +1,5 @@
 import { runQuery } from "./bigquery";
-import { tierPriority, isFieldEvent } from "./events";
+import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
 
 // Indoor vs outdoor isn't a naming difference (both use the exact same
 // athletics_event, e.g. "1500 Metres") -- it's a real, separate ranking
@@ -1233,4 +1233,63 @@ export async function getAthleteChampionships(athleteId: string): Promise<Champi
     GROUP BY e.kind
     ORDER BY e.kind DESC
   `, { athleteId });
+}
+
+// ---------------------------------------------------------------------
+// Record-type stats for the athlete's Key Stats, computed from marks
+// (the source barely flags records): outdoor, wind-legal, individual
+// events only. A tie at the top counts for everyone sharing it.
+//   wr: events where the athlete holds the best mark ever in our data
+//   nr: events where they hold the best mark of their nationality
+//   wl: (event, season) pairs where they had the year's best mark
+// ---------------------------------------------------------------------
+
+export type AthleteRecordStats = { wr: number; nr: number; wl: number };
+
+export async function getAthleteRecordStats(athleteId: string): Promise<AthleteRecordStats> {
+  const rows = await runQuery<AthleteRecordStats>(`
+    WITH mine AS (
+      SELECT DISTINCT athletics_event, gender
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE athlete_id = @athleteId AND athletics_discipline NOT IN ('Relays')
+        -- official catalogue events only: a "record" in 150m straight or
+        -- 300m would be meaningless
+        AND athletics_event IN UNNEST(@events)
+    ),
+    marks AS (
+      SELECT t.athletics_event, t.gender, t.athlete_id, t.nationality, t.year,
+        -- lower is better for every event once field marks are negated
+        IF(t.athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'),
+           -SAFE_CAST(t.mark AS FLOAT64), t.mark_seconds) AS v
+      FROM \`athletics-database.athletics_all.events_enriched\` t
+      JOIN mine USING (athletics_event, gender)
+      WHERE t.athlete_id IS NOT NULL
+        AND IFNULL(t.wind_legal, TRUE)
+        AND NOT (IFNULL(t.track_key, '') = 'Short Track' OR LOWER(t.event_name) LIKE '%indoor%')
+    ),
+    valid AS (SELECT * FROM marks WHERE v IS NOT NULL AND v != 0),
+    me AS (
+      SELECT ARRAY_AGG(nationality IGNORE NULLS ORDER BY year DESC LIMIT 1)[SAFE_OFFSET(0)] AS nat
+      FROM valid WHERE athlete_id = @athleteId
+    ),
+    best_all AS (SELECT athletics_event, gender, MIN(v) AS best FROM valid GROUP BY 1, 2),
+    best_nat AS (
+      SELECT athletics_event, gender, MIN(v) AS best FROM valid, me WHERE valid.nationality = me.nat GROUP BY 1, 2
+    ),
+    best_year AS (SELECT athletics_event, gender, year, MIN(v) AS best FROM valid GROUP BY 1, 2, 3),
+    mine_best AS (
+      SELECT athletics_event, gender, MIN(v) AS pb FROM valid WHERE athlete_id = @athleteId GROUP BY 1, 2
+    ),
+    mine_year AS (
+      SELECT athletics_event, gender, year, MIN(v) AS sb FROM valid WHERE athlete_id = @athleteId GROUP BY 1, 2, 3
+    )
+    SELECT
+      (SELECT COUNT(*) FROM mine_best m JOIN best_all b USING (athletics_event, gender) WHERE m.pb <= b.best) AS wr,
+      (SELECT COUNT(*) FROM mine_best m JOIN best_nat b USING (athletics_event, gender) WHERE m.pb <= b.best) AS nr,
+      (SELECT COUNT(*) FROM mine_year m JOIN best_year b USING (athletics_event, gender, year) WHERE m.sb <= b.best) AS wl
+  `, {
+    athleteId,
+    events: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))),
+  });
+  return rows[0] ?? { wr: 0, nr: 0, wl: 0 };
 }
