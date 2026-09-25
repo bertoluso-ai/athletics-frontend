@@ -289,7 +289,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             </option>
           ))}
         </select>
-        <button className="col-span-2 sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+        <button className={`${view !== "rolling" ? "col-span-1" : "col-span-2"} sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold`}>Filter</button>
         {(nationality || age || area) && (
           <Link href={href({ nationality: "", age: "", area: "" })} className="text-xs text-neutral-500 hover:text-neutral-300">
             clear
