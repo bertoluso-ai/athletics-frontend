@@ -191,7 +191,6 @@ export default async function AthletePage({
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
                   Personal Bests
                 </h2>
-                <span className="text-[11px] text-neutral-500">#N = all-time world rank</span>
               </div>
               <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                 {availableCategories.length > 1 ? (
@@ -242,6 +241,12 @@ export default async function AthletePage({
                 </div>
               </div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
+                <div className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] gap-x-1.5 px-4 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
+                  <span />
+                  <span />
+                  <span className="text-right">Mark</span>
+                  <span className="text-right" title="All-time world rank">#</span>
+                </div>
                 {filteredPersonalBests.map((pb, i) => (
                   <Link
                     key={i}
@@ -272,9 +277,14 @@ export default async function AthletePage({
                 <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
                   Stats by Year
                 </h2>
-                <span className="text-[11px] text-neutral-500">#N = rank that year</span>
               </div>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
+                <div className="grid grid-cols-[1fr_3rem_4.75rem_4.5rem] gap-x-1.5 px-4 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
+                  <span />
+                  <span className="text-right">Wins</span>
+                  <span className="text-right">Points</span>
+                  <span className="text-right" title="Rank that year by total points (same gender)">#</span>
+                </div>
                 {yearlyPoints.map((y) => (
                   <Link
                     key={y.year}
