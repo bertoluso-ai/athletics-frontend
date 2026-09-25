@@ -150,6 +150,44 @@ export default function RankingsExplorer() {
 
   return (
     <div>
+      {/* discipline first: group pills across the full width + event */}
+      <div className="pill-row flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible gap-1 mb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <button
+          onClick={() => setGroupKey(GLOBAL_KEY)}
+          title="Total points across every discipline that year, not one event's ranking"
+          className={`shrink-0 sm:flex-1 text-center whitespace-nowrap text-xs px-2.5 py-1.5 rounded-full border ${
+            isGlobal ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
+          }`}
+        >
+          Global
+        </button>
+        {EVENT_GROUPS.map((g) => (
+          <button
+            key={g.key}
+            onClick={() => setGroupKey(g.key)}
+            className={`shrink-0 sm:flex-1 text-center whitespace-nowrap text-xs px-2.5 py-1.5 rounded-full border ${
+              groupKey === g.key
+                ? "bg-neutral-100 text-black border-neutral-100"
+                : "border-neutral-700 text-neutral-400"
+            }`}
+          >
+            {g.label}
+          </button>
+        ))}
+      </div>
+
+      {!isGlobal && (
+        <select
+          value={event}
+          onChange={(e) => setEvent(e.target.value)}
+          className={`${selectClass} w-full mb-4`}
+        >
+          {(group!.events[gender] as readonly string[]).map((ev) => (
+            <option key={ev} value={ev}>{eventLabel(ev)}</option>
+          ))}
+        </select>
+      )}
+
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as Gender[]).map((g) => (
@@ -191,43 +229,6 @@ export default function RankingsExplorer() {
           ))}
         </select>
       </div>
-
-      <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 mb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
-        <button
-          onClick={() => setGroupKey(GLOBAL_KEY)}
-          title="Total points across every discipline that year, not one event's ranking"
-          className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-            isGlobal ? "bg-orange-500 text-black border-orange-500 font-semibold" : "border-neutral-700 text-neutral-400"
-          }`}
-        >
-          Global
-        </button>
-        {EVENT_GROUPS.map((g) => (
-          <button
-            key={g.key}
-            onClick={() => setGroupKey(g.key)}
-            className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-              groupKey === g.key
-                ? "bg-neutral-100 text-black border-neutral-100"
-                : "border-neutral-700 text-neutral-400"
-            }`}
-          >
-            {g.label}
-          </button>
-        ))}
-      </div>
-
-      {!isGlobal && (
-        <select
-          value={event}
-          onChange={(e) => setEvent(e.target.value)}
-          className={`${selectClass} w-full mb-4`}
-        >
-          {(group!.events[gender] as readonly string[]).map((ev) => (
-            <option key={ev} value={ev}>{eventLabel(ev)}</option>
-          ))}
-        </select>
-      )}
 
       <div className="flex items-center justify-between gap-1 mb-2">
         <span className="text-xs text-neutral-500">
