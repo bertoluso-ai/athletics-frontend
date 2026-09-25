@@ -133,7 +133,7 @@ export default async function MeetPage({
             <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
           </div>
           {statsEvent && statsGender && (
-            <div className="lg:sticky lg:top-4">
+            <div>
               <MeetEventStats
                 eventName={eventName}
                 event={statsEvent}
