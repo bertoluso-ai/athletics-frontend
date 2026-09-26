@@ -15,6 +15,13 @@ const NAV_ITEMS = [
     icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" />,
   },
   {
+    label: "Calendar",
+    href: "/calendar",
+    icon: (
+      <path d="M7 2v2H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V2h-2v2H9V2H7Zm-1 6h12v11H6V8Z" />
+    ),
+  },
+  {
     label: "Rankings",
     href: "/rankings",
     icon: <path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z" />,
@@ -46,14 +53,14 @@ export default function MobileNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-full text-[11px] font-medium transition-colors ${
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-1.5 rounded-full text-[9.5px] font-medium transition-colors ${
               active ? "bg-orange-500/20 text-orange-400" : "text-neutral-300"
             }`}
           >
-            <svg viewBox="0 0 24 24" className="w-5 h-5" fill="currentColor" aria-hidden="true">
+            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="currentColor" aria-hidden="true">
               {item.icon}
             </svg>
-            {item.label}
+            <span className="whitespace-nowrap">{item.label}</span>
           </Link>
         );
       })}

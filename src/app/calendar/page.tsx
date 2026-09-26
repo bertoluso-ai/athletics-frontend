@@ -92,7 +92,7 @@ export default async function CalendarPage({
         </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[6.5rem_minmax(0,1.3fr)_minmax(0,1fr)_3rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
             <span>Date</span>
             <span>Competition</span>
             <span>Top performance</span>
@@ -104,7 +104,7 @@ export default async function CalendarPage({
               return (
                 <div
                   key={i}
-                  className={`grid grid-cols-[4.5rem_1fr_auto] sm:grid-cols-[6.5rem_minmax(0,1.3fr)_minmax(0,1fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm ${
+                  className={`grid grid-cols-[4.5rem_1fr_auto] sm:grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm ${
                     r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"
                   }`}
                 >
@@ -123,7 +123,9 @@ export default async function CalendarPage({
                     )}
                     {live && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white">LIVE</span>}
                   </span>
-                  {/* top performance: own row on phones */}
+                  {/* top performance: own row on phones. The protagonist of the
+                      edition -- athlete + discipline + mark, mark in orange
+                      like every other key stat on the site. */}
                   <span className="col-span-3 sm:col-span-1 row-start-2 sm:row-start-auto col-start-2 sm:col-start-auto min-w-0 text-xs truncate">
                     {r.kind === "past" && r.top_athlete ? (
                       <>
@@ -133,8 +135,9 @@ export default async function CalendarPage({
                         </Link>
                         <span className="text-neutral-500">
                           {" "}
-                          · {eventLabel(r.top_event ?? "")} · <span className="font-mono text-neutral-300">{r.top_mark}</span>
+                          · {eventLabel(r.top_event ?? "")} ·{" "}
                         </span>
+                        <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
                       </>
                     ) : r.kind === "upcoming" ? (
                       <span className="text-neutral-500">
@@ -144,7 +147,12 @@ export default async function CalendarPage({
                       <span className="text-neutral-600">{r.n_events} events</span>
                     )}
                   </span>
-                  <span className="text-right row-start-1 col-start-3 sm:col-start-auto">
+                  {/* sm:row-start-auto is the fix: without it CSS grid's
+                      definite-row-first placement pass claimed column 1 for
+                      this badge, pushing date/competition/top-performance
+                      one column right and squeezing the last one into this
+                      3rem slot instead. */}
+                  <span className="text-right row-start-1 sm:row-start-auto col-start-3 sm:col-start-auto">
                     <TierBadge tier={r.tier} />
                   </span>
                 </div>
