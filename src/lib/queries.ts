@@ -461,19 +461,40 @@ export type UpcomingCompetition = {
   country: string;
   category: string;
   disciplines: string;
+  // the raw event_name of the most recent PAST edition of this same
+  // competition, when one can be found by name (~73% of upcoming
+  // competitions have one) -- lets the card link to that edition's meet
+  // page (the meet page needs a real historical event_name to resolve;
+  // the scraped upcoming name itself is rarely one).
+  past_event_name: string | null;
 };
 
 export async function getUpcomingCompetitions(limit = 10, category?: string): Promise<UpcomingCompetition[]> {
   return runQuery<UpcomingCompetition>(`
+    WITH up AS (
+      SELECT row_key, date_start, date_end, name, venue, country, category, disciplines
+      FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
+      WHERE date_start >= CURRENT_DATE()
+        AND category IN ${category ? "(@category)" : "('OW','DF','GW','GL','A','B')"}
+      ORDER BY date_start ASC
+      LIMIT ${limit}
+    ),
+    matches AS (
+      SELECT up.row_key, e.event_name, e.date,
+        ROW_NUMBER() OVER (PARTITION BY up.row_key ORDER BY e.date DESC) AS rn
+      FROM up
+      JOIN \`athletics-database.athletics_all.events_enriched\` e
+        ON ${normalizeSeries("e.event_name")} = ${normalizeSeries("up.name")}
+      WHERE e.date IS NOT NULL
+    )
     SELECT
-      CAST(date_start AS STRING) AS date_start,
-      CAST(date_end AS STRING) AS date_end,
-      name, venue, country, category, disciplines
-    FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
-    WHERE date_start >= CURRENT_DATE()
-      AND category IN ${category ? "(@category)" : "('OW','DF','GW','GL','A','B')"}
-    ORDER BY date_start ASC
-    LIMIT ${limit}
+      CAST(up.date_start AS STRING) AS date_start,
+      CAST(up.date_end AS STRING) AS date_end,
+      up.name, up.venue, up.country, up.category, up.disciplines,
+      m.event_name AS past_event_name
+    FROM up
+    LEFT JOIN (SELECT row_key, event_name FROM matches WHERE rn = 1) m USING (row_key)
+    ORDER BY up.date_start ASC
   `, category ? { category } : {});
 }
 

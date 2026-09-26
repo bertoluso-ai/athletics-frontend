@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { TIER_PRIORITY } from "@/lib/events";
 import type { UpcomingCompetition } from "@/lib/queries";
 import Flag from "./Flag";
@@ -57,23 +58,41 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
       <div className="flex flex-col divide-y divide-neutral-800 border border-neutral-800 rounded-lg overflow-hidden">
         {loading && <div className="px-4 py-6 text-sm text-neutral-500">Loading…</div>}
         {!loading &&
-          rows.map((c, i) => (
-            <div key={i} className="px-4 py-3 bg-neutral-900/40">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-medium flex items-center gap-1.5 min-w-0">
-                  <Flag code={c.country} />
-                  <span className="truncate">{c.name}</span>
-                </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400 shrink-0">
-                  {c.category}
-                </span>
+          rows.map((c, i) => {
+            // link to the most recent PAST edition's results, when one is
+            // known by name -- the upcoming edition itself has no results yet
+            const body = (
+              <>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium flex items-center gap-1.5 min-w-0">
+                    <Flag code={c.country} />
+                    <span className="truncate">{c.name}</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400 shrink-0">
+                    {c.category}
+                  </span>
+                </div>
+                <div className="text-xs text-neutral-400 truncate">
+                  {formatDate(c.date_start)}
+                  {c.date_end !== c.date_start ? `–${formatDate(c.date_end)}` : ""} · {c.venue}
+                </div>
+              </>
+            );
+            return c.past_event_name ? (
+              <Link
+                key={i}
+                href={`/meets/${encodeURIComponent(c.past_event_name)}`}
+                title="Results of the last edition"
+                className="px-4 py-3 bg-neutral-900/40 hover:bg-neutral-800"
+              >
+                {body}
+              </Link>
+            ) : (
+              <div key={i} className="px-4 py-3 bg-neutral-900/40">
+                {body}
               </div>
-              <div className="text-xs text-neutral-400 truncate">
-                {formatDate(c.date_start)}
-                {c.date_end !== c.date_start ? `–${formatDate(c.date_end)}` : ""} · {c.venue}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         {!loading && rows.length === 0 && (
           <div className="px-4 py-6 text-sm text-neutral-500">No upcoming races.</div>
         )}

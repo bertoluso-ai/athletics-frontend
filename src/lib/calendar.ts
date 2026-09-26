@@ -34,23 +34,63 @@ function tiersUpTo(minTier: string) {
 export async function getCalendar(year: number, minTier: string, month?: number): Promise<CalendarRow[]> {
   const tiers = tiersUpTo(minTier);
   const monthFilter = (col: string) => (month ? `AND EXTRACT(MONTH FROM ${col}) = ${month}` : "");
+  // Marks as one comparable number, lower = better (field marks negated),
+  // wind-legal only, indoor kept apart from outdoor -- same convention as
+  // meetStats.ts.
+  const V = `IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds)`;
+  const INDOOR = `(IFNULL(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
   return runQuery<CalendarRow>(
     `
-    WITH editions AS (
+    WITH base AS (
       SELECT event_name, year,
         MIN(date) AS date_start, MAX(date) AS date_end,
         APPROX_TOP_COUNT(city, 1)[OFFSET(0)].value AS city,
         APPROX_TOP_COUNT(country, 1)[OFFSET(0)].value AS country,
         ARRAY_AGG(division_key_resolved IGNORE NULLS
           ORDER BY \`athletics-database.registry.tier_rank\`(division_key_resolved) LIMIT 1)[SAFE_OFFSET(0)] AS tier,
-        COUNT(DISTINCT CONCAT(athletics_event, gender)) AS n_events,
-        ARRAY_AGG(IF(competition_score IS NOT NULL AND athlete_id IS NOT NULL,
-          STRUCT(athlete_id, athlete_display_name, nationality, athletics_event, mark_display), NULL) IGNORE NULLS
-          ORDER BY competition_score DESC LIMIT 1)[SAFE_OFFSET(0)] AS top
+        COUNT(DISTINCT CONCAT(athletics_event, gender)) AS n_events
       FROM \`athletics-database.athletics_all.events_enriched\`
       -- older sources (sports123) have no dates: keep those editions, undated
       WHERE year = @year ${monthFilter("date")}
       GROUP BY event_name, year
+    ),
+    -- "Top performance" must be comparable across disciplines, so it can't
+    -- use our points (a flat win bonus per tier: every winner of a given
+    -- tier ties on it regardless of event -- 100m and 1500m winners both
+    -- score the same -- so picking by points is close to arbitrary among a
+    -- meeting's many winners, and, worse, can pick a weaker parallel B/C
+    -- section's winner over the real final's, since both show place = 1).
+    -- Ranking each winner's mark against the FULL history of that exact
+    -- discipline+gender (one pass over the whole table) gives a measure
+    -- that means the same thing in every event, and naturally favours the
+    -- real final's winner over a weaker section sharing the same meet.
+    ranks AS (
+      SELECT event_row_key, RANK() OVER (PARTITION BY athletics_event, gender, indoor ORDER BY v) AS all_time_rank
+      FROM (
+        SELECT event_row_key, athletics_event, gender, ${INDOOR} AS indoor, ${V} AS v
+        FROM \`athletics-database.athletics_all.events_enriched\`
+        WHERE IFNULL(wind_legal, TRUE)
+      )
+      WHERE v IS NOT NULL AND v != 0
+    ),
+    winners AS (
+      SELECT e.event_name, e.year, e.athlete_id, e.athlete_display_name, e.nationality, e.athletics_event, e.mark_display,
+        r.all_time_rank
+      FROM \`athletics-database.athletics_all.events_enriched\` e
+      JOIN ranks r USING (event_row_key)
+      WHERE e.year = @year AND e.place = 1 AND e.athlete_id IS NOT NULL ${monthFilter("e.date")}
+    ),
+    tops AS (
+      SELECT event_name, year,
+        ARRAY_AGG(STRUCT(athlete_id, athlete_display_name, nationality, athletics_event, mark_display)
+          ORDER BY all_time_rank LIMIT 1)[SAFE_OFFSET(0)] AS top
+      FROM winners
+      GROUP BY event_name, year
+    ),
+    editions AS (
+      SELECT b.*, t.top
+      FROM base b
+      LEFT JOIN tops t USING (event_name, year)
     ),
     past AS (
       SELECT 'past' AS kind, CAST(date_start AS STRING) AS date_start, CAST(date_end AS STRING) AS date_end,

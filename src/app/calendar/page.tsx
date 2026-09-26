@@ -101,60 +101,64 @@ export default async function CalendarPage({
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => {
               const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
+              const nameLink = r.kind === "past" ? `/meets/${encodeURIComponent(r.name)}?year=${year}` : null;
+              const topPerformance =
+                r.kind === "past" && r.top_athlete ? (
+                  <>
+                    <Flag code={r.top_nationality} className="mr-1" />
+                    <Link href={`/athletes/${r.top_athlete_id}`} className="text-neutral-200 hover:text-orange-400">
+                      {r.top_athlete}
+                    </Link>
+                    <span className="text-neutral-500"> · {eventLabel(r.top_event ?? "")} · </span>
+                    <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
+                  </>
+                ) : r.kind === "upcoming" ? (
+                  <span className="text-neutral-500">{[r.city, r.disciplines].filter(Boolean).join(" · ")}</span>
+                ) : (
+                  <span className="text-neutral-600">{r.n_events} events</span>
+                );
+
               return (
-                <div
-                  key={i}
-                  className={`grid grid-cols-[4.5rem_1fr_auto] sm:grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm ${
-                    r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"
-                  }`}
-                >
-                  <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
-                  <span className="min-w-0 flex items-center gap-2">
-                    <Flag code={r.country} />
-                    {r.kind === "past" ? (
-                      <Link
-                        href={`/meets/${encodeURIComponent(r.name)}?year=${year}`}
-                        className="truncate font-medium hover:text-orange-400"
-                      >
-                        {r.name}
-                      </Link>
-                    ) : (
-                      <span className="truncate text-neutral-300">{r.name}</span>
-                    )}
-                    {live && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white">LIVE</span>}
-                  </span>
-                  {/* top performance: own row on phones. The protagonist of the
-                      edition -- athlete + discipline + mark, mark in orange
-                      like every other key stat on the site. */}
-                  <span className="col-span-3 sm:col-span-1 row-start-2 sm:row-start-auto col-start-2 sm:col-start-auto min-w-0 text-xs truncate">
-                    {r.kind === "past" && r.top_athlete ? (
-                      <>
-                        <Flag code={r.top_nationality} className="mr-1" />
-                        <Link href={`/athletes/${r.top_athlete_id}`} className="text-neutral-200 hover:text-orange-400">
-                          {r.top_athlete}
+                <div key={i} className={r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}>
+                  {/* phones: a proper card, one line each, not a squeezed grid */}
+                  <div className="sm:hidden flex flex-col gap-1 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
+                      <TierBadge tier={r.tier} />
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Flag code={r.country} />
+                      {nameLink ? (
+                        <Link href={nameLink} className="truncate font-medium hover:text-orange-400">
+                          {r.name}
                         </Link>
-                        <span className="text-neutral-500">
-                          {" "}
-                          · {eventLabel(r.top_event ?? "")} ·{" "}
-                        </span>
-                        <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
-                      </>
-                    ) : r.kind === "upcoming" ? (
-                      <span className="text-neutral-500">
-                        {[r.city, r.disciplines].filter(Boolean).join(" · ")}
-                      </span>
-                    ) : (
-                      <span className="text-neutral-600">{r.n_events} events</span>
-                    )}
-                  </span>
-                  {/* sm:row-start-auto is the fix: without it CSS grid's
-                      definite-row-first placement pass claimed column 1 for
-                      this badge, pushing date/competition/top-performance
-                      one column right and squeezing the last one into this
-                      3rem slot instead. */}
-                  <span className="text-right row-start-1 sm:row-start-auto col-start-3 sm:col-start-auto">
-                    <TierBadge tier={r.tier} />
-                  </span>
+                      ) : (
+                        <span className="truncate text-neutral-300">{r.name}</span>
+                      )}
+                      {live && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white shrink-0">LIVE</span>}
+                    </div>
+                    <div className="min-w-0 text-xs truncate">{topPerformance}</div>
+                  </div>
+
+                  {/* desktop: the 4-column table row */}
+                  <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm">
+                    <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
+                    <span className="min-w-0 flex items-center gap-2">
+                      <Flag code={r.country} />
+                      {nameLink ? (
+                        <Link href={nameLink} className="truncate font-medium hover:text-orange-400">
+                          {r.name}
+                        </Link>
+                      ) : (
+                        <span className="truncate text-neutral-300">{r.name}</span>
+                      )}
+                      {live && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white shrink-0">LIVE</span>}
+                    </span>
+                    <span className="min-w-0 text-xs truncate">{topPerformance}</span>
+                    <span className="text-right">
+                      <TierBadge tier={r.tier} />
+                    </span>
+                  </div>
                 </div>
               );
             })}
