@@ -214,7 +214,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const title =
     (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) +
     (event ? ` · ${eventLabel(event)}` : "");
-  const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
     <>
@@ -231,15 +231,17 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         {movement && "Up/down arrows compare with the ranking two weeks ago."}
       </p>
 
-      {/* Filters */}
-      <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
+      {/* Filters: one horizontally-scrollable pill row (swipe on phones,
+          thin scrollbar with a mouse) instead of a grid of boxes -- same
+          pattern as the category pills elsewhere on the site. */}
+      <form action="/rankings" className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 mb-6 -mx-3 px-3 sm:mx-0 sm:px-0">
         <input type="hidden" name="view" value={view} />
-        <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
+        <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as const).map((g) => (
             <Link
               key={g}
               href={href({ gender: g, nationality: "", event: "" })}
-              className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
             >
               {g}
             </Link>
@@ -247,16 +249,14 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         </div>
         <input type="hidden" name="gender" value={gender} />
         {sortBy === "mark" && <input type="hidden" name="sort" value="mark" />}
-        {(
-          <select name="event" defaultValue={event ?? ""} className={selectClass}>
-            <option value="">All disciplines</option>
-            {eventOptions.map((e) => (
-              <option key={e} value={e}>
-                {eventLabel(e)}
-              </option>
-            ))}
-          </select>
-        )}
+        <select name="event" defaultValue={event ?? ""} className={selectClass}>
+          <option value="">All disciplines</option>
+          {eventOptions.map((e) => (
+            <option key={e} value={e}>
+              {eventLabel(e)}
+            </option>
+          ))}
+        </select>
         {view !== "rolling" && (
           <select name="year" defaultValue={year} className={selectClass}>
             {years.map((y) => (
@@ -274,7 +274,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             </option>
           ))}
         </select>
-        <select name="nationality" defaultValue={nationality ?? ""} className={`${selectClass} sm:max-w-[11rem]`}>
+        <select name="nationality" defaultValue={nationality ?? ""} className={selectClass}>
           <option value="">All nations</option>
           {nationalities.map((n) => (
             <option key={n.code} value={n.code}>
@@ -289,9 +289,9 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             </option>
           ))}
         </select>
-        <button className={`${view !== "rolling" ? "col-span-1" : "col-span-2"} sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold`}>Filter</button>
+        <button className="shrink-0 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
         {(nationality || age || area) && (
-          <Link href={href({ nationality: "", age: "", area: "" })} className="text-xs text-neutral-500 hover:text-neutral-300">
+          <Link href={href({ nationality: "", age: "", area: "" })} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
             clear
           </Link>
         )}
@@ -561,7 +561,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
     return `/rankings?${q.toString()}`;
   };
   const countryHref = (code: string) => `/countries/${code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`;
-  const selectClass = "w-full sm:w-auto min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const maxPoints = Math.max(1, ...rows.map((r) => r.points));
   const title =
     (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) + (event ? ` · ${eventLabel(event)}` : "");
@@ -583,26 +583,24 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         {movement && "Arrows compare with two weeks ago."}
       </p>
 
-      <form action="/rankings" className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 mb-6">
+      <form action="/rankings" className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 mb-6 -mx-3 px-3 sm:mx-0 sm:px-0">
         <input type="hidden" name="view" value={`n-${view}`} />
-        <div className="col-span-2 sm:col-span-1 flex rounded bg-neutral-800 p-0.5 text-xs [&>*]:flex-1 [&>*]:text-center">
+        <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as const).map((g) => (
-            <Link key={g} href={href({ gender: g, event: "" })} className={`px-2.5 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
+            <Link key={g} href={href({ gender: g, event: "" })} className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
               {g}
             </Link>
           ))}
         </div>
         <input type="hidden" name="gender" value={gender} />
-        {(
-          <select name="event" defaultValue={event ?? ""} className={selectClass}>
-            <option value="">All disciplines</option>
-            {eventOptions.map((e) => (
-              <option key={e} value={e}>
-                {eventLabel(e)}
-              </option>
-            ))}
-          </select>
-        )}
+        <select name="event" defaultValue={event ?? ""} className={selectClass}>
+          <option value="">All disciplines</option>
+          {eventOptions.map((e) => (
+            <option key={e} value={e}>
+              {eventLabel(e)}
+            </option>
+          ))}
+        </select>
         {view !== "rolling" && (
           <select name="year" defaultValue={year} className={selectClass}>
             {years.map((y) => (
@@ -627,7 +625,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             </option>
           ))}
         </select>
-        <button className="col-span-2 sm:col-span-1 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+        <button className="shrink-0 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
       </form>
 
       {/* podium of flags: 2 - 1 - 3 */}
