@@ -105,8 +105,8 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
               <div key={group.event_name} className="border border-neutral-800 rounded-lg overflow-hidden">
-                <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
-                  <Link href={meetHref} className="text-sm font-medium hover:text-orange-400 truncate min-w-0">
+                <div className="px-4 py-2.5 bg-neutral-900 border-l-4 border-l-orange-500 flex items-center justify-between gap-2">
+                  <Link href={meetHref} className="text-base font-bold leading-tight hover:text-orange-400 truncate min-w-0">
                     {group.event_name}
                   </Link>
                   <span className="flex items-center gap-1.5 shrink-0">
@@ -124,7 +124,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                   {group.races.map((race) => (
                     <div key={race.key}>
                       <div className="px-4 pt-1.5 pb-0.5 flex flex-wrap items-baseline gap-x-2 bg-neutral-900/70">
-                        <Link href={`/disciplines/${eventSlug(race.athletics_event)}`} className="text-xs font-medium hover:text-orange-400">
+                        <Link href={`/disciplines/${eventSlug(race.athletics_event)}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-orange-400">
                           {eventLabel(race.athletics_event)}
                         </Link>
                         <span className="text-xs text-neutral-500">
