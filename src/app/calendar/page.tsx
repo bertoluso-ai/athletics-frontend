@@ -33,25 +33,31 @@ function TierBadge({ tier }: { tier: string | null }) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; tier?: string; month?: string }>;
+  searchParams: Promise<{ year?: string; tier?: string; month?: string; sort?: string; dir?: string }>;
 }) {
   const sp = await searchParams;
   const years = await getCalendarYears();
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
-  const tier = TIER_ORDER.includes(sp.tier as (typeof TIER_ORDER)[number]) ? sp.tier! : "GL";
+  const tier = sp.tier === "ALL" || TIER_ORDER.includes(sp.tier as (typeof TIER_ORDER)[number]) ? sp.tier! : "GL";
   const month = sp.month ? Number(sp.month) : undefined;
-  const rows = await getCalendar(year, tier, month);
+  const sort = sp.sort === "name" || sp.sort === "tier" ? sp.sort : "date";
+  const dir = sp.dir === "desc" ? "desc" : "asc";
+  const rows = await getCalendar(year, tier, month, sort, dir);
   const today = new Date().toISOString().slice(0, 10);
 
-  const href = (over: { year?: number; tier?: string; month?: number | null }) => {
+  const href = (over: { year?: number; tier?: string; month?: number | null; sort?: string; dir?: string }) => {
     const q = new URLSearchParams({ year: String(over.year ?? year), tier: over.tier ?? tier });
     const m = over.month === null ? undefined : over.month ?? month;
     if (m) q.set("month", String(m));
+    q.set("sort", over.sort ?? sort);
+    q.set("dir", over.dir ?? dir);
     return `/calendar?${q.toString()}`;
   };
   const pill = (active: boolean) =>
     `shrink-0 text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
+  const sortHref = (col: "date" | "name" | "tier") => href({ sort: col, dir: sort === col && dir === "asc" ? "desc" : "asc" });
+  const sortArrow = (col: string) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -70,6 +76,7 @@ export default async function CalendarPage({
           </select>
           <label className="text-xs text-neutral-400 ml-2">Level</label>
           <select name="tier" defaultValue={tier} className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700">
+            <option value="ALL">All levels</option>
             {TIER_ORDER.map((t) => (
               <option key={t} value={t}>
                 {t} and above · {TIER_LABELS.find((x) => x.value === t)?.label ?? ""}
@@ -77,6 +84,8 @@ export default async function CalendarPage({
             ))}
           </select>
           {month && <input type="hidden" name="month" value={month} />}
+          <input type="hidden" name="sort" value={sort} />
+          <input type="hidden" name="dir" value={dir} />
           <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
         </form>
 
@@ -93,10 +102,16 @@ export default async function CalendarPage({
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
-            <span>Date</span>
-            <span>Competition</span>
+            <Link href={sortHref("date")} className="hover:text-neutral-200">
+              Date{sortArrow("date")}
+            </Link>
+            <Link href={sortHref("name")} className="hover:text-neutral-200">
+              Competition{sortArrow("name")}
+            </Link>
             <span>Top performance</span>
-            <span className="text-right">Level</span>
+            <Link href={sortHref("tier")} className="text-right hover:text-neutral-200">
+              Level{sortArrow("tier")}
+            </Link>
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => {
@@ -111,6 +126,14 @@ export default async function CalendarPage({
                     </Link>
                     <span className="text-neutral-500"> · {eventLabel(r.top_event ?? "")} · </span>
                     <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
+                    {r.level != null && (
+                      <span
+                        className="ml-1.5 text-[10px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400"
+                        title="Field strength of this edition (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
+                      >
+                        Lvl {Math.round(r.level)}
+                      </span>
+                    )}
                   </>
                 ) : r.kind === "upcoming" ? (
                   <span className="text-neutral-500">{[r.city, r.disciplines].filter(Boolean).join(" · ")}</span>

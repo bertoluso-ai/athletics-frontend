@@ -37,15 +37,29 @@ export type MeetMark = {
 export async function getMeetEventStats(eventName: string, event: string, gender: string) {
   const relay = isRelayEvent(event);
   const params = { eventName, event, gender };
+  // Only the columns the three queries below actually read (plus whatever
+  // V/INDOOR/FINAL need to compute their derived fields) -- events_enriched
+  // has 49 columns; a bare SELECT * here scanned every one of them on every
+  // meet-page load, the single heaviest query against the 3GB table.
   const meet = `
     meet AS (
-      SELECT *, ${V} AS v, ${INDOOR} AS indoor
+      SELECT event_row_key, year, date, place, round, record, athlete_id, athlete_display_name,
+        nationality, mark_display, wind_legal, athletics_discipline, mark, mark_seconds, track_key, event_name,
+        ${V} AS v, ${INDOOR} AS indoor
       FROM ${T}
       WHERE ${MEET_SERIES_MATCH_SQL} AND athletics_event = @event AND gender = @gender
     )`;
 
   const [winners, records, wrs] = await Promise.all([
-    // one winner per edition (finals only)
+    // one winner per edition (finals only) -- picked by the mark itself,
+    // not competition_score: that's a flat per-tier points value (same for
+    // every place=1, whichever section), so when a meet's "Final" and a
+    // weaker parallel "Final 1"/"Final 2" both show place = 1 it can't
+    // tell them apart and has picked the wrong one (confirmed: Wanda
+    // Diamond League Xiamen 2025 Men's 100m listed "Final 1"'s Tao Zhang,
+    // 10.55, as the year's winner instead of the real final's Akani
+    // Simbine, 9.99). The mark's own value has no such tie, and wind-legal
+    // marks are preferred when both exist.
     runQuery<MeetWinner>(
       `
       WITH ${meet}
@@ -53,9 +67,9 @@ export async function getMeetEventStats(eventName: string, event: string, gender
       FROM (
         SELECT year,
           ARRAY_AGG(STRUCT(athlete_id, athlete_display_name, nationality, mark_display)
-            ORDER BY competition_score DESC, date LIMIT 1)[OFFSET(0)] AS w
+            ORDER BY IFNULL(wind_legal, TRUE) DESC, v, date LIMIT 1)[OFFSET(0)] AS w
         FROM meet
-        WHERE place = 1 AND ${FINAL}
+        WHERE place = 1 AND ${FINAL} AND v IS NOT NULL AND v != 0
         GROUP BY year
       )
       ORDER BY year DESC

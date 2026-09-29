@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, TIER_PRIORITY, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
-import type { Race } from "@/lib/queries";
+import type { Race, LatestResultGroup } from "@/lib/queries";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
 
@@ -31,15 +31,15 @@ function place(city: string | null, country: string | null) {
   return [city, country].filter(Boolean).join(", ");
 }
 
-export default function LatestResults({ initialRaces }: { initialRaces: Race[] }) {
+export default function LatestResults({ initialGroups }: { initialGroups: LatestResultGroup[] }) {
   const [event, setEvent] = useState("");
   const [tier, setTier] = useState("");
-  const [races, setRaces] = useState<Race[]>(initialRaces);
+  const [groups, setGroups] = useState<LatestResultGroup[]>(initialGroups);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!event && !tier) {
-      setRaces(initialRaces);
+      setGroups(initialGroups);
       return;
     }
     let cancelled = false;
@@ -49,7 +49,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
     if (tier) params.set("tier", tier);
     fetch(`/api/latest-results?${params.toString()}`)
       .then((r) => r.json())
-      .then((data) => !cancelled && setRaces(data))
+      .then((data) => !cancelled && setGroups(data))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -57,17 +57,19 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, tier]);
 
+  const currentMonth = new Date().getMonth() + 1;
+
   return (
     <section>
       <div className="mb-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
           Latest Results
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
-            className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
             {ALL_EVENTS.map((ev) => (
@@ -79,7 +81,7 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
           <select
             value={tier}
             onChange={(e) => setTier(e.target.value)}
-            className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+            className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All categories</option>
             {TIERS.map((t) => (
@@ -98,99 +100,115 @@ export default function LatestResults({ initialRaces }: { initialRaces: Race[] }
           </div>
         )}
         {!loading &&
-          races.map((race) => (
-            <div key={race.key} className="border border-neutral-800 rounded-lg overflow-hidden">
-              <div className="px-4 py-2 bg-neutral-900">
-                <div className="min-w-0 flex flex-wrap items-baseline gap-x-2">
-                  <Link href={`/events/${eventSlug(race.athletics_event)}`} className="text-sm font-medium hover:text-orange-400 shrink-0">
-                    {eventLabel(race.athletics_event)}
+          groups.map((group) => {
+            const latestDate = group.races[0]?.date;
+            const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
+            return (
+              <div key={group.event_name} className="border border-neutral-800 rounded-lg overflow-hidden">
+                <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
+                  <Link href={meetHref} className="text-sm font-medium hover:text-orange-400 truncate min-w-0">
+                    {group.event_name}
                   </Link>
-                  <span className="text-neutral-500 shrink-0">·</span>
-                  <Link
-                    href={`/meets/${encodeURIComponent(race.event_name)}?year=${race.date.slice(0, 4)}&discipline=${encodeURIComponent(race.athletics_event)}&gender=${race.gender}`}
-                    className="text-sm text-neutral-400 hover:text-orange-400 truncate min-w-0"
-                  >
-                    {race.event_name}
-                  </Link>
-                </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
-                  {place(race.city, race.country) && (
-                    <span className="text-xs text-neutral-500">
-                      {place(race.city, race.country)}
-                    </span>
-                  )}
-                  <span className="text-xs text-neutral-500">
-                    {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    {place(group.city, group.country) && (
+                      <span className="text-xs text-neutral-500">{place(group.city, group.country)}</span>
+                    )}
+                    {group.competition_level && (
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
+                        {group.competition_level}
+                      </span>
+                    )}
                   </span>
-                  {race.round && <span className="text-xs text-neutral-500">· {race.round}</span>}
-                  {race.top3.find((e) => e.wind)?.wind && (
-                    <span className="text-xs font-mono text-neutral-500">
-                      Wind: {race.top3.find((e) => e.wind)!.wind}
-                    </span>
-                  )}
-                  {race.competition_level && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">
-                      {race.competition_level}
-                    </span>
-                  )}
-                  <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>
                 </div>
-              </div>
-              <div className="divide-y divide-neutral-800/60">
-                {race.top3.map((entry, i) => {
-                  const isTeam = entry.athletes.length > 1;
-                  const solo = entry.athletes[0];
-                  const content = (
-                    <>
-                      <span className="text-sm flex items-center gap-2 min-w-0">
-                        <span className="w-5 text-center shrink-0">{MEDAL[entry.place - 1] ?? entry.place}</span>
-                        <Flag code={entry.nationality} />
-                        {isTeam ? (
-                          <span className="truncate">
-                            {entry.nationality ?? "—"}
-                            <span className="text-neutral-500 font-normal ml-2 text-xs">
-                              {entry.athletes.map((a) => lastName(a.display_name)).join(" · ")}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="truncate">{solo.display_name}</span>
+                <div className="divide-y divide-neutral-800/60">
+                  {group.races.map((race) => (
+                    <div key={race.key}>
+                      <div className="px-4 pt-1.5 pb-0.5 flex flex-wrap items-baseline gap-x-2 bg-neutral-900/70">
+                        <Link href={`/disciplines/${eventSlug(race.athletics_event)}`} className="text-xs font-medium hover:text-orange-400">
+                          {eventLabel(race.athletics_event)}
+                        </Link>
+                        <span className="text-xs text-neutral-500">
+                          {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
+                        </span>
+                        {race.round && <span className="text-xs text-neutral-500">· {race.round}</span>}
+                        {race.top3.find((e) => e.wind)?.wind && (
+                          <span className="text-xs font-mono text-neutral-500">Wind: {race.top3.find((e) => e.wind)!.wind}</span>
                         )}
-                      </span>
-                      <span className="flex items-center gap-1.5 shrink-0">
-                        {entry.record === "WR" && (
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">
-                            WR
-                          </span>
-                        )}
-                        <WindBadge wind={entry.wind} windLegal={entry.wind_legal} />
-                        <span className="font-mono text-sm text-neutral-300">{entry.mark_display}</span>
-                      </span>
-                    </>
-                  );
-                  if (isTeam) {
-                    return (
-                      <div key={i} className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40">
-                        {content}
+                        <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>
                       </div>
-                    );
-                  }
-                  return (
-                    <Link
-                      key={i}
-                      href={solo.athlete_id ? `/athletes/${solo.athlete_id}` : "#"}
-                      className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40 hover:bg-neutral-800"
-                    >
-                      {content}
-                    </Link>
-                  );
-                })}
+                      {race.top3.map((entry, i) => {
+                        const isTeam = entry.athletes.length > 1;
+                        const solo = entry.athletes[0];
+                        const content = (
+                          <>
+                            <span className="text-sm flex items-center gap-2 min-w-0">
+                              <span className="w-5 text-center shrink-0">{MEDAL[entry.place - 1] ?? entry.place}</span>
+                              <Flag code={entry.nationality} />
+                              {isTeam ? (
+                                <span className="truncate">
+                                  {entry.nationality ?? "—"}
+                                  <span className="text-neutral-500 font-normal ml-2 text-xs">
+                                    {entry.athletes.map((a) => lastName(a.display_name)).join(" · ")}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="truncate">{solo.display_name}</span>
+                              )}
+                            </span>
+                            <span className="flex items-center gap-1.5 shrink-0">
+                              {entry.record === "WR" && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-400 text-black">
+                                  WR
+                                </span>
+                              )}
+                              <WindBadge wind={entry.wind} windLegal={entry.wind_legal} />
+                              <span className="font-mono text-sm text-neutral-300">{entry.mark_display}</span>
+                            </span>
+                          </>
+                        );
+                        if (isTeam) {
+                          return (
+                            <div key={i} className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40">
+                              {content}
+                            </div>
+                          );
+                        }
+                        return (
+                          <Link
+                            key={i}
+                            href={solo.athlete_id ? `/athletes/${solo.athlete_id}` : "#"}
+                            className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40 hover:bg-neutral-800"
+                          >
+                            {content}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                {group.total_races > group.races.length && (
+                  <Link
+                    href={meetHref}
+                    className="block px-4 py-1.5 text-xs text-center text-neutral-500 hover:text-orange-400 bg-neutral-900/70"
+                  >
+                    View all {group.total_races} results of this competition
+                  </Link>
+                )}
               </div>
-            </div>
-          ))}
-        {!loading && races.length === 0 && (
+            );
+          })}
+        {!loading && groups.length === 0 && (
           <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
             No recent results.
           </div>
+        )}
+        {!loading && groups.length > 0 && (
+          <Link
+            href={`/calendar?month=${currentMonth}&tier=ALL&sort=date&dir=desc`}
+            className="text-xs text-center text-neutral-500 hover:text-orange-400 py-1"
+          >
+            View all → Calendar
+          </Link>
         )}
       </div>
     </section>

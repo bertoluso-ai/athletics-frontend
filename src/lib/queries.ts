@@ -24,6 +24,10 @@ export type AthleteInfo = {
   gender: string | null;
   nationality: string | null;
   birth_year: number | null;
+  // full "DD MON YYYY" when the source gives day+month, else null -- tells
+  // apart a precisely-known birth date from a year-only one (Born display
+  // falls back to 1 Jan of birth_year for the latter, flagged with a *)
+  birth_date_full: string | null;
   first_year: number;
   last_year: number;
 };
@@ -36,24 +40,25 @@ export async function getAthleteInfo(athleteId: string): Promise<AthleteInfo | n
       ANY_VALUE(gender) AS gender,
       ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
       ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
+      ARRAY_AGG(birth_date IGNORE NULLS ORDER BY LENGTH(birth_date) DESC LIMIT 1)[SAFE_OFFSET(0)] AS birth_date_raw,
       MIN(year) AS first_year,
       MAX(year) AS last_year
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE athlete_id = @athleteId
     GROUP BY athlete_id
   `, { athleteId });
-  return rows[0] ?? null;
+  const r = rows[0] as (AthleteInfo & { birth_date_raw?: string | null }) | undefined;
+  if (!r) return null;
+  return { ...r, birth_date_full: r.birth_date_raw && r.birth_date_raw.length > 4 ? r.birth_date_raw : null };
 }
 
 export type BestResultRow = {
   athletics_event: string;
   gender: string;
-  event_name: string; // one representative edition of this medal, for the meet-page link
   series_name: string; // grouped series (e.g. "World Championships"), for display
   place: 1 | 2 | 3; // exact medal colour -- never mixed with other colours in one row
   n: number; // how many times they got exactly this medal in this discipline+series
-  years: number[]; // one entry per time, most recent first
-  editions: { year: number; event_name: string }[]; // same order as years, each with its own raw name
+  editions: { year: number; event_name: string }[]; // most recent first, each with its own raw name
 };
 
 // A palmares, not a highlight reel: grouped by discipline + series + EXACT
@@ -97,7 +102,6 @@ export async function getAthleteBestResults(athleteId: string, limit = 5): Promi
     grouped AS (
       SELECT athletics_event, gender, series_key, place, COUNT(*) AS n,
         SUM(best.competition_score) AS total_points,
-        ARRAY_AGG(year ORDER BY year DESC) AS years,
         -- each year's own raw edition name, so every year links to its edition
         ARRAY_AGG(STRUCT(year, best.event_name AS event_name) ORDER BY year DESC) AS editions,
         -- Display name keeps its real casing, with org-branding
@@ -111,8 +115,7 @@ export async function getAthleteBestResults(athleteId: string, limit = 5): Promi
       FROM per_edition
       GROUP BY athletics_event, gender, series_key, place
     )
-    SELECT athletics_event, gender, top.display_series_name AS series_name, place, n, years, editions,
-      top.event_name AS event_name
+    SELECT athletics_event, gender, top.display_series_name AS series_name, place, n, editions
     FROM grouped
     ORDER BY total_points DESC
     LIMIT ${limit}
@@ -261,8 +264,6 @@ export type AthleteYearResultRow = {
   competition_score: number | null;
   record: string | null;
   mark_value: number | null;
-  city: string | null;
-  country: string | null;
   wind: string | null;
   wind_legal: boolean | null;
 };
@@ -282,7 +283,7 @@ export async function getAthleteResultsForYear(
   return runQuery<AthleteYearResultRow>(`
     SELECT CAST(date AS STRING) AS date, year, event_name, athletics_event, round, place, mark_display,
       division_key_resolved AS competition_level, ROUND(competition_score, 0) AS competition_score,
-      NULLIF(record, '') AS record, city, country, wind, wind_legal,
+      NULLIF(record, '') AS record, wind, wind_legal,
       ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE athlete_id = @athleteId
@@ -339,11 +340,46 @@ export type Race = {
   top3: PodiumEntry[];
 };
 
+export type LatestResultGroup = {
+  event_name: string;
+  competition_level: string | null;
+  city: string | null;
+  country: string | null;
+  races: Race[]; // most recent first, capped at 4
+  total_races: number; // how many races this competition actually has in the window
+};
+
 export async function getLatestRaces(
-  maxRaces = 10,
-  filters: { event?: string; tier?: string } = {}
-): Promise<Race[]> {
-  const { event, tier } = filters;
+  maxSlots = 10,
+  filters: { event?: string; tier?: string; from?: string; to?: string } = {}
+): Promise<LatestResultGroup[]> {
+  const { event, tier, from, to } = filters;
+  // A short window (7 days) keeps "latest" meaningful, but a quiet week can
+  // leave the feed with only 1-2 competitions -- widen the lookback until
+  // there are at least 5 distinct competitions (not races: one meet can
+  // contribute several disciplines), unless the caller asked for an exact
+  // range (from/to) of their own.
+  const MIN_COMPETITIONS = 5;
+  const windows = from || to ? [null] : [7, 14, 30, 90];
+  let result: LatestResultGroup[] = [];
+  for (const days of windows) {
+    result = await fetchWindow(maxSlots, { event, tier, from: days ? isoDaysAgo(days) : from, to });
+    if (result.length >= MIN_COMPETITIONS) break;
+  }
+  return result;
+}
+
+function isoDaysAgo(days: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function fetchWindow(
+  maxSlots: number,
+  filters: { event?: string; tier?: string; from?: string; to?: string }
+): Promise<LatestResultGroup[]> {
+  const { event, tier, from, to } = filters;
   // The source "place" field is heat-relative, not race-relative -- meets
   // that run many parallel non-eliminating heats (all labelled some variant
   // of "Final") each produce their own place 1/2/3, which would otherwise
@@ -365,7 +401,8 @@ export async function getLatestRaces(
       WHERE place IS NOT NULL
         AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
         AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
-        AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 10 DAY)
+        ${from ? "AND date >= @from" : "AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)"}
+        ${to ? "AND date <= @to" : ""}
         AND athlete_display_name IS NOT NULL
         AND (mark_seconds IS NOT NULL OR SAFE_CAST(mark AS FLOAT64) IS NOT NULL)
         ${event ? "AND athletics_event = @event" : ""}
@@ -384,8 +421,13 @@ export async function getLatestRaces(
         -- different races got merged.
         IF(is_relay, place, RANK() OVER (
           PARTITION BY event_name, athletics_event, gender, date, round, wind
+          -- Combined events (Decathlon/Heptathlon) score by points, higher
+          -- better, and never populate mark_seconds -- without them here
+          -- every participant ties on a NULL sort value and RANK() puts
+          -- them all at 1, so the whole field passes the "top 3" filter
+          -- below instead of just the real podium.
           ORDER BY IF(
-            athletics_event IN ('Long Jump','High Jump','Triple Jump','Pole Vault','Shot Put','Discus Throw','Javelin Throw','Hammer Throw'),
+            athletics_event IN ('Long Jump','High Jump','Triple Jump','Pole Vault','Shot Put','Discus Throw','Javelin Throw','Hammer Throw','Decathlon','Heptathlon'),
             -mark_num, mark_seconds
           ) ASC
         )) AS real_place
@@ -396,7 +438,7 @@ export async function getLatestRaces(
     FROM ranked
     WHERE real_place BETWEEN 1 AND 3
     ORDER BY date DESC
-  `, { ...(event ? { event } : {}), ...(tier ? { tier } : {}) });
+  `, { ...(event ? { event } : {}), ...(tier ? { tier } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) });
 
   // Group into races, then within each race group by place -- a relay
   // team has one row per runner sharing the same place/mark/nationality,
@@ -440,13 +482,49 @@ export async function getLatestRaces(
 
   const list = Array.from(races.values());
   for (const race of list) race.top3.sort((a, b) => a.place - b.place);
-  // Most recent first (this is "Latest Results") -- competition tier only
-  // breaks ties between races on the same date.
-  list.sort((a, b) => {
-    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+  // Most recent first within a race group.
+  list.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  // One competition (e.g. a multi-discipline championships) can produce a
+  // dozen races on the same day -- group them so the feed shows a handful
+  // of its latest results plus a link to the rest, instead of flooding the
+  // whole list with one meet.
+  const groups = new Map<string, LatestResultGroup>();
+  for (const race of list) {
+    let g = groups.get(race.event_name);
+    if (!g) {
+      g = { event_name: race.event_name, competition_level: race.competition_level, city: race.city, country: race.country, races: [], total_races: 0 };
+      groups.set(race.event_name, g);
+    }
+    // keep the group's own tier at its best (lowest-priority-number) race
+    if (tierPriority(race.competition_level) < tierPriority(g.competition_level)) g.competition_level = race.competition_level;
+    g.total_races++;
+    if (g.races.length < 3) g.races.push(race);
+  }
+
+  // Recency leads: a more recent competition always shows above an older
+  // one, tier only breaking ties on the same date -- EXCEPT tier F, which
+  // sinks to the bottom regardless of how recent, so a handful of parkrun-
+  // level results never bury a real (if slightly older) competition.
+  const orderedGroups = Array.from(groups.values()).sort((a, b) => {
+    const fa = a.competition_level === "F" ? 1 : 0;
+    const fb = b.competition_level === "F" ? 1 : 0;
+    if (fa !== fb) return fa - fb;
+    const da = a.races[0]?.date ?? "";
+    const db = b.races[0]?.date ?? "";
+    if (da !== db) return da < db ? 1 : -1;
     return tierPriority(a.competition_level) - tierPriority(b.competition_level);
   });
-  return list.slice(0, maxRaces);
+
+  const result: LatestResultGroup[] = [];
+  let slots = 0;
+  for (const g of orderedGroups) {
+    if (slots > 0 && slots + g.races.length > maxSlots) break;
+    result.push(g);
+    slots += g.races.length;
+    if (slots >= maxSlots) break;
+  }
+  return result;
 }
 
 // ---------------------------------------------------------------------
@@ -469,13 +547,18 @@ export type UpcomingCompetition = {
   past_event_name: string | null;
 };
 
-export async function getUpcomingCompetitions(limit = 10, category?: string): Promise<UpcomingCompetition[]> {
+export async function getUpcomingCompetitions(
+  limit = 10,
+  category?: string,
+  discipline?: string
+): Promise<UpcomingCompetition[]> {
   return runQuery<UpcomingCompetition>(`
     WITH up AS (
       SELECT row_key, date_start, date_end, name, venue, country, category, disciplines
       FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
       WHERE date_start >= CURRENT_DATE()
         AND category IN ${category ? "(@category)" : "('OW','DF','GW','GL','A','B')"}
+        ${discipline ? "AND disciplines LIKE CONCAT('%', @discipline, '%')" : ""}
       ORDER BY date_start ASC
       LIMIT ${limit}
     ),
@@ -495,7 +578,7 @@ export async function getUpcomingCompetitions(limit = 10, category?: string): Pr
     FROM up
     LEFT JOIN (SELECT row_key, event_name FROM matches WHERE rn = 1) m USING (row_key)
     ORDER BY up.date_start ASC
-  `, category ? { category } : {});
+  `, { ...(category ? { category } : {}), ...(discipline ? { discipline } : {}) });
 }
 
 // ---------------------------------------------------------------------
@@ -627,19 +710,16 @@ export async function getAvailableNationalities(event: string, gender: string, y
 export type RelayRankingRow = {
   nationality: string;
   points: number;
-  n_results: number;
   best_mark: string | null;
-  best_mark_value: number | null;
+  best_mark_value: number | null; // kept for the "mark" sort order, not rendered directly
   roster: string[];
-  record: string | null;
 };
 
 function relayRankingAggCte(event: string, year: number | "all", hasNationality: boolean) {
   return `
     WITH races AS (
       SELECT event_name, CAST(date AS STRING) AS date, nationality, mark_display, mark_seconds, competition_score,
-        ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster,
-        ANY_VALUE(NULLIF(record, '')) AS record
+        ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = @event AND gender = @gender
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
@@ -647,16 +727,16 @@ function relayRankingAggCte(event: string, year: number | "all", hasNationality:
       GROUP BY event_name, date, nationality, mark_display, mark_seconds, competition_score
     ),
     totals AS (
-      SELECT nationality, ROUND(SUM(competition_score), 0) AS points, COUNT(*) AS n_results
+      SELECT nationality, ROUND(SUM(competition_score), 0) AS points
       FROM races
       GROUP BY nationality
     ),
     best AS (
-      SELECT nationality, mark_display AS best_mark, mark_seconds AS best_mark_value, roster, record
+      SELECT nationality, mark_display AS best_mark, mark_seconds AS best_mark_value, roster
       FROM races
       QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
     )
-    SELECT t.nationality, t.points, t.n_results, b.best_mark, b.best_mark_value, b.roster, b.record
+    SELECT t.nationality, t.points, b.best_mark, b.best_mark_value, b.roster
     FROM totals t
     JOIN best b USING (nationality)
   `;
@@ -783,8 +863,6 @@ export type MarkRow = {
   athlete_id: string;
   display_name: string;
   mark_display: string;
-  event_name: string;
-  date: string;
   nationality: string | null;
   record: string | null;
 };
@@ -798,7 +876,7 @@ export async function getEventAllTimeBest(
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
   return runQuery<MarkRow>(`
-    SELECT athlete_id, athlete_display_name AS display_name, mark_display, event_name, CAST(date AS STRING) AS date, nationality,
+    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
       NULLIF(record, '') AS record
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE athletics_event = @event AND gender = @gender
@@ -809,6 +887,112 @@ export async function getEventAllTimeBest(
       AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
     ORDER BY ${orderExpr}
+    LIMIT ${limit}
+  `, { event, gender });
+}
+
+export type AreaBestRow = MarkRow & { area: string; area_name: string };
+
+// Best mark ever, one per World Athletics area (continent) -- same
+// tablasauxiliares.countries.area used by the Countries/Rankings area
+// filter, so this stays consistent with what "area" means elsewhere.
+export async function getEventBestByArea(event: string, gender: string, indoor = false): Promise<AreaBestRow[]> {
+  const isField = isFieldEvent(event);
+  const orderExpr = isField ? "SAFE_CAST(e.mark AS FLOAT64) DESC" : "e.mark_seconds ASC";
+  const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+
+  return runQuery<AreaBestRow>(`
+    SELECT c.area, c.area_name, e.athlete_id, e.athlete_display_name AS display_name, e.mark_display,
+      e.nationality, NULLIF(e.record, '') AS record
+    FROM \`athletics-database.athletics_all.events_enriched\` e
+    JOIN \`athletics-database.tablasauxiliares.countries\` c ON c.code = e.nationality
+    WHERE c.area IS NOT NULL AND e.athletics_event = @event AND e.gender = @gender
+      AND e.athlete_display_name IS NOT NULL
+      AND ${isField ? "SAFE_CAST(e.mark AS FLOAT64) IS NOT NULL" : "e.mark_seconds IS NOT NULL"}
+      ${windFiltered ? "AND (e.wind_legal IS NULL OR e.wind_legal = TRUE)" : ""}
+      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY c.area ORDER BY ${orderExpr}) = 1
+    ORDER BY ${orderExpr}
+  `, { event, gender });
+}
+
+// Best mark ever, one per country -- capped, sorted fastest first (a
+// compact "national records" leaderboard, not the full country list).
+export async function getEventBestByCountry(event: string, gender: string, indoor = false, limit = 15): Promise<MarkRow[]> {
+  const isField = isFieldEvent(event);
+  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+
+  return runQuery<MarkRow>(`
+    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
+      NULLIF(record, '') AS record
+    FROM \`athletics-database.athletics_all.events_enriched\`
+    WHERE athletics_event = @event AND gender = @gender AND nationality IS NOT NULL
+      AND athlete_display_name IS NOT NULL
+      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
+      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY ${orderExpr}) = 1
+    ORDER BY ${orderExpr}
+    LIMIT ${limit}
+  `, { event, gender });
+}
+
+export type RecordTenureRow = {
+  athlete_id: string;
+  display_name: string;
+  nationality: string | null;
+  years_held: number;
+  n_spans: number;
+};
+
+// How many years each athlete has held the all-time #1 mark, summed
+// across every separate stretch they've held it (a record can change
+// hands and come back). One row per calendar date's best mark (ties on
+// the same day collapse to one), the all-time-best-so-far strictly
+// BEFORE each row decides whether that row is a genuine new record;
+// tenure runs from that date to whenever the next new record lands, or
+// to today for whoever holds it now.
+export async function getEventRecordTenure(event: string, gender: string, limit = 12): Promise<RecordTenureRow[]> {
+  const isField = isFieldEvent(event);
+  const orderExpr = isField ? "v DESC" : "v ASC";
+  const better = isField ? "v > prior_best" : "v < prior_best";
+  const bestAgg = isField ? "MAX" : "MIN";
+  const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
+
+  return runQuery<RecordTenureRow>(`
+    WITH marks AS (
+      SELECT athlete_id, athlete_display_name AS display_name, nationality, date,
+        ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS v
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE athletics_event = @event AND gender = @gender AND date IS NOT NULL
+        AND athlete_display_name IS NOT NULL
+        AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+    ),
+    per_day AS (
+      SELECT date, athlete_id, display_name, nationality, v
+      FROM marks
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY date ORDER BY ${orderExpr}) = 1
+    ),
+    with_prior AS (
+      SELECT *, ${bestAgg}(v) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prior_best
+      FROM per_day
+    ),
+    new_records AS (
+      SELECT * FROM with_prior WHERE prior_best IS NULL OR ${better}
+    ),
+    spans AS (
+      SELECT athlete_id, display_name, nationality, date AS start_date,
+        IFNULL(LEAD(date) OVER (ORDER BY date), CURRENT_DATE()) AS end_date
+      FROM new_records
+    )
+    SELECT athlete_id, ANY_VALUE(display_name) AS display_name, ANY_VALUE(nationality) AS nationality,
+      ROUND(SUM(DATE_DIFF(end_date, start_date, DAY)) / 365.25, 1) AS years_held,
+      COUNT(*) AS n_spans
+    FROM spans
+    GROUP BY athlete_id
+    ORDER BY years_held DESC
     LIMIT ${limit}
   `, { event, gender });
 }
@@ -836,7 +1020,7 @@ export async function getEventYearBestMarks(
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
   return runQuery<MarkRow>(`
-    SELECT athlete_id, athlete_display_name AS display_name, mark_display, event_name, CAST(date AS STRING) AS date, nationality,
+    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
       NULLIF(record, '') AS record
     FROM \`athletics-database.athletics_all.events_enriched\`
     WHERE year = ${year} AND athletics_event = @event AND gender = @gender
@@ -859,8 +1043,6 @@ export async function getEventYearBestMarks(
 export type RelayMarkRow = {
   nationality: string | null;
   mark_display: string;
-  event_name: string;
-  date: string;
   roster: string[];
   record: string | null;
 };
@@ -868,15 +1050,18 @@ export type RelayMarkRow = {
 export async function getEventAllTimeBestRelay(event: string, gender: string, limit = 10): Promise<RelayMarkRow[]> {
   return runQuery<RelayMarkRow>(`
     WITH teams AS (
-      SELECT event_name, CAST(date AS STRING) AS date, nationality, mark_display, mark_seconds,
+      SELECT event_name, date, nationality, mark_display, mark_seconds,
         ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster,
         ANY_VALUE(NULLIF(record, '')) AS record
       FROM \`athletics-database.athletics_all.events_enriched\`
       WHERE athletics_event = @event AND gender = @gender
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
+      -- event_name/date only group the roster into the right race, not
+      -- returned -- nothing downstream renders which meet/date a relay
+      -- best came from.
       GROUP BY event_name, date, nationality, mark_display, mark_seconds
     )
-    SELECT event_name, date, nationality, mark_display, roster, record
+    SELECT nationality, mark_display, roster, record
     FROM teams
     QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
     ORDER BY mark_seconds ASC
@@ -892,7 +1077,7 @@ export async function getEventYearBestMarksRelay(
 ): Promise<RelayMarkRow[]> {
   return runQuery<RelayMarkRow>(`
     WITH teams AS (
-      SELECT event_name, CAST(date AS STRING) AS date, nationality, mark_display, mark_seconds,
+      SELECT event_name, date, nationality, mark_display, mark_seconds,
         ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster,
         ANY_VALUE(NULLIF(record, '')) AS record
       FROM \`athletics-database.athletics_all.events_enriched\`
@@ -900,7 +1085,7 @@ export async function getEventYearBestMarksRelay(
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
       GROUP BY event_name, date, nationality, mark_display, mark_seconds
     )
-    SELECT event_name, date, nationality, mark_display, roster, record
+    SELECT nationality, mark_display, roster, record
     FROM teams
     QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
     ORDER BY mark_seconds ASC
@@ -1039,6 +1224,8 @@ export type MeetResultRow = {
   wind: string | null;
   wind_legal: boolean | null;
   division_key_resolved: string | null;
+  is_shadow_result: boolean | null; // a weaker parallel section merged under the same final -- doesn't score
+  race_level: number | null; // field strength of this specific race, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
 };
 
 // NOTE: some historical sources (mainly dlmeetings) run several unlabelled
@@ -1058,19 +1245,37 @@ export type MeetResultRow = {
 // so the page can group by it and render each section on its own instead.
 export async function getMeetResults(eventName: string, year: number): Promise<MeetResultRow[]> {
   return runQuery<MeetResultRow>(`
-    SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
-      athletics_event, gender, round, place, athlete_id,
-      athlete_display_name AS display_name, mark_display,
-      IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
-      nationality,
-      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal,
-      division_key_resolved
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE ${MEET_SERIES_MATCH_SQL} AND year = @year
-      AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
-      AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
-      AND athlete_display_name IS NOT NULL
-    ORDER BY athletics_event, gender, round, place ASC NULLS LAST
+    SELECT e.event_name, COALESCE(e.display_series_name, e.event_name) AS series_name,
+      e.athletics_event, e.gender, e.round, e.place, e.athlete_id,
+      e.athlete_display_name AS display_name, e.mark_display,
+      IF(e.athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(e.mark AS FLOAT64), e.mark_seconds) AS mark_value,
+      e.nationality,
+      NULLIF(e.record, '') AS record, e.city, e.country, CAST(e.date AS STRING) AS date, e.wind, e.wind_legal,
+      e.division_key_resolved, e.is_shadow_result, rl.race_level
+    FROM \`athletics-database.athletics_all.events_enriched\` e
+    -- race_level is keyed by the RAW event_name (not display_series_name),
+    -- since that's what it was built against -- round can be NULL on both
+    -- sides (a meet with a single unlabelled round), so match that case
+    -- explicitly instead of losing the join to NULL <> NULL. Columns are
+    -- renamed in the subquery so the bare "event_name" MEET_SERIES_MATCH_SQL
+    -- relies on below stays unambiguous (only e.event_name matches it).
+    LEFT JOIN (
+      SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
+        gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
+      FROM \`athletics-database.registry.race_level\`
+    ) rl
+      ON rl.rl_event_name = e.event_name AND rl.rl_athletics_event = e.athletics_event
+     AND rl.rl_gender = e.gender AND CAST(rl.rl_date AS STRING) = CAST(e.date AS STRING)
+     AND (rl.rl_round = e.round OR (rl.rl_round IS NULL AND e.round IS NULL))
+    WHERE ${MEET_SERIES_MATCH_SQL} AND e.year = @year
+      AND LOWER(IFNULL(e.round,'')) NOT LIKE '%combined%'
+      AND e.athlete_display_name IS NOT NULL
+    -- Finals first, qualifying rounds (heats, semis) after -- reading the
+    -- final before its own heats matches how a results page is normally
+    -- read, and MeetResultsSections groups by round anyway so mixing the
+    -- literal chronological order in isn't needed here.
+    ORDER BY e.athletics_event, e.gender,
+      IF(e.round IS NULL OR LOWER(e.round) LIKE '%final%', 0, 1), e.round, e.place ASC NULLS LAST
   `, { eventName, year });
 }
 
@@ -1141,19 +1346,27 @@ export async function getCompetitionsList(filters: {
 // competition means looking at ONLY its own rows, not a merged group.
 export async function getCompetitionResults(eventName: string, year: number): Promise<MeetResultRow[]> {
   return runQuery<MeetResultRow>(`
-    SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
-      athletics_event, gender, round, place, athlete_id,
-      athlete_display_name AS display_name, mark_display,
-      IF(athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(mark AS FLOAT64), mark_seconds) AS mark_value,
-      nationality,
-      NULLIF(record, '') AS record, city, country, CAST(date AS STRING) AS date, wind, wind_legal,
-      division_key_resolved
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE event_name = @eventName AND year = @year
-      AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
-      AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
-      AND athlete_display_name IS NOT NULL
-    ORDER BY athletics_event, gender, round, place ASC NULLS LAST
+    SELECT e.event_name, COALESCE(e.display_series_name, e.event_name) AS series_name,
+      e.athletics_event, e.gender, e.round, e.place, e.athlete_id,
+      e.athlete_display_name AS display_name, e.mark_display,
+      IF(e.athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(e.mark AS FLOAT64), e.mark_seconds) AS mark_value,
+      e.nationality,
+      NULLIF(e.record, '') AS record, e.city, e.country, CAST(e.date AS STRING) AS date, e.wind, e.wind_legal,
+      e.division_key_resolved, e.is_shadow_result, rl.race_level
+    FROM \`athletics-database.athletics_all.events_enriched\` e
+    LEFT JOIN (
+      SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
+        gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
+      FROM \`athletics-database.registry.race_level\`
+    ) rl
+      ON rl.rl_event_name = e.event_name AND rl.rl_athletics_event = e.athletics_event
+     AND rl.rl_gender = e.gender AND CAST(rl.rl_date AS STRING) = CAST(e.date AS STRING)
+     AND (rl.rl_round = e.round OR (rl.rl_round IS NULL AND e.round IS NULL))
+    WHERE e.event_name = @eventName AND e.year = @year
+      AND LOWER(IFNULL(e.round,'')) NOT LIKE '%combined%'
+      AND e.athlete_display_name IS NOT NULL
+    ORDER BY e.athletics_event, e.gender,
+      IF(e.round IS NULL OR LOWER(e.round) LIKE '%final%', 0, 1), e.round, e.place ASC NULLS LAST
   `, { eventName, year });
 }
 

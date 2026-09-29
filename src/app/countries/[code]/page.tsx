@@ -4,6 +4,7 @@ import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
 import ViewAllList from "@/components/ViewAllList";
 import LinkSelect from "@/components/LinkSelect";
+import { GenericAthlete } from "@/components/Avatar";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS, EVENT_GROUPS } from "@/lib/events";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
@@ -177,7 +178,7 @@ export default async function CountryPage({
 
         {/* Top band, same structure as the athlete page: info (flag as the
             picture) | best results of the season | key stats */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_22rem] gap-x-8 gap-y-6 mb-8 lg:[&>section]:self-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-6 mb-8 lg:[&>section]:self-stretch">
           <section>
             <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
             <div className="flex items-stretch gap-4">
@@ -265,7 +266,7 @@ export default async function CountryPage({
           </section>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="flex flex-col gap-8 min-w-0">
             {/* Photo wall of the scoring athletes */}
             {scoring.length > 0 && (
@@ -282,9 +283,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={photos[i]!.url} alt={a.display_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                     ) : (
-                      <span className="w-full h-full flex items-center justify-center text-2xl font-bold text-neutral-500">
-                        {a.display_name.charAt(0)}
-                      </span>
+                      <GenericAthlete name={a.display_name} gender={f.gender} nationality={code} />
                     )}
                     <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pt-4 pb-1 text-[10px] leading-tight">
                       {a.display_name}
@@ -398,10 +397,17 @@ ${photoCredit(photos[i]!)}` : ""}`}
                 }
                 items={seasons.map((s) => {
                   const t = tierForRank(s.rank);
+                  // "All disciplines" -> the global nations ranking for that
+                  // season; filtered to one discipline -> that discipline's
+                  // nations ranking, both for the season's own year.
+                  const rankingHref = seasonEvent
+                    ? `/rankings?view=n-discipline&event=${encodeURIComponent(seasonEvent)}&year=${s.year}&gender=${f.gender}`
+                    : `/rankings?view=n-season&year=${s.year}&gender=${f.gender}`;
                   return (
                     <Link
                       key={s.year}
-                      href={`/countries/${code}?${qs(s.year, f)}`}
+                      href={rankingHref}
+                      title="Go to this season's ranking"
                       className={`grid grid-cols-[2.75rem_1fr_3rem] items-center gap-x-1.5 px-3 py-1.5 hover:bg-neutral-800 ${
                         s.year === year ? "bg-neutral-800" : "bg-neutral-900/40"
                       }`}

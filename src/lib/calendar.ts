@@ -21,17 +21,25 @@ export type CalendarRow = {
   top_nationality: string | null;
   top_event: string | null;
   top_mark: string | null;
+  level: number | null; // past only: field strength of this edition, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
   // upcoming only
   disciplines: string | null;
 };
 
-// tiers at or above `minTier` (OW best ... F lowest)
+// tiers at or above `minTier` (OW best ... F lowest); "ALL" -- every tier
 function tiersUpTo(minTier: string) {
+  if (minTier === "ALL") return [...TIER_ORDER];
   const i = TIER_ORDER.indexOf(minTier as (typeof TIER_ORDER)[number]);
   return TIER_ORDER.slice(0, i < 0 ? 5 : i + 1);
 }
 
-export async function getCalendar(year: number, minTier: string, month?: number): Promise<CalendarRow[]> {
+export async function getCalendar(
+  year: number,
+  minTier: string,
+  month?: number,
+  sort: "date" | "name" | "tier" = "date",
+  dir: "asc" | "desc" = "asc"
+): Promise<CalendarRow[]> {
   const tiers = tiersUpTo(minTier);
   const monthFilter = (col: string) => (month ? `AND EXTRACT(MONTH FROM ${col}) = ${month}` : "");
   // Marks as one comparable number, lower = better (field marks negated),
@@ -39,7 +47,7 @@ export async function getCalendar(year: number, minTier: string, month?: number)
   // meetStats.ts.
   const V = `IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds)`;
   const INDOOR = `(IFNULL(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
-  return runQuery<CalendarRow>(
+  const rows = await runQuery<CalendarRow>(
     `
     WITH base AS (
       SELECT event_name, year,
@@ -78,7 +86,11 @@ export async function getCalendar(year: number, minTier: string, month?: number)
         r.all_time_rank
       FROM \`athletics-database.athletics_all.events_enriched\` e
       JOIN ranks r USING (event_row_key)
-      WHERE e.year = @year AND e.place = 1 AND e.athlete_id IS NOT NULL ${monthFilter("e.date")}
+      -- Relay team rows: source parsing bug concatenates all 4 legs' names
+      -- with no separator (e.g. "...Hull Australiaoliver Hoare..."), so
+      -- they can never be a readable/comparable "top performance" pick.
+      WHERE e.year = @year AND e.place = 1 AND e.athlete_id IS NOT NULL
+        AND e.athletics_discipline != 'Relays' ${monthFilter("e.date")}
     ),
     tops AS (
       SELECT event_name, year,
@@ -88,15 +100,26 @@ export async function getCalendar(year: number, minTier: string, month?: number)
       GROUP BY event_name, year
     ),
     editions AS (
-      SELECT b.*, t.top
+      SELECT b.*, t.top, cl.competition_level
       FROM base b
       LEFT JOIN tops t USING (event_name, year)
+      LEFT JOIN \`athletics-database.registry.competition_level\` cl USING (event_name, year)
     ),
     past AS (
       SELECT 'past' AS kind, CAST(date_start AS STRING) AS date_start, CAST(date_end AS STRING) AS date_end,
         event_name AS name, city, country, tier, n_events,
         top.athlete_id AS top_athlete_id, top.athlete_display_name AS top_athlete,
         top.nationality AS top_nationality, top.athletics_event AS top_event, top.mark_display AS top_mark,
+        -- The raw 0-100 score, not its percentile: race_level/competition_level
+        -- is now tier-anchored (70% the race's own competition tier, 30% a
+        -- mark-quality modifier -- see registry/16_compute_race_level.sql), so
+        -- it already reads on an absolute, intuitive scale. Its percentile
+        -- would re-introduce the exact illusion this design replaced: a tier-B
+        -- national final still ranks above ~95% of ALL races ever (most of
+        -- which are tier E/F club meets), so showing THAT number back would
+        -- make a national championship look elite again, which is the
+        -- complaint that caused this rework in the first place.
+        competition_level AS level,
         CAST(NULL AS STRING) AS disciplines
       FROM editions
       WHERE tier IN UNNEST(@tiers)
@@ -106,6 +129,7 @@ export async function getCalendar(year: number, minTier: string, month?: number)
         name, REGEXP_EXTRACT(venue, r',\\s*([^,(]+?)\\s*\\(') AS city, country, category AS tier,
         CAST(NULL AS INT64) AS n_events,
         CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING),
+        CAST(NULL AS FLOAT64) AS level,
         disciplines
       FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
       WHERE EXTRACT(YEAR FROM date_start) = @year
@@ -119,6 +143,15 @@ export async function getCalendar(year: number, minTier: string, month?: number)
   `,
     { year, tiers }
   );
+
+  const cmp: Record<typeof sort, (a: CalendarRow, b: CalendarRow) => number> = {
+    date: (a, b) => (a.date_start ?? "").localeCompare(b.date_start ?? ""),
+    name: (a, b) => a.name.localeCompare(b.name),
+    tier: (a, b) => tiersUpTo("F").indexOf(a.tier as never) - tiersUpTo("F").indexOf(b.tier as never),
+  };
+  rows.sort(cmp[sort]);
+  if (dir === "desc") rows.reverse();
+  return rows;
 }
 
 export async function getCalendarYears(): Promise<number[]> {

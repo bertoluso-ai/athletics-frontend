@@ -27,15 +27,17 @@ export default function YearlyProgressionChart({
   data,
   isField,
   recordPhoto,
+  recordPosition = "top",
 }: {
   data: YearProgressionPoint[];
   isField: boolean;
   recordPhoto?: RecordPhoto | null; // photo of the all-time best's athlete
+  recordPosition?: "top" | "bottom" | "inline";
 }) {
   const [expanded, setExpanded] = useState(false);
   return (
     <>
-      <Chart data={data} isField={isField} recordPhoto={recordPhoto} onExpand={() => setExpanded(true)} />
+      <Chart data={data} isField={isField} recordPhoto={recordPhoto} recordPosition={recordPosition} onExpand={() => setExpanded(true)} />
       {expanded && (
         // full-screen view (best with the phone in landscape)
         <div className="fixed inset-0 z-[60] bg-neutral-950/95 backdrop-blur p-3 sm:p-8 flex flex-col" onClick={() => setExpanded(false)}>
@@ -61,12 +63,14 @@ function Chart({
   onExpand,
   tall = false,
   recordPhoto,
+  recordPosition = "top",
 }: {
   data: YearProgressionPoint[];
   isField: boolean;
   onExpand?: () => void;
   tall?: boolean;
   recordPhoto?: RecordPhoto | null;
+  recordPosition?: "top" | "bottom" | "inline";
 }) {
   const [range, setRange] = useState<(typeof RANGES)[number]["key"]>("2000");
   const [hover, setHover] = useState<number | null>(null);
@@ -139,39 +143,54 @@ function Chart({
   const h = hover !== null ? pts[hover] : null;
   const allTime = withBest[withBest.length - 1]?.best;
 
+  const recordCard = allTime && (
+    <div className={`flex items-center gap-3 rounded-lg border border-orange-500/30 bg-orange-500/5 px-3 py-2 ${recordPosition === "top" ? "mb-3" : "mt-3"}`}>
+      {recordPhoto && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={recordPhoto.url} alt={allTime.athlete ?? ""} title={recordPhoto.credit} className="w-11 h-12 rounded-md object-cover border border-neutral-800 shrink-0" />
+      )}
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-wide text-neutral-500">All-time best</div>
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className="font-mono text-lg font-bold text-orange-400">{allTime.mark_display}</span>
+          {allTime.athlete &&
+            (allTime.athlete_id ? (
+              <Link href={`/athletes/${allTime.athlete_id}`} className="truncate text-sm font-medium hover:text-orange-400">
+                {allTime.athlete}
+              </Link>
+            ) : (
+              <span className="truncate text-sm font-medium">{allTime.athlete}</span>
+            ))}
+          <span className="text-xs text-neutral-500 shrink-0">
+            {allTime.nationality ? `${allTime.nationality} · ` : ""}
+            {allTime.year}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  const recordInline = allTime && (
+    <span className="flex items-center gap-1 text-neutral-300">
+      <span className="font-mono font-semibold text-orange-400">{allTime.mark_display}</span>
+      {allTime.athlete_id ? (
+        <Link href={`/athletes/${allTime.athlete_id}`} className="hover:text-orange-400 truncate max-w-[8rem]">
+          {allTime.athlete}
+        </Link>
+      ) : (
+        <span className="truncate max-w-[8rem]">{allTime.athlete}</span>
+      )}
+    </span>
+  );
+
   return (
     <div>
-      {/* all-time best: who holds it, with photo and link */}
-      {allTime && (
-        <div className="flex items-center gap-3 mb-3 rounded-lg border border-orange-500/30 bg-orange-500/5 px-3 py-2">
-          {recordPhoto && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={recordPhoto.url} alt={allTime.athlete ?? ""} title={recordPhoto.credit} className="w-11 h-12 rounded-md object-cover border border-neutral-800 shrink-0" />
-          )}
-          <div className="min-w-0">
-            <div className="text-[10px] uppercase tracking-wide text-neutral-500">All-time best</div>
-            <div className="flex items-baseline gap-2 min-w-0">
-              <span className="font-mono text-lg font-bold text-orange-400">{allTime.mark_display}</span>
-              {allTime.athlete &&
-                (allTime.athlete_id ? (
-                  <Link href={`/athletes/${allTime.athlete_id}`} className="truncate text-sm font-medium hover:text-orange-400">
-                    {allTime.athlete}
-                  </Link>
-                ) : (
-                  <span className="truncate text-sm font-medium">{allTime.athlete}</span>
-                ))}
-              <span className="text-xs text-neutral-500 shrink-0">
-                {allTime.nationality ? `${allTime.nationality} · ` : ""}
-                {allTime.year}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {recordPosition === "top" && recordCard}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
         <div className="flex items-center gap-3 text-[11px] text-neutral-400">
           <span className="flex items-center gap-1">
             <span className="w-3 h-0.5 bg-orange-500" /> best ever
+            {recordPosition === "inline" && recordInline}
           </span>
           <span className="flex items-center gap-1">
             <span className="w-1.5 h-1.5 rounded-full bg-neutral-400" /> best of the year
@@ -253,6 +272,7 @@ function Chart({
           </div>
         )}
       </div>
+      {recordPosition === "bottom" && recordCard}
     </div>
   );
 }

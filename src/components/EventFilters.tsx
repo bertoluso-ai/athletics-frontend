@@ -22,7 +22,10 @@ export default function EventFilters({
   indoor,
   baseHref,
 }: {
-  year: number;
+  // "all" (the disciplines page's all-time view) is left out of the URL
+  // entirely, same as any other unset filter -- a concrete year is always
+  // written out.
+  year: number | "all";
   ageCategory: string;
   limit: number;
   indoor?: boolean;
@@ -31,11 +34,19 @@ export default function EventFilters({
   const router = useRouter();
 
   function go(nextAge: string) {
-    const params = new URLSearchParams({ year: String(year) });
+    const params = new URLSearchParams();
+    if (year !== "all") params.set("year", String(year));
     if (nextAge) params.set("age", nextAge);
     if (limit !== 10) params.set("limit", String(limit));
-    if (indoor) params.set("indoor", "true");
-    router.push(`${baseHref}?${params.toString()}`);
+    // Always explicit, never just omitted when true -- some events (60m/
+    // 60mH) default to indoor, so dropping a "false" would silently flip
+    // back to that default instead of keeping whatever's showing now.
+    if (indoor !== undefined) params.set("indoor", String(indoor));
+    // baseHref may already carry its own query (e.g. "?gender=Men") --
+    // appending another bare "?" would corrupt it into one malformed
+    // query string instead of merging the two.
+    const separator = baseHref.includes("?") ? "&" : "?";
+    router.push(`${baseHref}${separator}${params.toString()}`);
   }
 
   const selectClass =

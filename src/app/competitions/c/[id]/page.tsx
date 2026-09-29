@@ -68,7 +68,7 @@ export default async function RegistryCompetitionPage({ params }: { params: Prom
           <code className="text-neutral-600">{comp.competition_id.slice(0, 12)}</code>
         </p>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           {/* Timeline */}
           <section>
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Editions</h2>

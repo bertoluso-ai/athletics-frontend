@@ -37,9 +37,7 @@ export type H2HSharedRace = {
 
 export type H2HKpis = {
   athlete_id: string;
-  display_name: string;
   nationality: string | null;
-  gender: string | null;
   birth_year: number | null;
   first_year: number;
   last_year: number;
@@ -80,9 +78,7 @@ export async function getH2H(a: string, b: string) {
         GROUP BY 1
       )
       SELECT e.athlete_id,
-        ANY_VALUE(athlete_display_name) AS display_name,
         ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
-        ANY_VALUE(gender) AS gender,
         ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
         MIN(year) AS first_year, MAX(year) AS last_year,
         COUNT(DISTINCT year) AS seasons,

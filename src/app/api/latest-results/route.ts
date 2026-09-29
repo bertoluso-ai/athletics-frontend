@@ -6,6 +6,6 @@ export async function GET(req: NextRequest) {
   const event = searchParams.get("event") || undefined;
   const tier = searchParams.get("tier") || undefined;
 
-  const races = await getLatestRaces(10, { event, tier });
+  const races = await getLatestRaces(15, { event, tier });
   return NextResponse.json(races);
 }

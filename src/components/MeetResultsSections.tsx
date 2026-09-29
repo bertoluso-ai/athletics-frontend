@@ -18,6 +18,8 @@ export type Group = {
   wind: string | null;
   section: number;
   rows: MeetResultRow[];
+  label?: "Podium" | "Rest of times"; // set when this section came from resolving a merged heat+final -- see splitResolved
+  level: number | null; // field strength of this specific race, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
 };
 
 export function meetSectionAnchor(athleticsEvent: string, gender: string, round?: string | null, wind?: string | null, section?: number): string {
@@ -38,7 +40,17 @@ export function meetSectionAnchor(athleticsEvent: string, gender: string, round?
 // turns an obviously-broken interleaved list (two different people both
 // "1st", "2nd", ...) into two coherent sections, each keeping its own
 // original place numbering.
-function splitByMarkIfDuplicatePlaces(rows: MeetResultRow[], isField: boolean): MeetResultRow[][] {
+// is_shadow_result (a real quality gap, computed server-side from each
+// mark's own all-time rank) is authoritative and comes first: it separates
+// a genuine shadow section from the real one. Everything else stays
+// together in one tier-split, even when the source's own place numbers
+// collide, and within that split two athletes with the EXACT SAME mark
+// (a tie) always land in the same section -- ranked by the distinct mark
+// values themselves, not by each row's sort index, which used to break
+// ties arbitrarily and could eject one of two tied athletes into its own
+// stray section (confirmed: Athletissima Lausanne 2007 Men's 100m, Steve
+// Mullings and Michael Frater both ran 10.20 and ended up split apart).
+function splitByMarkTier(rows: MeetResultRow[], isField: boolean): MeetResultRow[][] {
   const byPlace = new Map<number, MeetResultRow[]>();
   const withoutPlace: MeetResultRow[] = [];
   for (const r of rows) {
@@ -57,18 +69,53 @@ function splitByMarkIfDuplicatePlaces(rows: MeetResultRow[], isField: boolean): 
 
   const sections: MeetResultRow[][] = [];
   for (const arr of byPlace.values()) {
-    const sorted = [...arr].sort((a, b) => {
-      if (a.mark_value == null) return 1;
-      if (b.mark_value == null) return -1;
-      return isField ? b.mark_value - a.mark_value : a.mark_value - b.mark_value;
+    const marks = Array.from(new Set(arr.map((r) => r.mark_display)));
+    const markValue = (m: string) => arr.find((r) => r.mark_display === m)?.mark_value ?? null;
+    marks.sort((ma, mb) => {
+      const va = markValue(ma);
+      const vb = markValue(mb);
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return isField ? vb - va : va - vb;
     });
-    sorted.forEach((r, i) => {
+    for (const r of arr) {
+      const i = marks.indexOf(r.mark_display);
       if (!sections[i]) sections[i] = [];
       sections[i].push(r);
-    });
+    }
   }
   if (withoutPlace.length) sections[0] = [...(sections[0] ?? []), ...withoutPlace];
   return sections.filter((s) => s.length > 0);
+}
+
+// Rows with is_shadow_result === true are never shown at all -- a weaker
+// parallel section (registry/11, 12) or a redundant duplicate mark from a
+// merged heat+final (registry/15) that lost out to the athlete's real
+// result. is_shadow_result === false (not null: null means "never
+// ambiguous to begin with") marks a row that WAS part of a merged
+// heat+final and has been resolved -- registry/15_resolve_merged_heats_final.sql
+// keeps the verified podium (tablasauxiliares.golden_league_heat_resolution)
+// at places 1-3 where known, and ranks the rest of the field by mark
+// after that. Shown as two labelled sections, Podium and Rest of times,
+// rather than one plain final -- only the podium is fact-checked, the
+// rest is a time-based placement among what's left, worth telling apart.
+function splitResolved(rows: MeetResultRow[], isField: boolean): { rows: MeetResultRow[]; label?: Group["label"] }[] {
+  const visible = rows.filter((r) => !r.is_shadow_result);
+  if (visible.length === 0) return [];
+  const resolved = visible.some((r) => r.is_shadow_result === false);
+  if (!resolved) return splitByMarkTier(visible, isField).map((s) => ({ rows: s }));
+
+  const sorted = [...visible].sort((a, b) => {
+    if (a.mark_value == null) return 1;
+    if (b.mark_value == null) return -1;
+    return isField ? b.mark_value - a.mark_value : a.mark_value - b.mark_value;
+  });
+  const podium = sorted.slice(0, 3);
+  const rest = sorted.slice(3);
+  return [
+    { rows: podium, label: "Podium" },
+    ...(rest.length ? [{ rows: rest, label: "Rest of times" as const }] : []),
+  ];
 }
 
 // Never merge rows with a different `round` string -- some meets split a
@@ -100,12 +147,28 @@ export function groupResults(rows: MeetResultRow[]): Group[] {
   const result: Group[] = [];
   for (const g of windGroups.values()) {
     if (isRelayEvent(g.athletics_event)) {
-      result.push({ ...g, section: 0 });
+      const level = g.rows.find((r) => r.race_level != null)?.race_level ?? null;
+      result.push({ ...g, section: 0, level });
       continue;
     }
-    const sections = splitByMarkIfDuplicatePlaces(g.rows, isFieldEvent(g.athletics_event));
-    sections.forEach((sectionRows, i) => {
-      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind: g.wind, section: i, rows: sectionRows });
+    const isField = isFieldEvent(g.athletics_event);
+    const sections = splitResolved(g.rows, isField);
+    sections.forEach(({ rows: sectionRows, label }, i) => {
+      // Always order by the mark itself, not the source's raw `place` --
+      // a real final's places already follow its marks, so this is a
+      // no-op there; it only matters for a same-place tie, which must
+      // still read best-to-worst.
+      const sorted = [...sectionRows].sort((a, b) => {
+        if (a.mark_value == null) return 1;
+        if (b.mark_value == null) return -1;
+        return isField ? b.mark_value - a.mark_value : a.mark_value - b.mark_value;
+      });
+      // race_level is computed once per event+gender+date+round upstream,
+      // so every row in a section shares the same value -- take the first
+      // non-null one found (a split section's rows are a subset of the
+      // same underlying race in that key, so they all agree anyway).
+      const level = sectionRows.find((r) => r.race_level != null)?.race_level ?? null;
+      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind: g.wind, section: i, rows: sorted, label, level });
     });
   }
   return result;
@@ -179,21 +242,61 @@ function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
   );
 }
 
+// Same "is this a final" test as the SQL queries that fetch these rows
+// (getMeetResults/getCompetitionResults) -- kept in sync so a round shown
+// here always matches whether it actually counts server-side.
+function isFinalRound(round: string | null): boolean {
+  if (!round) return true;
+  const r = round.toLowerCase();
+  return r.includes("final") && !r.includes("semifinal") && !r.includes("quarterfinal");
+}
+
 export default function MeetResultsSections({ groups, emptyLabel }: { groups: Group[]; emptyLabel: string }) {
   return (
     <div className="flex flex-col gap-6 mt-6">
-      {groups.map((g) => (
+      {groups.map((g) => {
+        const isFinal = isFinalRound(g.round);
+        return (
         <section
           key={`${g.athletics_event}|${g.gender}|${g.round ?? ""}|${g.wind ?? ""}|${g.section}`}
           id={meetSectionAnchor(g.athletics_event, g.gender, g.round, g.wind, g.section)}
+          className={isFinal ? undefined : "opacity-80"}
         >
           <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-              <Link href={`/events/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
+              <Link href={`/disciplines/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
                 {eventLabel(g.athletics_event)}
               </Link>
               <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
               {g.round && <span className="text-neutral-500 ml-2 normal-case">· {g.round}</span>}
+              {!isFinal && (
+                <span
+                  className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 normal-case"
+                  title="A qualifying round, not the final -- shown for reference, doesn't score or count towards records"
+                >
+                  qualifying · doesn&apos;t score
+                </span>
+              )}
+              {g.label && (
+                <span
+                  className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400 normal-case"
+                  title={
+                    g.label === "Podium"
+                      ? "The source merges a heat and the final here -- this podium is verified against an independent result archive"
+                      : "The rest of the field, ranked by mark -- not individually verified the way the podium is"
+                  }
+                >
+                  {g.label}
+                </span>
+              )}
+              {g.level != null && (
+                <span
+                  className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 normal-case"
+                  title="Field strength of this race (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
+                >
+                  Lvl {Math.round(g.level)}
+                </span>
+              )}
             </h2>
             {g.wind && <span className="text-xs font-mono text-neutral-500">Wind: {g.wind}</span>}
           </div>
@@ -205,7 +308,8 @@ export default function MeetResultsSections({ groups, emptyLabel }: { groups: Gr
             )}
           </div>
         </section>
-      ))}
+        );
+      })}
       {groups.length === 0 && (
         <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">{emptyLabel}</div>
       )}

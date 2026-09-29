@@ -2,6 +2,8 @@ import { Suspense } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
+import { GenericAthlete } from "@/components/Avatar";
+import LinkSelect from "@/components/LinkSelect";
 import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
@@ -80,7 +82,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_14rem] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
             {view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
@@ -231,71 +233,67 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         {movement && "Up/down arrows compare with the ranking two weeks ago."}
       </p>
 
-      {/* Filters: one horizontally-scrollable pill row (swipe on phones,
-          thin scrollbar with a mouse) instead of a grid of boxes -- same
-          pattern as the category pills elsewhere on the site. */}
-      <form action="/rankings" className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 mb-6 -mx-3 px-3 sm:mx-0 sm:px-0">
-        <input type="hidden" name="view" value={view} />
-        <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
-          {(["Men", "Women"] as const).map((g) => (
-            <Link
-              key={g}
-              href={href({ gender: g, nationality: "", event: "" })}
-              className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-            >
-              {g}
-            </Link>
-          ))}
-        </div>
-        <input type="hidden" name="gender" value={gender} />
-        {sortBy === "mark" && <input type="hidden" name="sort" value="mark" />}
-        <select name="event" defaultValue={event ?? ""} className={selectClass}>
-          <option value="">All disciplines</option>
-          {eventOptions.map((e) => (
-            <option key={e} value={e}>
-              {eventLabel(e)}
-            </option>
-          ))}
-        </select>
-        {view !== "rolling" && (
-          <select name="year" defaultValue={year} className={selectClass}>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
+      {/* Filters: two rows, no submit button -- every control navigates as
+          soon as it changes (gender/year are plain links, the rest are
+          LinkSelects), same pill look as the rest of the site. */}
+      <div className="flex flex-col gap-2 mb-6">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+            {(["Men", "Women"] as const).map((g) => (
+              <Link
+                key={g}
+                href={href({ gender: g, nationality: "", event: "" })}
+                className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              >
+                {g}
+              </Link>
             ))}
-          </select>
-        )}
-        <select name="area" defaultValue={area ?? ""} className={selectClass}>
-          <option value="">All areas</option>
-          {Object.entries(AREAS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <select name="nationality" defaultValue={nationality ?? ""} className={selectClass}>
-          <option value="">All nations</option>
-          {nationalities.map((n) => (
-            <option key={n.code} value={n.code}>
-              {n.name}
-            </option>
-          ))}
-        </select>
-        <select name="age" defaultValue={age ?? ""} className={selectClass}>
-          {AGES.map((a) => (
-            <option key={a || "all"} value={a}>
-              {a || "All ages"}
-            </option>
-          ))}
-        </select>
-        <button className="shrink-0 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
-        {(nationality || age || area) && (
-          <Link href={href({ nationality: "", age: "", area: "" })} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
-            clear
-          </Link>
-        )}
-      </form>
+          </div>
+          {view !== "rolling" && (
+            <LinkSelect
+              value={String(year)}
+              className={selectClass}
+              options={years.map((y) => ({ value: String(y), label: String(y), href: href({ year: String(y) }) }))}
+            />
+          )}
+        </div>
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <LinkSelect
+            value={event ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All disciplines", href: href({ event: "" }) },
+              ...eventOptions.map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
+            ]}
+          />
+          <LinkSelect
+            value={area ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All areas", href: href({ area: "" }) },
+              ...Object.entries(AREAS).map(([k, v]) => ({ value: k, label: v, href: href({ area: k }) })),
+            ]}
+          />
+          <LinkSelect
+            value={nationality ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All nations", href: href({ nationality: "" }) },
+              ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
+            ]}
+          />
+          <LinkSelect
+            value={age ?? ""}
+            className={selectClass}
+            options={AGES.map((a) => ({ value: a, label: a || "All ages", href: href({ age: a }) }))}
+          />
+          {(nationality || age || area) && (
+            <Link href={href({ nationality: "", age: "", area: "" })} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
+              clear
+            </Link>
+          )}
+        </div>
+      </div>
 
       {/* Podium: 2 - 1 - 3 */}
       {podium.length === 3 && page === 1 && (
@@ -305,7 +303,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             { r: podium[0], pos: 1 },
             { r: podium[2], pos: 3 },
           ].map(({ r, pos }) => (
-            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} />
+            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} gender={gender} />
           ))}
         </section>
       )}
@@ -323,12 +321,12 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
                   href={`/athletes/${r.athlete_id}`}
                   className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800"
                 >
-                  <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0 flex items-center justify-center text-sm font-bold text-neutral-500">
+                  <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0">
                     {ph ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={ph.url} alt={r.display_name} className="absolute inset-0 w-full h-full object-cover" />
                     ) : (
-                      r.display_name.charAt(0)
+                      <GenericAthlete name={r.display_name} gender={gender} nationality={r.nationality} />
                     )}
                   </span>
                   <span className="min-w-0">
@@ -444,7 +442,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
 }
 
 // pos = place within the (possibly filtered) list, not the world rank
-function PodiumCard({ r, pos, photo, view }: { r: IndividualRankingRow; pos: number; photo: AthletePhoto | null; view: RankingView }) {
+function PodiumCard({ r, pos, photo, view, gender }: { r: IndividualRankingRow; pos: number; photo: AthletePhoto | null; view: RankingView; gender: string }) {
   const tall = pos === 1;
   const medal = ["🥇", "🥈", "🥉"][pos - 1];
   const ring = pos === 1 ? "border-yellow-400/60" : pos === 2 ? "border-neutral-300/50" : "border-orange-600/60";
@@ -453,12 +451,12 @@ function PodiumCard({ r, pos, photo, view }: { r: IndividualRankingRow; pos: num
       href={`/athletes/${r.athlete_id}`}
       className={`group flex flex-col rounded-xl border ${ring} bg-neutral-900/60 overflow-hidden hover:bg-neutral-800`}
     >
-      <span className={`relative w-full ${tall ? "aspect-[3/4]" : "aspect-[4/5]"} bg-neutral-800 flex items-center justify-center text-4xl font-bold text-neutral-600`}>
+      <span className={`relative w-full ${tall ? "aspect-[3/4]" : "aspect-[4/5]"} bg-neutral-800`}>
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={photo.url} alt={r.display_name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform" />
         ) : (
-          r.display_name.charAt(0)
+          <GenericAthlete name={r.display_name} gender={gender} nationality={r.nationality} />
         )}
         <span className="absolute top-1.5 left-1.5 text-xl sm:text-2xl drop-shadow">{medal}</span>
       </span>
@@ -583,50 +581,47 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
         {movement && "Arrows compare with two weeks ago."}
       </p>
 
-      <form action="/rankings" className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 mb-6 -mx-3 px-3 sm:mx-0 sm:px-0">
-        <input type="hidden" name="view" value={`n-${view}`} />
-        <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
-          {(["Men", "Women"] as const).map((g) => (
-            <Link key={g} href={href({ gender: g, event: "" })} className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
-              {g}
-            </Link>
-          ))}
-        </div>
-        <input type="hidden" name="gender" value={gender} />
-        <select name="event" defaultValue={event ?? ""} className={selectClass}>
-          <option value="">All disciplines</option>
-          {eventOptions.map((e) => (
-            <option key={e} value={e}>
-              {eventLabel(e)}
-            </option>
-          ))}
-        </select>
-        {view !== "rolling" && (
-          <select name="year" defaultValue={year} className={selectClass}>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
+      <div className="flex flex-col gap-2 mb-6">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+            {(["Men", "Women"] as const).map((g) => (
+              <Link key={g} href={href({ gender: g, event: "" })} className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
+                {g}
+              </Link>
             ))}
-          </select>
-        )}
-        <select name="area" defaultValue={area ?? ""} className={selectClass}>
-          <option value="">All areas</option>
-          {Object.entries(AREAS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-        <select name="age" defaultValue={age ?? ""} className={selectClass}>
-          {AGES.map((a) => (
-            <option key={a || "all"} value={a}>
-              {a || "All ages"}
-            </option>
-          ))}
-        </select>
-        <button className="shrink-0 text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
-      </form>
+          </div>
+          {view !== "rolling" && (
+            <LinkSelect
+              value={String(year)}
+              className={selectClass}
+              options={years.map((y) => ({ value: String(y), label: String(y), href: href({ year: String(y) }) }))}
+            />
+          )}
+        </div>
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <LinkSelect
+            value={event ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All disciplines", href: href({ event: "" }) },
+              ...eventOptions.map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
+            ]}
+          />
+          <LinkSelect
+            value={area ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All areas", href: href({ area: "" }) },
+              ...Object.entries(AREAS).map(([k, v]) => ({ value: k, label: v, href: href({ area: k }) })),
+            ]}
+          />
+          <LinkSelect
+            value={age ?? ""}
+            className={selectClass}
+            options={AGES.map((a) => ({ value: a, label: a || "All ages", href: href({ age: a }) }))}
+          />
+        </div>
+      </div>
 
       {/* podium of flags: 2 - 1 - 3 */}
       {podium.length === 3 && (

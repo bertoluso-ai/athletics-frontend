@@ -10,6 +10,11 @@ const CATEGORIES = Object.keys(TIER_PRIORITY)
   .filter((c) => ["OW", "DF", "GW", "GL", "A", "B"].includes(c))
   .sort((a, b) => TIER_PRIORITY[a] - TIER_PRIORITY[b]);
 
+// Coarse discipline families, as stored on the scraped calendar row itself
+// (tablasauxiliares.upcoming_competitions.disciplines) -- not the site's
+// fine-grained event list, which that source doesn't carry.
+const DISCIPLINES = ["Track and Field", "Road Running", "Cross Country", "Race Walking", "Combined Events"];
+
 function formatDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
@@ -17,43 +22,66 @@ function formatDate(iso: string) {
 
 export default function UpcomingRaces({ initial }: { initial: UpcomingCompetition[] }) {
   const [category, setCategory] = useState("");
+  const [discipline, setDiscipline] = useState("");
   const [rows, setRows] = useState(initial);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!category) {
+    if (!category && !discipline) {
       setRows(initial);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    fetch(`/api/upcoming?category=${encodeURIComponent(category)}`)
+    const params = new URLSearchParams();
+    if (category) params.set("category", category);
+    if (discipline) params.set("discipline", discipline);
+    fetch(`/api/upcoming?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => !cancelled && setRows(data))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [category, initial]);
+  }, [category, discipline, initial]);
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-          Upcoming Races
-        </h2>
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
-        >
-          <option value="">All categories</option>
-          {CATEGORIES.map((c) => (
-            <option key={c} value={c}>
-              {c}
-            </option>
-          ))}
-        </select>
+      <div className="mb-3">
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+            Upcoming Races
+          </h2>
+          <Link href="/calendar" className="text-xs text-neutral-500 hover:text-orange-400 shrink-0">
+            View all → Calendar
+          </Link>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={discipline}
+            onChange={(e) => setDiscipline(e.target.value)}
+            className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">All disciplines</option>
+            {DISCIPLINES.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">All categories</option>
+            {CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
       <div className="flex flex-col divide-y divide-neutral-800 border border-neutral-800 rounded-lg overflow-hidden">
         {loading && <div className="px-4 py-6 text-sm text-neutral-500">Loading…</div>}

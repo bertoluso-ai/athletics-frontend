@@ -40,7 +40,6 @@ export default async function MeetPage({
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
   );
   const first = results[0];
-  const meetDate = formatDate(first?.date ?? null);
   // A given edition can carry more than one tier across sources -- e.g.
   // worldathletics tags a Diamond League Final edition "DF", but an older
   // dlmeetings duplicate of the very same edition has no real tier data
@@ -82,6 +81,16 @@ export default async function MeetPage({
   const visibleDisciplineOptions = categoryDisciplines
     ? disciplineOptions.filter((d) => categoryDisciplines.has(d.value))
     : disciplineOptions;
+
+  // The header date: a multi-day meet's disciplines run on different days
+  // (e.g. Asian Games 2026 -- 100m on day 3, Marathon on day 4), so once a
+  // discipline/gender/category filter narrows the page down, the date
+  // shown must come from THAT filtered result set, not just the
+  // alphabetically-first discipline overall (getMeetResults sorts by
+  // athletics_event, so "100 Metres" was silently deciding the date shown
+  // even while viewing the Marathon).
+  const dateSource = groups.length > 0 ? groups.flatMap((g) => g.rows) : results;
+  const meetDate = formatDate(dateSource[0]?.date ?? results[0]?.date ?? null);
 
   // the event the side column talks about: the selected one, else the first
   // one shown; same for gender
@@ -128,7 +137,7 @@ export default async function MeetPage({
         </div>
 
         {/* results | history of the selected event at this meet */}
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_20rem] gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
             <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
           </div>

@@ -22,14 +22,15 @@ export async function GET(req: NextRequest) {
   const seenEvents = new Set<string>();
   for (const group of EVENT_GROUPS) {
     if (group.label.toLowerCase().includes(qLower)) {
-      results.push({ type: "discipline", label: group.label, href: `/disciplines/${group.key}` });
+      const firstEvent = group.events.Men[0] ?? group.events.Women[0];
+      results.push({ type: "discipline", label: group.label, href: `/disciplines/${eventSlug(firstEvent)}` });
     }
     for (const events of [group.events.Men, group.events.Women]) {
       for (const ev of events) {
         if (seenEvents.has(ev)) continue;
         if (eventLabel(ev).toLowerCase().includes(qLower) || ev.toLowerCase().includes(qLower)) {
           seenEvents.add(ev);
-          results.push({ type: "event", label: eventLabel(ev), href: `/events/${eventSlug(ev)}` });
+          results.push({ type: "event", label: eventLabel(ev), href: `/disciplines/${eventSlug(ev)}` });
         }
       }
     }

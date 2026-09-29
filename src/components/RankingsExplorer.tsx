@@ -359,7 +359,7 @@ export default function RankingsExplorer() {
                 <span className="text-neutral-500 font-mono text-xs w-6 shrink-0">
                   {(page - 1) * pageSize + i + 1}
                 </span>
-                <Avatar src={r.photo} name={r.display_name} />
+                <Avatar src={r.photo} name={r.display_name} gender={gender} nationality={r.nationality} />
                 <Flag code={r.nationality} />
                 <span className="truncate">{r.display_name}</span>
                 {r.birth_year && (

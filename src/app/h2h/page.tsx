@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
+import { GenericAthlete } from "@/components/Avatar";
 import H2HPicker from "@/components/H2HPicker";
 import { getAthleteInfo, getAthletePersonalBests } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
@@ -113,7 +114,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 
       {/* Duel header */}
       <section className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-8 max-w-3xl mx-auto">
-        <DuelSide name={infoA.display_name} id={a} nationality={infoA.nationality} photo={photoA} pct={pctA} color="text-orange-400" align="end" />
+        <DuelSide name={infoA.display_name} id={a} nationality={infoA.nationality} gender={infoA.gender} photo={photoA} pct={pctA} color="text-orange-400" align="end" />
         <div className="text-center">
           <div className="text-3xl font-black text-neutral-500">VS</div>
           <div className="text-xs text-neutral-500 mt-1">
@@ -122,7 +123,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
             {aheadA}–{aheadB}
           </div>
         </div>
-        <DuelSide name={infoB.display_name} id={b} nationality={infoB.nationality} photo={photoB} pct={pctB} color="text-sky-400" align="start" />
+        <DuelSide name={infoB.display_name} id={b} nationality={infoB.nationality} gender={infoB.gender} photo={photoB} pct={pctB} color="text-sky-400" align="start" />
       </section>
 
       {/* one centred column, every block the same width */}
@@ -280,6 +281,7 @@ function DuelSide({
   name,
   id,
   nationality,
+  gender,
   photo,
   pct,
   color,
@@ -288,6 +290,7 @@ function DuelSide({
   name: string;
   id: string;
   nationality: string | null;
+  gender: string | null;
   photo: AthletePhoto | null;
   pct: number | null;
   color: string;
@@ -309,8 +312,8 @@ function DuelSide({
           <img src={photo.url} alt={name} className="w-24 h-28 sm:w-28 sm:h-32 object-cover rounded-md border border-neutral-800" />
         </a>
       ) : (
-        <span className="w-24 h-28 sm:w-28 sm:h-32 rounded-md bg-neutral-800 flex items-center justify-center text-3xl font-bold text-neutral-500">
-          {name.charAt(0)}
+        <span className="w-24 h-28 sm:w-28 sm:h-32 rounded-md overflow-hidden block">
+          <GenericAthlete name={name} gender={gender} nationality={nationality} />
         </span>
       )}
     </div>

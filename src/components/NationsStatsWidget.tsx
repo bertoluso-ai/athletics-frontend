@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import Flag from "./Flag";
-import Avatar from "./Avatar";
 
-// "All" pseudo-group first: every discipline of every group in one dropdown.
+// Identical pattern to StatsWidget, one dimension over: nations instead of
+// athletes (points/wins ranking, same gender + discipline pickers).
 const GROUPS = [
   {
     key: "all",
@@ -19,24 +19,21 @@ const GROUPS = [
   ...EVENT_GROUPS,
 ];
 
-type Mode = "ranking" | "marks";
+type Mode = "points" | "wins";
 type Gender = "Men" | "Women";
 
-type RankingRow = { athlete_id: string; display_name: string; points: number; n_results: number; nationality: string | null; photo: string | null };
-type MarkRow = { athlete_id: string; display_name: string; mark_display: string; event_name: string; date: string; nationality: string | null; photo: string | null };
+type NationRow = { code: string; name: string; points: number; wins: number };
 
-export default function StatsWidget({ year }: { year: number }) {
-  const [mode, setMode] = useState<Mode>("ranking");
+export default function NationsStatsWidget({ year }: { year: number }) {
+  const [mode, setMode] = useState<Mode>("points");
   const [gender, setGender] = useState<Gender>("Men");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
   const [event, setEvent] = useState<string>(group.events[gender][0]);
 
-  const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
-  const [markRows, setMarkRows] = useState<MarkRow[]>([]);
+  const [rows, setRows] = useState<NationRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Keep the selected event valid when group/gender change.
   useEffect(() => {
     const options = group.events[gender] as readonly string[];
     if (!options.includes(event)) setEvent(options[0]);
@@ -46,14 +43,11 @@ export default function StatsWidget({ year }: { year: number }) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const url = `/api/${mode === "ranking" ? "ranking" : "marks"}?event=${encodeURIComponent(event)}&gender=${gender}&year=${year}`;
+    const view = mode === "wins" ? "wins" : "season";
+    const url = `/api/nation-ranking?event=${encodeURIComponent(event)}&gender=${gender}&year=${year}&view=${view}`;
     fetch(url)
       .then((r) => r.json())
-      .then((data) => {
-        if (cancelled) return;
-        if (mode === "ranking") setRankingRows(data);
-        else setMarkRows(data);
-      })
+      .then((data) => !cancelled && setRows(data))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
@@ -64,13 +58,13 @@ export default function StatsWidget({ year }: { year: number }) {
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
       <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
-          {(["ranking", "marks"] as Mode[]).map((m) => (
+          {(["points", "wins"] as Mode[]).map((m) => (
             <button
               key={m}
               onClick={() => setMode(m)}
               className={`px-2 py-1 rounded ${mode === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
             >
-              {m === "ranking" ? `${year} Points` : `${year} Marks`}
+              {m === "points" ? `${year} Points` : `${year} Wins`}
             </button>
           ))}
         </div>
@@ -87,9 +81,6 @@ export default function StatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
-          pill row can't be scrolled, so the group becomes a dropdown on the
-          same line as the discipline one. */}
       <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
         {GROUPS.map((g) => (
           <button
@@ -141,45 +132,24 @@ export default function StatsWidget({ year }: { year: number }) {
         {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
 
         {!loading &&
-          mode === "ranking" &&
-          rankingRows.map((r, i) => (
+          rows.map((r, i) => (
             <Link
-              key={r.athlete_id}
-              href={`/athletes/${r.athlete_id}`}
+              key={r.code}
+              href={`/countries/${r.code}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
                 <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
-                <Avatar src={r.photo} name={r.display_name} gender={gender} nationality={r.nationality} />
-                <Flag code={r.nationality} />
-                <span className="truncate">{r.display_name}</span>
+                <Flag code={r.code} />
+                <span className="truncate">{r.name}</span>
               </span>
-              <span className="font-mono text-sm text-orange-400 shrink-0">{r.points}</span>
+              <span className="font-mono text-sm text-orange-400 shrink-0">
+                {mode === "wins" ? r.wins : r.points}
+              </span>
             </Link>
           ))}
 
-        {!loading &&
-          mode === "marks" &&
-          markRows.map((m, i) => (
-            <Link
-              key={i}
-              href={`/athletes/${m.athlete_id}`}
-              className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
-            >
-              <span className="text-sm flex items-center gap-2 min-w-0">
-                <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
-                <Avatar src={m.photo} name={m.display_name} gender={gender} nationality={m.nationality} />
-                <Flag code={m.nationality} />
-                <span className="truncate">{m.display_name}</span>
-              </span>
-              <span className="font-mono text-sm text-orange-400 shrink-0">{m.mark_display}</span>
-            </Link>
-          ))}
-
-        {!loading && mode === "ranking" && rankingRows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
-        )}
-        {!loading && mode === "marks" && markRows.length === 0 && (
+        {!loading && rows.length === 0 && (
           <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
         )}
       </div>

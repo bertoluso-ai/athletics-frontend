@@ -16,12 +16,34 @@ import {
   getAthleteNationalityHistory,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventCategory, eventLabel } from "@/lib/events";
 
 export const revalidate = 3600;
 
 const MEDAL = ["🥇", "🥈", "🥉"];
+
+const MONTHS3 = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+
+// Age today: from the exact birth date when known ("DD MON YYYY"), else
+// approximated as if born 1 January of birth_year (flagged with `approx`
+// so the UI can show a *).
+function birthAge(birthYear: number, birthDateFull: string | null): { value: number; approx: boolean } {
+  const now = new Date();
+  const parts = birthDateFull?.split(" ");
+  if (parts && parts.length === 3) {
+    const day = Number(parts[0]);
+    const month = MONTHS3.indexOf(parts[1].toUpperCase());
+    const year = Number(parts[2]);
+    if (day && month >= 0 && year) {
+      let age = now.getFullYear() - year;
+      if (now.getMonth() < month || (now.getMonth() === month && now.getDate() < day)) age--;
+      return { value: age, approx: false };
+    }
+  }
+  return { value: now.getFullYear() - birthYear, approx: true };
+}
 
 export default async function AthletePage({
   params,
@@ -120,7 +142,7 @@ export default async function AthletePage({
           </Link>
         </h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_20rem] lg:grid-rows-[auto_1fr] gap-x-8 gap-y-8 items-start lg:[&>section:nth-child(-n+3)]:self-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start lg:[&>section:nth-child(-n+3)]:self-stretch">
           {/* Info */}
           <section className="lg:col-start-1 lg:row-start-1">
             <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
@@ -136,8 +158,8 @@ export default async function AthletePage({
                     <img src={photo.url} alt={info.display_name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
                   </>
                 ) : (
-                  <span className="absolute inset-0 flex items-center justify-center text-3xl font-bold">
-                    {info.display_name.charAt(0)}
+                  <span className="absolute inset-0">
+                    <GenericAthlete name={info.display_name} gender={info.gender} nationality={info.nationality} />
                   </span>
                 )}
               </div>
@@ -179,7 +201,28 @@ export default async function AthletePage({
                 </div>
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-20 shrink-0">Born</dt>
-                  <dd className="text-neutral-300">{info.birth_year ?? "—"}</dd>
+                  <dd className="text-neutral-300">
+                    {info.birth_year ? (
+                      <>
+                        {info.birth_year}
+                        {(() => {
+                          const age = birthAge(info.birth_year, info.birth_date_full);
+                          return (
+                            <span className="text-neutral-500">
+                              {" "}
+                              ({age.value}
+                              {age.approx && (
+                                <span title="Exact birth date unknown -- age computed as if born 1 January">*</span>
+                              )}
+                              )
+                            </span>
+                          );
+                        })()}
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </dd>
                 </div>
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-20 shrink-0">Active</dt>
