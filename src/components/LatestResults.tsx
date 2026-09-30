@@ -200,6 +200,12 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                           </Link>
                         );
                       })}
+                      <Link
+                        href={raceHref}
+                        className="block px-4 py-1 text-[11px] text-center text-neutral-500 hover:text-orange-400 bg-neutral-900/40"
+                      >
+                        View full results →
+                      </Link>
                     </div>
                     );
                   })}
