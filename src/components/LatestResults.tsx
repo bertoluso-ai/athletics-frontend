@@ -154,7 +154,18 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                                 <span className="truncate">
                                   {entry.nationality ?? "—"}
                                   <span className="text-neutral-500 font-normal ml-2 text-xs">
-                                    {entry.athletes.map((a) => lastName(a.display_name)).join(" · ")}
+                                    {entry.athletes.map((a, ai) => (
+                                      <span key={ai}>
+                                        {ai > 0 && " · "}
+                                        {a.athlete_id ? (
+                                          <Link href={`/athletes/${a.athlete_id}`} className="hover:text-orange-400">
+                                            {lastName(a.display_name)}
+                                          </Link>
+                                        ) : (
+                                          lastName(a.display_name)
+                                        )}
+                                      </span>
+                                    ))}
                                   </span>
                                 </span>
                               ) : (

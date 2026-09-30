@@ -207,7 +207,10 @@ function ResultRowItem({ r }: { r: MeetResultRow }) {
 }
 
 function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
-  const teams = new Map<string, { place: number | null; nationality: string | null; mark_display: string; record: string | null; roster: string[] }>();
+  const teams = new Map<
+    string,
+    { place: number | null; nationality: string | null; mark_display: string; record: string | null; roster: { athlete_id: string | null; display_name: string }[] }
+  >();
   for (const r of rows) {
     const key = `${r.place}|${r.nationality ?? ""}`;
     let t = teams.get(key);
@@ -215,7 +218,7 @@ function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
       t = { place: r.place, nationality: r.nationality, mark_display: r.mark_display, record: r.record, roster: [] };
       teams.set(key, t);
     }
-    t.roster.push(r.display_name);
+    t.roster.push({ athlete_id: r.athlete_id, display_name: r.display_name });
   }
   const list = Array.from(teams.values()).sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
   return (
@@ -227,7 +230,20 @@ function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
             <Flag code={t.nationality} />
             <span className="truncate">
               {t.nationality ?? "—"}
-              <span className="text-neutral-500 font-normal ml-2 text-xs">{t.roster.map(lastName).join(" · ")}</span>
+              <span className="text-neutral-500 font-normal ml-2 text-xs">
+                {t.roster.map((a, ri) => (
+                  <span key={ri}>
+                    {ri > 0 && " · "}
+                    {a.athlete_id ? (
+                      <Link href={`/athletes/${a.athlete_id}`} className="hover:text-orange-400">
+                        {lastName(a.display_name)}
+                      </Link>
+                    ) : (
+                      lastName(a.display_name)
+                    )}
+                  </span>
+                ))}
+              </span>
             </span>
           </span>
           <span className="flex items-center gap-1.5 shrink-0">
