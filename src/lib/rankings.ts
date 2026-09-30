@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { runQuery } from "./bigquery";
 import { AGE_CATEGORIES } from "./queries";
 
@@ -52,7 +53,18 @@ function windows(view: RankingView) {
   return { now: "year = @year", prev: "year = @year AND date <= @d14" };
 }
 
-export async function getIndividualRanking(p: RankingParams) {
+// /rankings reads searchParams for every filter, which makes Next.js treat
+// the whole route as dynamic and skip its own `export const revalidate` --
+// this full-table scan/rank query was recomputing from scratch on every
+// single request (multi-second). unstable_cache keys on the actual params,
+// so repeat requests for the same filter combination hit a real cache.
+export const getIndividualRanking = unstable_cache(
+  async (p: RankingParams) => fetchIndividualRanking(p),
+  ["individual-ranking-v1"],
+  { revalidate: 3600 }
+);
+
+async function fetchIndividualRanking(p: RankingParams) {
   const w = windows(p.view);
   const ageMax = p.age ? AGE_CATEGORIES[p.age] : undefined;
   const ageSql = ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : "";

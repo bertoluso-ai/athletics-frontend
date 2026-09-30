@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { runQuery } from "./bigquery";
 
 // Season calendar: competitions already held (from results, with their
@@ -26,7 +27,28 @@ export type CalendarRow = {
   disciplines: string | null;
 };
 
-export async function getCalendar(
+// getCalendar's "all-time rank" CTE ranks every past winner against the
+// FULL history of events_enriched (4.6M+ rows) -- correct (it's meant to
+// compare across all years), but expensive, and this page reads
+// searchParams (year/tier/month/sort/dir), which makes Next.js treat the
+// whole route as dynamic and skip its own `export const revalidate` --
+// every request recomputed this from scratch (5-9s). unstable_cache keys
+// on the actual params instead, so repeat requests for the same
+// year/tiers/month are genuinely cached regardless of the route being
+// dynamic.
+export const getCalendar = unstable_cache(
+  async (
+    year: number,
+    tiers: string[],
+    month?: number,
+    sort: "date" | "name" | "tier" = "date",
+    dir: "asc" | "desc" = "asc"
+  ): Promise<CalendarRow[]> => fetchCalendar(year, tiers, month, sort, dir),
+  ["calendar-v1"],
+  { revalidate: 3600 }
+);
+
+async function fetchCalendar(
   year: number,
   tiers: string[],
   month?: number,
