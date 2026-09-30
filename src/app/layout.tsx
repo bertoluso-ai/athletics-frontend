@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import MobileNav from "@/components/MobileNav";
+import ReportErrorButton from "@/components/ReportErrorButton";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,6 +28,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col pb-24 sm:pb-0 bg-neutral-950">
         {children}
         <MobileNav />
+        <ReportErrorButton />
       </body>
     </html>
   );
