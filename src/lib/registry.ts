@@ -79,6 +79,7 @@ export async function listRegistryRawEditions(opts: {
   q?: string;
   tier?: string;
   country?: string;
+  city?: string;
   year?: number;
   limit?: number;
 }): Promise<RegistryRawEditionRow[]> {
@@ -87,6 +88,10 @@ export async function listRegistryRawEditions(opts: {
   if (opts.q) {
     where.push("(LOWER(c.canonical_name) LIKE @q OR LOWER(pr.raw_name) LIKE @q)");
     params.q = `%${opts.q.toLowerCase()}%`;
+  }
+  if (opts.city) {
+    where.push("LOWER(pr.city) LIKE @city");
+    params.city = `%${opts.city.toLowerCase()}%`;
   }
   if (opts.tier) {
     where.push("pr.best_tier = @tier");

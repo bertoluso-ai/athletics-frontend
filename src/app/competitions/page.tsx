@@ -54,7 +54,7 @@ export default async function CompetitionsPage({
 }: {
   searchParams: Promise<{
     tab?: string; q?: string; flag?: string; tier?: string; kind?: string; pending?: string;
-    country?: string; year?: string;
+    country?: string; city?: string; year?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -93,7 +93,13 @@ export default async function CompetitionsPage({
         {tab === "diff" && <DiffTab kind={sp.kind ?? ""} pending={sp.pending === "1"} />}
         {tab === "raw" && <RawTab q={q} />}
         {tab === "table" && (
-          <TableTab q={q} tier={sp.tier ?? ""} country={sp.country ?? ""} year={sp.year ? Number(sp.year) : undefined} />
+          <TableTab
+            q={q}
+            tier={sp.tier ?? ""}
+            country={sp.country ?? ""}
+            city={sp.city ?? ""}
+            year={sp.year ? Number(sp.year) : undefined}
+          />
         )}
         {tab === "legacy" && <CompetitionsExplorer />}
       </main>
@@ -264,15 +270,17 @@ async function TableTab({
   q,
   tier,
   country,
+  city,
   year,
 }: {
   q: string;
   tier: string;
   country: string;
+  city: string;
   year: number | undefined;
 }) {
   const [rows, facets] = await Promise.all([
-    listRegistryRawEditions({ q, tier, country, year, limit: 300 }),
+    listRegistryRawEditions({ q, tier, country, city, year, limit: 300 }),
     listRegistryFacetValues(),
   ]);
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
@@ -285,6 +293,12 @@ async function TableTab({
           defaultValue={q}
           placeholder="Normalized or raw name…"
           className="flex-1 min-w-[12rem] bg-neutral-900 text-sm rounded px-3 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+        />
+        <input
+          name="city"
+          defaultValue={city}
+          placeholder="City…"
+          className="w-32 bg-neutral-900 text-sm rounded px-3 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
         />
         <select name="tier" defaultValue={tier} className={selectClass}>
           <option value="">All levels</option>
