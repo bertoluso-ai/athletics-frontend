@@ -90,8 +90,8 @@ export async function listRegistryRawEditions(opts: {
     params.q = `%${opts.q.toLowerCase()}%`;
   }
   if (opts.city) {
-    where.push("LOWER(pr.city) LIKE @city");
-    params.city = `%${opts.city.toLowerCase()}%`;
+    where.push("pr.city = @city");
+    params.city = opts.city;
   }
   if (opts.tier) {
     where.push("pr.best_tier = @tier");
@@ -130,14 +130,15 @@ export async function listRegistryRawEditions(opts: {
   );
 }
 
-export async function listRegistryFacetValues(): Promise<{ countries: string[]; years: number[] }> {
-  const rows = await runQuery<{ countries: string[]; years: number[] }>(`
+export async function listRegistryFacetValues(): Promise<{ countries: string[]; years: number[]; cities: string[] }> {
+  const rows = await runQuery<{ countries: string[]; years: number[]; cities: string[] }>(`
     SELECT
       ARRAY_AGG(DISTINCT country IGNORE NULLS ORDER BY country) AS countries,
-      ARRAY_AGG(DISTINCT year IGNORE NULLS ORDER BY year DESC) AS years
+      ARRAY_AGG(DISTINCT year IGNORE NULLS ORDER BY year DESC) AS years,
+      ARRAY_AGG(DISTINCT city IGNORE NULLS ORDER BY city) AS cities
     FROM \`athletics-database.registry.edition_map\`
   `);
-  return rows[0] ?? { countries: [], years: [] };
+  return rows[0] ?? { countries: [], years: [], cities: [] };
 }
 
 export type RegistryEditionRow = {

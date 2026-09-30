@@ -294,12 +294,14 @@ async function TableTab({
           placeholder="Normalized or raw name…"
           className="flex-1 min-w-[12rem] bg-neutral-900 text-sm rounded px-3 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
         />
-        <input
-          name="city"
-          defaultValue={city}
-          placeholder="City…"
-          className="w-32 bg-neutral-900 text-sm rounded px-3 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
-        />
+        <select name="city" defaultValue={city} className={selectClass}>
+          <option value="">All cities</option>
+          {facets.cities.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
         <select name="tier" defaultValue={tier} className={selectClass}>
           <option value="">All levels</option>
           {TIER_LABELS.map((t) => (
