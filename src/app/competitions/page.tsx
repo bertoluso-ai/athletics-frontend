@@ -6,6 +6,8 @@ import { TIER_LABELS } from "@/lib/events";
 import {
   listRegistryCompetitions,
   listRegistryDiffs,
+  listRegistryRawEditions,
+  listRegistryFacetValues,
   lookupRawName,
   type RegistryFlag,
 } from "@/lib/registry";
@@ -21,6 +23,7 @@ const TABS = [
   { key: "list", label: "Competitions" },
   { key: "diff", label: "Differences vs production" },
   { key: "raw", label: "Raw name lookup" },
+  { key: "table", label: "Normalized vs raw table" },
   { key: "legacy", label: "Production grouping" },
 ] as const;
 
@@ -49,7 +52,10 @@ const RANK_TO_TIER = ["OW", "DF", "GW", "GL", "A", "B", "C", "D", "E", "F"];
 export default async function CompetitionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; q?: string; flag?: string; tier?: string; kind?: string; pending?: string }>;
+  searchParams: Promise<{
+    tab?: string; q?: string; flag?: string; tier?: string; kind?: string; pending?: string;
+    country?: string; year?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab! : "list";
@@ -86,6 +92,9 @@ export default async function CompetitionsPage({
         {tab === "list" && <ListTab q={q} flag={(sp.flag ?? "") as RegistryFlag | ""} tier={sp.tier ?? ""} />}
         {tab === "diff" && <DiffTab kind={sp.kind ?? ""} pending={sp.pending === "1"} />}
         {tab === "raw" && <RawTab q={q} />}
+        {tab === "table" && (
+          <TableTab q={q} tier={sp.tier ?? ""} country={sp.country ?? ""} year={sp.year ? Number(sp.year) : undefined} />
+        )}
         {tab === "legacy" && <CompetitionsExplorer />}
       </main>
     </div>
@@ -246,6 +255,98 @@ async function DiffTab({ kind, pending }: { kind: string; pending: boolean }) {
           </div>
         ))}
         {rows.length === 0 && <div className="text-sm text-neutral-500">Nothing to review here.</div>}
+      </div>
+    </>
+  );
+}
+
+async function TableTab({
+  q,
+  tier,
+  country,
+  year,
+}: {
+  q: string;
+  tier: string;
+  country: string;
+  year: number | undefined;
+}) {
+  const [rows, facets] = await Promise.all([
+    listRegistryRawEditions({ q, tier, country, year, limit: 300 }),
+    listRegistryFacetValues(),
+  ]);
+  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  return (
+    <>
+      <form className="flex flex-wrap items-center gap-2 mb-4" action="/competitions">
+        <input type="hidden" name="tab" value="table" />
+        <input
+          name="q"
+          defaultValue={q}
+          placeholder="Normalized or raw name…"
+          className="flex-1 min-w-[12rem] bg-neutral-900 text-sm rounded px-3 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+        />
+        <select name="tier" defaultValue={tier} className={selectClass}>
+          <option value="">All levels</option>
+          {TIER_LABELS.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.value} · {t.label}
+            </option>
+          ))}
+        </select>
+        <select name="country" defaultValue={country} className={selectClass}>
+          <option value="">All countries</option>
+          {facets.countries.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+        <select name="year" defaultValue={year ?? ""} className={selectClass}>
+          <option value="">All years</option>
+          {facets.years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+      </form>
+
+      <div className="text-[11px] text-neutral-500 mb-2">
+        {rows.length === 300 ? "First 300" : rows.length} raw name → normalized name pairs.
+      </div>
+
+      <div className="border border-neutral-800 rounded-lg overflow-hidden">
+        <div className="hidden sm:grid grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_3rem_8rem_5rem_1fr] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          <span>Normalized name</span>
+          <span>Raw name</span>
+          <span>Level</span>
+          <span>City</span>
+          <span>Country</span>
+          <span>Years</span>
+        </div>
+        <div className="divide-y divide-neutral-800">
+          {rows.map((r, i) => (
+            <Link
+              key={i}
+              href={`/competitions/c/${r.competition_id}`}
+              className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1.2fr)_3rem_8rem_5rem_1fr] gap-x-3 gap-y-0.5 px-3 py-2 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+            >
+              <span className="font-medium truncate">{r.canonical_name}</span>
+              <span className="text-neutral-400 truncate">{r.raw_name}</span>
+              <span>
+                <TierBadge tier={r.best_tier} />
+              </span>
+              <span className="text-xs text-neutral-500 truncate">{r.city ?? "—"}</span>
+              <span className="text-xs text-neutral-500">{r.country ?? "—"}</span>
+              <span className="text-xs text-neutral-500 truncate" title={r.years.join(", ")}>
+                {r.years.length > 3 ? `${r.years[0]}–${r.years[r.years.length - 1]} (${r.years.length})` : r.years.join(", ")}
+              </span>
+            </Link>
+          ))}
+          {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No rows match.</div>}
+        </div>
       </div>
     </>
   );

@@ -61,6 +61,80 @@ export async function listRegistryCompetitions(opts: {
   );
 }
 
+export type RegistryRawEditionRow = {
+  competition_id: string;
+  canonical_name: string;
+  raw_name: string;
+  best_tier: string | null;
+  city: string | null;
+  country: string | null;
+  years: number[];
+  n_rows: number;
+};
+
+// One row per (competition, raw source name) -- for the "raw table" tab:
+// normalized name vs. every raw spelling it absorbs, with a representative
+// tier/city/country and the years that raw name was actually used.
+export async function listRegistryRawEditions(opts: {
+  q?: string;
+  tier?: string;
+  country?: string;
+  year?: number;
+  limit?: number;
+}): Promise<RegistryRawEditionRow[]> {
+  const where: string[] = [];
+  const params: Record<string, unknown> = {};
+  if (opts.q) {
+    where.push("(LOWER(c.canonical_name) LIKE @q OR LOWER(pr.raw_name) LIKE @q)");
+    params.q = `%${opts.q.toLowerCase()}%`;
+  }
+  if (opts.tier) {
+    where.push("pr.best_tier = @tier");
+    params.tier = opts.tier;
+  }
+  if (opts.country) {
+    where.push("pr.country = @country");
+    params.country = opts.country;
+  }
+  if (opts.year) {
+    where.push("@year IN UNNEST(pr.years)");
+    params.year = opts.year;
+  }
+  return runQuery<RegistryRawEditionRow>(
+    `
+    WITH per_raw AS (
+      SELECT
+        e.competition_id,
+        e.event_name AS raw_name,
+        ARRAY_AGG(e.best_tier IGNORE NULLS ORDER BY \`athletics-database.registry.tier_rank\`(e.best_tier) LIMIT 1)[SAFE_OFFSET(0)] AS best_tier,
+        ARRAY_AGG(e.city IGNORE NULLS ORDER BY e.year DESC LIMIT 1)[SAFE_OFFSET(0)] AS city,
+        ARRAY_AGG(e.country IGNORE NULLS ORDER BY e.year DESC LIMIT 1)[SAFE_OFFSET(0)] AS country,
+        ARRAY_AGG(DISTINCT e.year ORDER BY e.year) AS years,
+        SUM(e.n_rows) AS n_rows
+      FROM \`athletics-database.registry.edition_map\` e
+      GROUP BY e.competition_id, e.event_name
+    )
+    SELECT c.canonical_name, pr.* EXCEPT(competition_id), pr.competition_id
+    FROM per_raw pr
+    JOIN \`athletics-database.registry.competitions\` c USING (competition_id)
+    ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+    ORDER BY c.canonical_name, pr.raw_name
+    LIMIT ${Math.min(opts.limit ?? 300, 1000)}
+  `,
+    params
+  );
+}
+
+export async function listRegistryFacetValues(): Promise<{ countries: string[]; years: number[] }> {
+  const rows = await runQuery<{ countries: string[]; years: number[] }>(`
+    SELECT
+      ARRAY_AGG(DISTINCT country IGNORE NULLS ORDER BY country) AS countries,
+      ARRAY_AGG(DISTINCT year IGNORE NULLS ORDER BY year DESC) AS years
+    FROM \`athletics-database.registry.edition_map\`
+  `);
+  return rows[0] ?? { countries: [], years: [] };
+}
+
 export type RegistryEditionRow = {
   year: number;
   date: string | null;
