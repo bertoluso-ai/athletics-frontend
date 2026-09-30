@@ -121,10 +121,16 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                   </span>
                 </div>
                 <div className="divide-y divide-neutral-800/60">
-                  {group.races.map((race) => (
+                  {group.races.map((race) => {
+                    const raceHref = `/meets/${encodeURIComponent(group.event_name)}?${new URLSearchParams({
+                      year: race.date.slice(0, 4),
+                      discipline: race.athletics_event,
+                      gender: race.gender,
+                    }).toString()}`;
+                    return (
                     <div key={race.key}>
                       <div className="px-4 pt-1.5 pb-0.5 flex flex-wrap items-baseline gap-x-2 bg-neutral-900/70">
-                        <Link href={`/disciplines/${eventSlug(race.athletics_event)}`} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-orange-400">
+                        <Link href={raceHref} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-orange-400">
                           {eventLabel(race.athletics_event)}
                         </Link>
                         <span className="text-xs text-neutral-500">
@@ -184,7 +190,8 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                         );
                       })}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 {group.total_races > group.races.length && (
                   <Link
