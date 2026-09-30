@@ -39,20 +39,33 @@ export default async function CalendarPage({
   const years = await getCalendarYears();
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
-  const tier = sp.tier === "ALL" || TIER_ORDER.includes(sp.tier as (typeof TIER_ORDER)[number]) ? sp.tier! : "GL";
+  const selectedTiers: string[] =
+    !sp.tier || sp.tier === "ALL"
+      ? [...TIER_ORDER]
+      : sp.tier.split(",").filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
+  const tierParam =
+    selectedTiers.length === 0 ? "" : selectedTiers.length === TIER_ORDER.length ? "ALL" : selectedTiers.join(",");
   const month = sp.month ? Number(sp.month) : undefined;
   const sort = sp.sort === "name" || sp.sort === "tier" ? sp.sort : "date";
   const dir = sp.dir === "desc" ? "desc" : "asc";
-  const rows = await getCalendar(year, tier, month, sort, dir);
+  const rows = await getCalendar(year, selectedTiers, month, sort, dir);
   const today = new Date().toISOString().slice(0, 10);
 
   const href = (over: { year?: number; tier?: string; month?: number | null; sort?: string; dir?: string }) => {
-    const q = new URLSearchParams({ year: String(over.year ?? year), tier: over.tier ?? tier });
+    const q = new URLSearchParams({ year: String(over.year ?? year), tier: over.tier ?? tierParam });
     const m = over.month === null ? undefined : over.month ?? month;
     if (m) q.set("month", String(m));
     q.set("sort", over.sort ?? sort);
     q.set("dir", over.dir ?? dir);
     return `/calendar?${q.toString()}`;
+  };
+  // toggles one tier on/off within the current multi-selection; keeps at
+  // least one tier selected (deselecting the last one is a no-op)
+  const tierToggleHref = (t: string) => {
+    if (selectedTiers.includes(t) && selectedTiers.length === 1) return href({});
+    const next = selectedTiers.includes(t) ? selectedTiers.filter((x) => x !== t) : [...selectedTiers, t];
+    const param = next.length === TIER_ORDER.length ? "ALL" : next.join(",");
+    return href({ tier: param });
   };
   const pill = (active: boolean) =>
     `shrink-0 text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
@@ -74,20 +87,26 @@ export default async function CalendarPage({
               </option>
             ))}
           </select>
-          <label className="text-xs text-neutral-400 ml-2">Level</label>
-          <select name="tier" defaultValue={tier} className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700">
-            <option value="ALL">All levels</option>
-            {TIER_ORDER.map((t) => (
-              <option key={t} value={t}>
-                {t} and above · {TIER_LABELS.find((x) => x.value === t)?.label ?? ""}
-              </option>
-            ))}
-          </select>
+          <input type="hidden" name="tier" value={tierParam} />
           {month && <input type="hidden" name="month" value={month} />}
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
           <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
         </form>
+
+        <div className="flex flex-wrap items-center gap-1.5 mb-3">
+          <span className="text-xs text-neutral-400 mr-1">Level</span>
+          {TIER_ORDER.map((t) => (
+            <Link
+              key={t}
+              href={tierToggleHref(t)}
+              title={TIER_LABELS.find((x) => x.value === t)?.label ?? t}
+              className={pill(selectedTiers.includes(t))}
+            >
+              {t}
+            </Link>
+          ))}
+        </div>
 
         <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 mb-4">
           <Link href={href({ month: null })} className={pill(!month)}>

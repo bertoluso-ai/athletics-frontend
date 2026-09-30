@@ -26,21 +26,13 @@ export type CalendarRow = {
   disciplines: string | null;
 };
 
-// tiers at or above `minTier` (OW best ... F lowest); "ALL" -- every tier
-function tiersUpTo(minTier: string) {
-  if (minTier === "ALL") return [...TIER_ORDER];
-  const i = TIER_ORDER.indexOf(minTier as (typeof TIER_ORDER)[number]);
-  return TIER_ORDER.slice(0, i < 0 ? 5 : i + 1);
-}
-
 export async function getCalendar(
   year: number,
-  minTier: string,
+  tiers: string[],
   month?: number,
   sort: "date" | "name" | "tier" = "date",
   dir: "asc" | "desc" = "asc"
 ): Promise<CalendarRow[]> {
-  const tiers = tiersUpTo(minTier);
   const monthFilter = (col: string) => (month ? `AND EXTRACT(MONTH FROM ${col}) = ${month}` : "");
   // Marks as one comparable number, lower = better (field marks negated),
   // wind-legal only, indoor kept apart from outdoor -- same convention as
@@ -147,7 +139,7 @@ export async function getCalendar(
   const cmp: Record<typeof sort, (a: CalendarRow, b: CalendarRow) => number> = {
     date: (a, b) => (a.date_start ?? "").localeCompare(b.date_start ?? ""),
     name: (a, b) => a.name.localeCompare(b.name),
-    tier: (a, b) => tiersUpTo("F").indexOf(a.tier as never) - tiersUpTo("F").indexOf(b.tier as never),
+    tier: (a, b) => TIER_ORDER.indexOf(a.tier as never) - TIER_ORDER.indexOf(b.tier as never),
   };
   rows.sort(cmp[sort]);
   if (dir === "desc") rows.reverse();
