@@ -168,12 +168,21 @@ async function fetchCalendar(
   return rows;
 }
 
-export async function getCalendarYears(): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\` WHERE year IS NOT NULL
-    UNION DISTINCT
-    SELECT DISTINCT EXTRACT(YEAR FROM date_start) FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
-    ORDER BY year DESC
-  `);
-  return rows.map((r) => r.year);
-}
+// Cheap on BigQuery's own side (<1s) but every call is still a full
+// client<->BigQuery round trip -- cached so a Calendar page load only pays
+// that cost once per hour instead of on every single request alongside
+// getCalendar's own round trip (the two were run sequentially, doubling
+// the page's network latency).
+export const getCalendarYears = unstable_cache(
+  async (): Promise<number[]> => {
+    const rows = await runQuery<{ year: number }>(`
+      SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\` WHERE year IS NOT NULL
+      UNION DISTINCT
+      SELECT DISTINCT EXTRACT(YEAR FROM date_start) FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
+      ORDER BY year DESC
+    `);
+    return rows.map((r) => r.year);
+  },
+  ["calendar-years-v1"],
+  { revalidate: 3600 }
+);

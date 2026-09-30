@@ -146,7 +146,16 @@ export function hasMovement(view: RankingView, year: number, currentYear: number
 // One entry per country NAME: the sources use several codes for the same
 // country (NED/NET/NLD, SUI/SWI/CHE, RSA/SAF/ZAF...). `code` is the most
 // used one (the option value), `codes` all of them (for filtering).
-export async function getRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[] }[]> {
+// Cached -- same sequential-round-trip issue as getCalendarYears: cheap on
+// BigQuery's side but the page awaited this (and getRankingYears) one after
+// another before even starting the main ranking query.
+export const getRankingNationalities = unstable_cache(
+  async (gender: string): Promise<{ code: string; name: string; codes: string[] }[]> => fetchRankingNationalities(gender),
+  ["ranking-nationalities-v1"],
+  { revalidate: 3600 }
+);
+
+async function fetchRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[] }[]> {
   return runQuery(`
     WITH codes AS (
       SELECT nationality AS code, COUNT(*) AS n FROM ${T}
@@ -166,9 +175,13 @@ export async function getRankingNationalities(gender: string): Promise<{ code: s
   `, { gender });
 }
 
-export async function getRankingYears(): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM ${T} WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
-  `);
-  return rows.map((r) => r.year);
-}
+export const getRankingYears = unstable_cache(
+  async (): Promise<number[]> => {
+    const rows = await runQuery<{ year: number }>(`
+      SELECT DISTINCT year FROM ${T} WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
+    `);
+    return rows.map((r) => r.year);
+  },
+  ["ranking-years-v1"],
+  { revalidate: 3600 }
+);
