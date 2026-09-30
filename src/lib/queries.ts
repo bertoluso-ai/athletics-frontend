@@ -305,6 +305,7 @@ export type ResultRow = {
   round: string | null;
   date: string;
   competition_level: string | null;
+  level: number | null;
   place: number;
   athlete_id: string | null;
   display_name: string;
@@ -335,6 +336,7 @@ export type Race = {
   round: string | null;
   date: string;
   competition_level: string | null;
+  level: number | null;
   city: string | null;
   country: string | null;
   top3: PodiumEntry[];
@@ -343,6 +345,7 @@ export type Race = {
 export type LatestResultGroup = {
   event_name: string;
   competition_level: string | null;
+  level: number | null; // best (highest) race level among the group's races -- used to pick between same-day competitions
   city: string | null;
   country: string | null;
   races: Race[]; // most recent first, capped at 4
@@ -393,6 +396,7 @@ async function fetchWindow(
         event_name, athletics_event, gender, round,
         CAST(date AS STRING) AS date,
         division_key_resolved AS competition_level,
+        ROUND(competition_score) AS level,
         place, athlete_id, athlete_display_name AS display_name, mark_display,
         nationality, NULLIF(record, '') AS record, city, country, wind, wind_legal,
         mark_seconds, SAFE_CAST(mark AS FLOAT64) AS mark_num,
@@ -433,7 +437,7 @@ async function fetchWindow(
         )) AS real_place
       FROM candidates
     )
-    SELECT event_name, athletics_event, gender, round, date, competition_level,
+    SELECT event_name, athletics_event, gender, round, date, competition_level, level,
       real_place AS place, athlete_id, display_name, mark_display, nationality, record, city, country, wind, wind_legal
     FROM ranked
     WHERE real_place BETWEEN 1 AND 3
@@ -460,6 +464,7 @@ async function fetchWindow(
         round: r.round,
         date: r.date,
         competition_level: r.competition_level,
+        level: r.level,
         city: r.city,
         country: r.country,
         top3: [],
@@ -493,19 +498,25 @@ async function fetchWindow(
   for (const race of list) {
     let g = groups.get(race.event_name);
     if (!g) {
-      g = { event_name: race.event_name, competition_level: race.competition_level, city: race.city, country: race.country, races: [], total_races: 0 };
+      g = { event_name: race.event_name, competition_level: race.competition_level, level: race.level, city: race.city, country: race.country, races: [], total_races: 0 };
       groups.set(race.event_name, g);
     }
     // keep the group's own tier at its best (lowest-priority-number) race
     if (tierPriority(race.competition_level) < tierPriority(g.competition_level)) g.competition_level = race.competition_level;
+    // ...and its own level at its best (highest-scoring) race, used as a
+    // tiebreak below when two competitions land on the same date
+    if ((race.level ?? -1) > (g.level ?? -1)) g.level = race.level;
     g.total_races++;
     if (g.races.length < 3) g.races.push(race);
   }
 
   // Recency leads: a more recent competition always shows above an older
-  // one, tier only breaking ties on the same date -- EXCEPT tier F, which
-  // sinks to the bottom regardless of how recent, so a handful of parkrun-
-  // level results never bury a real (if slightly older) competition.
+  // one, tier breaks ties on the same date (EXCEPT tier F, which sinks to
+  // the bottom regardless of how recent, so a handful of parkrun-level
+  // results never bury a real -- if slightly older -- competition), and the
+  // race level (Lvl 0-100, field strength) breaks any remaining tie within
+  // the same tier -- e.g. two Tier A meets on the same day, the one with
+  // the stronger actual field shows first.
   const orderedGroups = Array.from(groups.values()).sort((a, b) => {
     const fa = a.competition_level === "F" ? 1 : 0;
     const fb = b.competition_level === "F" ? 1 : 0;
@@ -513,7 +524,9 @@ async function fetchWindow(
     const da = a.races[0]?.date ?? "";
     const db = b.races[0]?.date ?? "";
     if (da !== db) return da < db ? 1 : -1;
-    return tierPriority(a.competition_level) - tierPriority(b.competition_level);
+    const tierDiff = tierPriority(a.competition_level) - tierPriority(b.competition_level);
+    if (tierDiff !== 0) return tierDiff;
+    return (b.level ?? -1) - (a.level ?? -1);
   });
 
   const result: LatestResultGroup[] = [];
