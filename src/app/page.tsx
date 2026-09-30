@@ -21,9 +21,9 @@ export default async function Home() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
 
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[1.8fr_1fr_1fr] gap-6">
-        {/* Latest results -- widest column */}
-        <div>
+      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-6">
+        {/* Latest results -- flexible column, never shrinks the fixed side columns */}
+        <div className="min-w-0">
           <LatestResults initialGroups={races} />
         </div>
 
