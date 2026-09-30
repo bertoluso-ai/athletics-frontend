@@ -125,7 +125,9 @@ export default async function DisciplinePage({
   const group = findGroup(event);
   const sp = await searchParams;
   const availableGenders = group
-    ? ((group.events.Men.includes(event) ? ["Men"] : []).concat(group.events.Women.includes(event) ? ["Women"] : []) as ("Men" | "Women")[])
+    ? (((group.events.Men as readonly string[]).includes(event) ? ["Men"] : []).concat(
+        (group.events.Women as readonly string[]).includes(event) ? ["Women"] : []
+      ) as ("Men" | "Women")[])
     : (["Men", "Women"] as const);
   const gender = (sp.gender as "Men" | "Women") && availableGenders.includes(sp.gender as "Men" | "Women") ? (sp.gender as "Men" | "Women") : availableGenders[0] ?? "Men";
   const eventOptions = group ? ((group.events[gender].length ? group.events[gender] : group.events.Men) as readonly string[]) : [event];
