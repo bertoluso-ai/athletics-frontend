@@ -218,25 +218,11 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
     return `/rankings?${q.toString()}`;
   };
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const title =
-    (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) +
-    (event ? ` · ${eventLabel(event)}` : "");
   const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-1">
-        Ranking <span className="text-orange-500">» {title}</span>
-      </h1>
-      <p className="text-sm text-neutral-500 mb-4">
-        {view === "rolling"
-          ? "Sum of points over the last 365 days"
-          : view === "wins"
-          ? "Wins in the season, points as tie-break"
-          : "Sum of points scored in the season"}
-        {event ? `, ${eventLabel(event)} only.` : "."}{" "}
-        {movement && "Up/down arrows compare with the ranking two weeks ago."}
-      </p>
+      <h1 className="text-2xl font-bold mb-4">Rankings</h1>
 
       {/* Filters: two rows, no submit button -- every control navigates as
           soon as it changes (gender/year are plain links, the rest are
@@ -568,25 +554,13 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const countryHref = (code: string) => `/countries/${code}?year=${year}&gender=${gender}${age ? `&age=${age}` : ""}`;
   const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const maxPoints = Math.max(1, ...rows.map((r) => r.points));
-  const title =
-    (view === "rolling" ? "Rolling 12 months" : view === "wins" ? `Wins ${year}` : `Season ${year}`) + (event ? ` · ${eventLabel(event)}` : "");
   const cols = movement
     ? "grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]"
     : "grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4rem]";
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-1">
-        Nations <span className="text-orange-500">» {title}</span>
-      </h1>
-      <p className="text-sm text-neutral-500 mb-4">
-        {view === "wins"
-          ? "Total wins of each country's athletes, points as tie-break."
-          : `Each country scores the points of its ${COUNTED_ATHLETES} best athletes${event ? ` in ${eventLabel(event)}` : ""}${
-              view === "rolling" ? " over the last 365 days" : ""
-            }.`}{" "}
-        {movement && "Arrows compare with two weeks ago."}
-      </p>
+      <h1 className="text-2xl font-bold mb-4">Rankings</h1>
 
       <div className="flex flex-col gap-2 mb-6">
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
