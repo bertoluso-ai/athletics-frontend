@@ -62,9 +62,6 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
   return (
     <section>
       <div className="mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">
-          Latest Results
-        </h2>
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={event}
