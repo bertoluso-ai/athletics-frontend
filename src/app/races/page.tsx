@@ -91,6 +91,7 @@ export default async function RacesPage({
     q.set("page", String(over.page ?? page));
     return `/races?${q.toString()}`;
   };
+  const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -98,79 +99,72 @@ export default async function RacesPage({
       <main className="mx-auto max-w-5xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Races</h1>
 
-        <div className="flex flex-wrap items-end gap-2 mb-4">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Year</label>
+        {/* Same two-pill-row look as Disciplines (compact, label-less
+            LinkSelects, horizontally scrollable on narrow screens) instead
+            of the old labelled-column layout -- no separate Quality/Recent
+            toggle either: sorting now happens the same way a table does,
+            by tapping the Date/Quality column headers below (visible on
+            phones too, not just desktop). */}
+        <div className="flex flex-col gap-2 mb-4">
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+            <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+              {(["Men", "Women"] as const).map((g) => (
+                <Link
+                  key={g}
+                  href={href({ gender: g, page: 1 })}
+                  className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                >
+                  {g}
+                </Link>
+              ))}
+            </div>
+            <Link
+              href={href({ indoor: !indoor, page: 1 })}
+              title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended together here"
+              className={`shrink-0 text-xs px-2.5 py-1.5 rounded-full border ${
+                indoor ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-neutral-700 text-neutral-400"
+              }`}
+            >
+              {indoor ? "Indoor" : "Outdoor"}
+            </Link>
             <LinkSelect
               value={String(year)}
+              className={selectClass}
               options={[
                 { value: "all", label: "All-time", href: href({ year: "all", page: 1 }) },
                 ...years.map((y) => ({ value: String(y), label: String(y), href: href({ year: y, page: 1 }) })),
               ]}
             />
           </div>
-          <div className="flex rounded bg-neutral-800 p-0.5 text-xs h-[1.9rem]">
-            {(["Men", "Women"] as const).map((g) => (
-              <Link
-                key={g}
-                href={href({ gender: g, page: 1 })}
-                className={`px-3 flex items-center rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-              >
-                {g}
-              </Link>
-            ))}
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Group</label>
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
             <LinkSelect
               value={groupKey}
+              className={selectClass}
               options={GROUPS.map((g) => ({
                 value: g.key,
                 label: g.label,
                 href: href({ group: g.key, page: 1 }),
               }))}
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Discipline</label>
             <LinkSelect
               value={event ?? ""}
+              className={selectClass}
               options={[
                 { value: "", label: "All disciplines", href: href({ event: null, page: 1 }) },
                 ...groupEvents.map((ev) => ({ value: ev, label: eventLabel(ev), href: href({ event: ev, page: 1 }) })),
               ]}
             />
           </div>
-          <Link
-            href={href({ indoor: !indoor, page: 1 })}
-            title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended together here"
-            className={`text-[11px] px-2.5 py-1.5 rounded-full border ${
-              indoor ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-neutral-700 text-neutral-400"
-            }`}
-          >
-            {indoor ? "Indoor" : "Outdoor"}
-          </Link>
-          <div className="flex rounded bg-neutral-800 p-0.5 text-xs h-[1.9rem] ml-auto">
-            {(["quality", "recent"] as const).map((s) => (
-              <Link
-                key={s}
-                href={href({ sort: s, page: 1 })}
-                className={`px-3 flex items-center rounded ${sortBy === s ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-              >
-                {s === "quality" ? "Quality" : "Recent"}
-              </Link>
-            ))}
-          </div>
         </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          <div className="grid grid-cols-[5rem_1fr_3.5rem] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
             <Link href={href({ sort: "recent", page: 1 })} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
               Date{sortBy === "recent" ? " ▼" : ""}
             </Link>
-            <span>Competition</span>
-            <span>Top performance</span>
-            <span>Level</span>
+            <span className="hidden sm:inline">Competition</span>
+            <span className="hidden sm:inline">Top performance</span>
+            <span className="hidden sm:inline">Level</span>
             <Link href={href({ sort: "quality", page: 1 })} className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}>
               Quality{sortBy === "quality" ? " ▼" : ""}
             </Link>
