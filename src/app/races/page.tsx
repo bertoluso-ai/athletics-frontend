@@ -198,8 +198,13 @@ export default async function RacesPage({
             </Link>
             <span className="hidden sm:inline">Competition</span>
             <span className="hidden sm:inline">Top performance</span>
-            <span className="hidden sm:inline">Level</span>
-            <Link href={href({ sort: "quality", page: 1 })} className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}>
+            {/* "Quality" spans the Level + Quality columns together (col-span-2)
+                and sits flush right over both, instead of a separate "Level"
+                label plus "Quality" squeezed into just the last column. */}
+            <Link
+              href={href({ sort: "quality", page: 1 })}
+              className={`col-span-1 sm:col-span-2 text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}
+            >
               Quality{sortBy === "quality" ? " ▼" : ""}
             </Link>
           </div>
