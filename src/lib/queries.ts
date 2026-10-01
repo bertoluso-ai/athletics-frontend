@@ -52,19 +52,24 @@ export async function getAthleteInfo(athleteId: string): Promise<AthleteInfo | n
   return { ...r, birth_date_full: r.birth_date_raw && r.birth_date_raw.length > 4 ? r.birth_date_raw : null };
 }
 
-// Name-based SEO slugs for athlete profile URLs (athletics_all.v_athlete_slugs,
-// disambiguated name -> +nationality -> +first year -> numeric suffix, so two
-// athletes never collide -- see matchAthletesIncremental/athlete_slugs_view.sql).
+// Name-based SEO slugs for athlete profile URLs. athletics_all.athlete_slugs
+// is a materialized table (refreshed daily), not a live view -- the view
+// (v_athlete_slugs) recomputed every athlete's slug from scratch on every
+// query (3.7s/466MB for a single WHERE athlete_id=... lookup, since the
+// window functions that disambiguate collisions need the full athlete set
+// regardless of the filter -- see matchAthletesIncremental/registry/
+// 17_materialize_athlete_slugs.sql). Disambiguation: name -> +nationality
+// -> +first year -> numeric suffix, so two athletes never collide.
 export async function getAthleteSlug(athleteId: string): Promise<string | null> {
   const rows = await runQuery<{ slug: string }>(`
-    SELECT slug FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE athlete_id = @athleteId
+    SELECT slug FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE athlete_id = @athleteId
   `, { athleteId });
   return rows[0]?.slug ?? null;
 }
 
 export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
   const rows = await runQuery<{ athlete_id: string }>(`
-    SELECT athlete_id FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE slug = @slug
+    SELECT athlete_id FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE slug = @slug
   `, { slug });
   return rows[0]?.athlete_id ?? null;
 }
@@ -77,7 +82,7 @@ export async function getAthleteSlugs(athleteIds: string[]): Promise<Map<string,
   const ids = Array.from(new Set(athleteIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
   const rows = await runQuery<{ athlete_id: string; slug: string }>(`
-    SELECT athlete_id, slug FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE athlete_id IN UNNEST(@ids)
+    SELECT athlete_id, slug FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE athlete_id IN UNNEST(@ids)
   `, { ids });
   return new Map(rows.map((r) => [r.athlete_id, r.slug]));
 }
