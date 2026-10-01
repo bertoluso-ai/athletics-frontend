@@ -184,9 +184,27 @@ export default async function RacesPage({
                   discipline: r.athletics_event,
                   gender,
                 }).toString()}`}
-                className="block sm:grid grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 items-center px-3 py-2.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+                className="flex flex-col gap-1 sm:grid sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] sm:gap-x-3 sm:items-center px-3 py-2.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
               >
-                <span className="text-xs text-neutral-400 tabular-nums">{formatDate(r.date, r.year)}</span>
+                {/* phones: date + tier + quality share one line up top, instead
+                    of flowing inline after the event name/athlete text below
+                    (that's what made the row look cramped -- plain <span>s
+                    with no "block" of their own just ran into each other). */}
+                <span className="flex sm:hidden items-center justify-between text-xs text-neutral-400">
+                  <span className="tabular-nums">{formatDate(r.date, r.year)}</span>
+                  <span className="flex items-center gap-1.5">
+                    {r.tier && (
+                      <span
+                        title={TIER_LABELS.find((t) => t.value === r.tier)?.label ?? r.tier}
+                        className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400"
+                      >
+                        {r.tier}
+                      </span>
+                    )}
+                    <span className="font-mono text-orange-400">{Math.round(r.race_level)}</span>
+                  </span>
+                </span>
+                <span className="hidden sm:inline text-xs text-neutral-400 tabular-nums">{formatDate(r.date, r.year)}</span>
                 <span className="min-w-0">
                   <span className="block truncate font-medium">{r.event_name}</span>
                   <span className="block text-[11px] text-neutral-500 truncate">
@@ -194,7 +212,7 @@ export default async function RacesPage({
                     {r.round ? ` · ${r.round}` : ""}
                   </span>
                 </span>
-                <span className="min-w-0 text-xs truncate">
+                <span className="block min-w-0 text-xs truncate">
                   {r.top_athlete ? (
                     <>
                       <Flag code={r.top_nationality} className="mr-1 inline-block" />
@@ -204,7 +222,7 @@ export default async function RacesPage({
                     <span className="text-neutral-600">—</span>
                   )}
                 </span>
-                <span>
+                <span className="hidden sm:block">
                   {r.tier && (
                     <span
                       title={TIER_LABELS.find((t) => t.value === r.tier)?.label ?? r.tier}
@@ -214,7 +232,7 @@ export default async function RacesPage({
                     </span>
                   )}
                 </span>
-                <span className="text-right font-mono text-sm text-orange-400">{Math.round(r.race_level)}</span>
+                <span className="hidden sm:block text-right font-mono text-sm text-orange-400">{Math.round(r.race_level)}</span>
               </Link>
             ))}
             {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No races for this selection.</div>}

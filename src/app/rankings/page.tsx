@@ -104,8 +104,8 @@ function SideMenu({ view }: { view: string }) {
   return (
     <>
       {/* phones: section toggle + the section's four views, full width */}
-      <div className="lg:hidden order-first flex flex-col gap-2">
-        <div className="grid grid-cols-2 rounded-lg bg-neutral-800 p-1 text-sm">
+      <div className="lg:hidden order-first flex flex-col gap-2 w-full">
+        <div className="grid grid-cols-2 w-full rounded-lg bg-neutral-800 p-1 text-sm">
           {MENU.map((m, i) => {
             const active = (i === 1) === nations;
             // switching section keeps the same kind of view (season <-> n-season)
@@ -121,7 +121,7 @@ function SideMenu({ view }: { view: string }) {
             );
           })}
         </div>
-        <div className="grid grid-cols-3 gap-1 text-xs">
+        <div className="grid grid-cols-3 gap-1 w-full text-xs">
           {section.items.map((it) => (
             <Link
               key={it.view}

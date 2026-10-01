@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { label: "Rankings", href: "/rankings" },
   { label: "Disciplines", href: "/disciplines" },
   { label: "Countries", href: "/countries" },
-  { label: "Competitions", href: "/competitions" },
+  { label: "Races", href: "/races" },
 ];
 
 export default function Header() {

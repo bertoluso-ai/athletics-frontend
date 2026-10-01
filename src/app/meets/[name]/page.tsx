@@ -3,7 +3,7 @@ import Header from "@/components/Header";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
-import { getMeetAvailableYears, getMeetResults, getAthleteSlugs } from "@/lib/queries";
+import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getAthleteSlugs } from "@/lib/queries";
 import MeetEventStats from "@/components/MeetEventStats";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
@@ -31,11 +31,21 @@ export default async function MeetPage({
   const eventName = decodeURIComponent(name);
   const { year: yearParam, discipline: disciplineParam, gender: genderParam, category: categoryParam } = await searchParams;
 
-  const years = await getMeetAvailableYears(eventName);
+  // Resolved once and shared with both calls below instead of each
+  // re-resolving it (that used to be two identical round trips) -- and,
+  // when the URL already names a year, the years list and that year's
+  // results no longer depend on each other, so they run in parallel
+  // instead of one blocking the other.
+  const seriesKey = await getMeetSeriesKey(eventName);
+  const requestedYear = yearParam ? Number(yearParam) : null;
+  const [years, resultsForRequestedYear] = await Promise.all([
+    getMeetAvailableYears(eventName, seriesKey),
+    requestedYear ? getMeetResults(eventName, requestedYear, seriesKey) : Promise.resolve(null),
+  ]);
   if (years.length === 0) notFound();
 
-  const year = yearParam ? Number(yearParam) : years[0];
-  const results = await getMeetResults(eventName, year);
+  const year = requestedYear ?? years[0];
+  const results = resultsForRequestedYear ?? (await getMeetResults(eventName, year, seriesKey));
   const athleteSlugs = await getAthleteSlugs(results.map((r) => r.athlete_id).filter((id): id is string => !!id));
   const allGroups = groupResults(results).sort(
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section

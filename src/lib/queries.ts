@@ -1265,8 +1265,11 @@ export const displaySeries = (expr: string) => `
   ))
 `;
 
-// Falls back to a plain event_name match for the handful of rows with no
-// series data.
+// Still used by meetStats.ts (the meet page's sidebar context -- winners,
+// records, all-time marks), which needs columns meet_results doesn't
+// carry (raw mark/mark_seconds/track_key/athletics_discipline) -- not
+// worth widening that slim table for one secondary query. getMeetResults/
+// getMeetAvailableYears (the main page content) no longer use this.
 export const MEET_SERIES_MATCH_SQL = `
   (
     (
@@ -1281,13 +1284,41 @@ export const MEET_SERIES_MATCH_SQL = `
   )
 `;
 
-export async function getMeetAvailableYears(eventName: string): Promise<number[]> {
+// The /meets/[name] page (getMeetAvailableYears, getMeetResults below)
+// reads two small, purpose-built tables instead of events_enriched
+// directly -- see matchAthletesIncremental/registry/19_materialize_meet_
+// results.sql. events_enriched is clustered by (athlete_id,
+// athletics_event, gender, year), none of which helps a page keyed by
+// event_name -- measured live, a plain `WHERE event_name = ...` scanned
+// 200-330MB and the series-match logic (the old MEET_SERIES_MATCH_SQL)
+// ran a correlated subquery that re-scanned the whole table a second time
+// just to resolve the target's own series. Splitting the "resolve this
+// event_name's series_key" step into its own tiny table
+// (registry.meet_series_key, clustered by event_name) lets
+// registry.meet_results cluster purely by (series_key, year) -- the only
+// way it's ever filtered once the series_key is known -- instead of
+// compromising on both. Each step now scans ~10-30MB instead of
+// 200-330MB (clustering on a non-leading column barely prunes at all,
+// tested live before landing on the two-table split).
+export async function getMeetSeriesKey(eventName: string): Promise<string | null> {
+  const rows = await runQuery<{ series_key: string }>(`
+    SELECT series_key FROM \`athletics-database.registry.meet_series_key\` WHERE event_name = @eventName
+  `, { eventName });
+  return rows[0]?.series_key ?? null;
+}
+
+// seriesKey can be passed in (the meet page resolves it once up front and
+// shares it with getMeetResults below, instead of each resolving it
+// separately -- that used to be two identical round trips per page load).
+export async function getMeetAvailableYears(eventName: string, seriesKey?: string | null): Promise<number[]> {
+  const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
+  if (!key) return [];
   const rows = await runQuery<{ year: number }>(`
     SELECT DISTINCT year
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE ${MEET_SERIES_MATCH_SQL} AND year IS NOT NULL
+    FROM \`athletics-database.registry.meet_results\`
+    WHERE series_key = @seriesKey AND year IS NOT NULL
     ORDER BY year DESC
-  `, { eventName });
+  `, { seriesKey: key });
   return rows.map((r) => r.year);
 }
 
@@ -1329,40 +1360,28 @@ export type MeetResultRow = {
 // "Final 2" -- each with its own real place 1/2/3. Both match '%final%' so
 // they used to get merged into one fake ranking. `round` is selected here
 // so the page can group by it and render each section on its own instead.
-export async function getMeetResults(eventName: string, year: number): Promise<MeetResultRow[]> {
+export async function getMeetResults(eventName: string, year: number, seriesKey?: string | null): Promise<MeetResultRow[]> {
+  const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
+  if (!key) return [];
+  // mark_value, race_level and the athlete_display_name/combined-round
+  // filters are all precomputed in meet_results itself now (see
+  // 19_materialize_meet_results.sql) -- no JOIN, no WHERE filtering
+  // needed here beyond series_key + year.
   return runQuery<MeetResultRow>(`
-    SELECT e.event_name, COALESCE(e.display_series_name, e.event_name) AS series_name,
-      e.athletics_event, e.gender, e.round, e.place, e.athlete_id,
-      e.athlete_display_name AS display_name, e.mark_display,
-      IF(e.athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(e.mark AS FLOAT64), e.mark_seconds) AS mark_value,
-      e.nationality,
-      NULLIF(e.record, '') AS record, e.city, e.country, CAST(e.date AS STRING) AS date, e.wind, e.wind_legal,
-      e.division_key_resolved, e.is_shadow_result, rl.race_level
-    FROM \`athletics-database.athletics_all.events_enriched\` e
-    -- race_level is keyed by the RAW event_name (not display_series_name),
-    -- since that's what it was built against -- round can be NULL on both
-    -- sides (a meet with a single unlabelled round), so match that case
-    -- explicitly instead of losing the join to NULL <> NULL. Columns are
-    -- renamed in the subquery so the bare "event_name" MEET_SERIES_MATCH_SQL
-    -- relies on below stays unambiguous (only e.event_name matches it).
-    LEFT JOIN (
-      SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
-        gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
-      FROM \`athletics-database.registry.race_level\`
-    ) rl
-      ON rl.rl_event_name = e.event_name AND rl.rl_athletics_event = e.athletics_event
-     AND rl.rl_gender = e.gender AND CAST(rl.rl_date AS STRING) = CAST(e.date AS STRING)
-     AND (rl.rl_round = e.round OR (rl.rl_round IS NULL AND e.round IS NULL))
-    WHERE ${MEET_SERIES_MATCH_SQL} AND e.year = @year
-      AND LOWER(IFNULL(e.round,'')) NOT LIKE '%combined%'
-      AND e.athlete_display_name IS NOT NULL
+    SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
+      athletics_event, gender, round, place, athlete_id,
+      display_name, mark_display, mark_value, nationality, record, city, country,
+      CAST(date AS STRING) AS date, wind, wind_legal,
+      division_key_resolved, is_shadow_result, race_level
+    FROM \`athletics-database.registry.meet_results\`
+    WHERE series_key = @seriesKey AND year = @year
     -- Finals first, qualifying rounds (heats, semis) after -- reading the
     -- final before its own heats matches how a results page is normally
     -- read, and MeetResultsSections groups by round anyway so mixing the
     -- literal chronological order in isn't needed here.
-    ORDER BY e.athletics_event, e.gender,
-      IF(e.round IS NULL OR LOWER(e.round) LIKE '%final%', 0, 1), e.round, e.place ASC NULLS LAST
-  `, { eventName, year });
+    ORDER BY athletics_event, gender,
+      IF(round IS NULL OR LOWER(round) LIKE '%final%', 0, 1), round, place ASC NULLS LAST
+  `, { seriesKey: key, year });
 }
 
 // ---------------------------------------------------------------------

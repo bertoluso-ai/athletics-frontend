@@ -27,15 +27,22 @@ const NAV_ITEMS = [
     icon: <path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z" />,
   },
   {
+    label: "Disciplines",
+    href: "/disciplines",
+    icon: (
+      <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" />
+    ),
+  },
+  {
     label: "Countries",
     href: "/countries",
     icon: <path d="M5 21V4h1.5v1H19l-2.5 4.5L19 14H6.5v7H5Z" />,
   },
   {
-    label: "Competitions",
-    href: "/competitions",
+    label: "Races",
+    href: "/races",
     icon: (
-      <path d="M7 4h10v3a5 5 0 0 1-4 4.9V15h3v2H8v-2h3v-3.1A5 5 0 0 1 7 7V4Zm-3 1h2v2a2 2 0 0 1-2-2Zm16 0a2 2 0 0 1-2 2V5h2ZM6 19h12v2H6v-2Z" />
+      <path d="M12 2 4 6v6c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6l-8-4Zm-1.2 13.4L7.2 11.8l1.4-1.4 2.2 2.2 4.6-4.6 1.4 1.4-6 6Z" />
     ),
   },
 ];
