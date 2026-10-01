@@ -77,6 +77,13 @@ export default async function AthletePage({
     if (!resolved) notFound();
     id = resolved;
   }
+  // In-page filter links (year tabs, wind/indoor toggles) must build hrefs
+  // from the slug, not the internal hash `id` used for DB queries -- a link
+  // to the raw-hash URL hits the isRawHashId branch above on the next
+  // request and permanentRedirect()s back to the slug URL, which drops the
+  // query string entirely (caught live: clicking a year tab bounced back to
+  // the default year every time, since the redirect target has no ?year=).
+  const hrefId = isRawHashId ? id : idParam;
 
   // info and athleteEvents are the only two things everything else below
   // needs to compute (info.gender/birth_year/display_name for several
@@ -138,7 +145,7 @@ export default async function AthletePage({
     const nextIndoor = overrides.indoor !== undefined ? overrides.indoor : indoor;
     if (nextIndoor) qs.set("indoor", "true");
     const qsString = qs.toString();
-    return `/athletes/${id}${qsString ? `?${qsString}` : ""}`;
+    return `/athletes/${hrefId}${qsString ? `?${qsString}` : ""}`;
   }
 
   const totalWins = yearlyPoints.reduce((n, y) => n + y.wins, 0);
@@ -520,7 +527,7 @@ export default async function AthletePage({
                 years: ev.years,
               }))}
               year={year}
-              baseHref={`/athletes/${id}`}
+              baseHref={`/athletes/${hrefId}`}
             />
           </section>
         </div>
