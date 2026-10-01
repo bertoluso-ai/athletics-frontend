@@ -109,11 +109,11 @@ export default async function RacesPage({
       <main className="mx-auto max-w-5xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Races</h1>
 
-        {/* Same two-pill-row look as Disciplines: row 1 picks the overall
-            scope (gender/year/tier), row 2 narrows it (discipline/area/
-            nation/age). Sorting is its own combo (Date / Quality), not a
-            pill or clickable column headers -- the table header below is
-            desktop-only again, like it originally was. */}
+        {/* Same pill-row look as Disciplines: row 1 picks the overall scope
+            (gender/year/tier), row 2 narrows it (discipline/area/nation/
+            age/indoor-outdoor), row 3 is just the sort combo, right-aligned
+            -- its own line since it reorders the list rather than filtering
+            it, same reasoning as keeping it visually separate before. */}
         <div className="flex flex-col gap-2 mb-4">
           <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
             <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
@@ -127,15 +127,6 @@ export default async function RacesPage({
                 </Link>
               ))}
             </div>
-            <Link
-              href={href({ indoor: !indoor, page: 1 })}
-              title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended together here"
-              className={`shrink-0 text-xs px-2.5 py-1.5 rounded-full border ${
-                indoor ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-neutral-700 text-neutral-400"
-              }`}
-            >
-              {indoor ? "Indoor" : "Outdoor"}
-            </Link>
             <LinkSelect
               value={String(year)}
               className={selectClass}
@@ -150,14 +141,6 @@ export default async function RacesPage({
               options={[
                 { value: "", label: "All categories", href: href({ tier: null, page: 1 }) },
                 ...TIER_LABELS.map((t) => ({ value: t.value, label: t.value, href: href({ tier: t.value, page: 1 }) })),
-              ]}
-            />
-            <LinkSelect
-              value={sortBy}
-              className={selectClass}
-              options={[
-                { value: "quality", label: "Order by Quality", href: href({ sort: "quality", page: 1 }) },
-                { value: "recent", label: "Order by Date", href: href({ sort: "recent", page: 1 }) },
               ]}
             />
           </div>
@@ -192,6 +175,24 @@ export default async function RacesPage({
               options={[
                 { value: "", label: "All ages", href: href({ age: null, page: 1 }) },
                 ...AGES.filter((a) => a).map((a) => ({ value: a, label: a, href: href({ age: a, page: 1 }) })),
+              ]}
+            />
+            <LinkSelect
+              value={indoor ? "indoor" : "outdoor"}
+              className={selectClass}
+              options={[
+                { value: "outdoor", label: "Outdoor", href: href({ indoor: false, page: 1 }) },
+                { value: "indoor", label: "Indoor", href: href({ indoor: true, page: 1 }) },
+              ]}
+            />
+          </div>
+          <div className="flex justify-end">
+            <LinkSelect
+              value={sortBy}
+              className={selectClass}
+              options={[
+                { value: "quality", label: "Order by Quality", href: href({ sort: "quality", page: 1 }) },
+                { value: "recent", label: "Order by Date", href: href({ sort: "recent", page: 1 }) },
               ]}
             />
           </div>
