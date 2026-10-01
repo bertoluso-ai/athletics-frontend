@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEventYearBestMarks } from "@/lib/queries";
+import { getEventYearBestMarks, getAthleteSlugs } from "@/lib/queries";
 import { getAthletePhoto } from "@/lib/wikipedia";
 
 export async function GET(req: NextRequest) {
@@ -13,8 +13,9 @@ export async function GET(req: NextRequest) {
   }
 
   const rows = await getEventYearBestMarks(event, gender, year, 10);
+  const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id));
   const withPhotos = await Promise.all(
-    rows.map(async (r) => ({ ...r, photo: await getAthletePhoto(r.display_name) }))
+    rows.map(async (r) => ({ ...r, slug: slugs.get(r.athlete_id) ?? null, photo: await getAthletePhoto(r.display_name) }))
   );
   return NextResponse.json(withPhotos);
 }

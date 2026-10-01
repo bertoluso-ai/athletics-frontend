@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runQuery } from "@/lib/bigquery";
-import { normalizeSeries, displaySeries } from "@/lib/queries";
+import { normalizeSeries, displaySeries, getAthleteSlugs, athleteHref } from "@/lib/queries";
 import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
@@ -50,12 +50,13 @@ export async function GET(req: NextRequest) {
     LIMIT 8
   `, { pattern: `%${qLower.normalize("NFD").replace(/\p{M}/gu, "")}%` });
 
+  const athleteSlugs = await getAthleteSlugs(athletes.map((a) => a.athlete_id));
   for (const a of athletes) {
     results.push({
       type: "athlete",
       label: a.display_name,
       sublabel: a.nationality ?? undefined,
-      href: `/athletes/${a.athlete_id}`,
+      href: athleteHref(a.athlete_id, athleteSlugs),
     });
   }
 

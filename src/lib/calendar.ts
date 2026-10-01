@@ -1,5 +1,6 @@
 import { unstable_cache } from "next/cache";
 import { runQuery } from "./bigquery";
+import { memoCache } from "./memoCache";
 
 // Season calendar: competitions already held (from results, with their
 // headline performance) plus the ones still to come (from the scraped World
@@ -32,30 +33,34 @@ export type CalendarRow = {
 // compare across all years), but expensive, and this page reads
 // searchParams (year/tier/month/sort/dir), which makes Next.js treat the
 // whole route as dynamic and skip its own `export const revalidate` --
-// every request recomputed this from scratch (5-9s). unstable_cache keys
-// on the actual params instead, so repeat requests for the same
-// year/tiers/month are genuinely cached regardless of the route being
-// dynamic.
-export const getCalendar = unstable_cache(
-  async (
+// every request recomputed this from scratch (5-9s). Cached on the actual
+// params instead, so repeat requests for the same year/tiers/month are
+// genuinely cached regardless of the route being dynamic.
+//
+// Plain memoCache, not unstable_cache: a populous year (thousands of
+// competitions, e.g. 2023's 5900+) serializes past unstable_cache's default
+// 2MB per-entry limit, which fails as an unhandled rejection in an internal
+// un-awaited write -- not something this code can try/catch around.
+export const getCalendar = memoCache(
+  (
     year: number,
     tiers: string[],
-    month?: number,
+    months?: number[],
     sort: "date" | "name" | "tier" = "date",
     dir: "asc" | "desc" = "asc"
-  ): Promise<CalendarRow[]> => fetchCalendar(year, tiers, month, sort, dir),
-  ["calendar-v1"],
-  { revalidate: 3600 }
+  ): Promise<CalendarRow[]> => fetchCalendar(year, tiers, months, sort, dir),
+  3600_000
 );
 
 async function fetchCalendar(
   year: number,
   tiers: string[],
-  month?: number,
+  months?: number[],
   sort: "date" | "name" | "tier" = "date",
   dir: "asc" | "desc" = "asc"
 ): Promise<CalendarRow[]> {
-  const monthFilter = (col: string) => (month ? `AND EXTRACT(MONTH FROM ${col}) = ${month}` : "");
+  const monthFilter = (col: string) =>
+    months && months.length > 0 ? `AND EXTRACT(MONTH FROM ${col}) IN UNNEST(${JSON.stringify(months)})` : "";
   // Marks as one comparable number, lower = better (field marks negated),
   // wind-legal only, indoor kept apart from outdoor -- same convention as
   // meetStats.ts.

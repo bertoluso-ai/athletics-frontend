@@ -158,7 +158,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                                       <span key={ai}>
                                         {ai > 0 && " · "}
                                         {a.athlete_id ? (
-                                          <Link href={`/athletes/${a.athlete_id}`} className="hover:text-orange-400">
+                                          <Link href={`/athletes/${a.slug ?? a.athlete_id}`} className="hover:text-orange-400">
                                             {lastName(a.display_name)}
                                           </Link>
                                         ) : (
@@ -193,7 +193,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                         return (
                           <Link
                             key={i}
-                            href={solo.athlete_id ? `/athletes/${solo.athlete_id}` : "#"}
+                            href={solo.athlete_id ? `/athletes/${solo.slug ?? solo.athlete_id}` : "#"}
                             className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40 hover:bg-neutral-800"
                           >
                             {content}

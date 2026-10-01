@@ -155,7 +155,7 @@ function Chart({
           <span className="font-mono text-lg font-bold text-orange-400">{allTime.mark_display}</span>
           {allTime.athlete &&
             (allTime.athlete_id ? (
-              <Link href={`/athletes/${allTime.athlete_id}`} className="truncate text-sm font-medium hover:text-orange-400">
+              <Link href={`/athletes/${allTime.slug ?? allTime.athlete_id}`} className="truncate text-sm font-medium hover:text-orange-400">
                 {allTime.athlete}
               </Link>
             ) : (
@@ -174,7 +174,7 @@ function Chart({
     <span className="flex items-center gap-1 text-neutral-300">
       <span className="font-mono font-semibold text-orange-400">{allTime.mark_display}</span>
       {allTime.athlete_id ? (
-        <Link href={`/athletes/${allTime.athlete_id}`} className="hover:text-orange-400 truncate max-w-[8rem]">
+        <Link href={`/athletes/${allTime.slug ?? allTime.athlete_id}`} className="hover:text-orange-400 truncate max-w-[8rem]">
           {allTime.athlete}
         </Link>
       ) : (

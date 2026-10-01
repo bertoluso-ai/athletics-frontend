@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
@@ -14,11 +15,14 @@ import {
   getAthleteChampionships,
   getAthleteRecordStats,
   getAthleteNationalityHistory,
+  getAthleteSlug,
+  getAthleteIdBySlug,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventCategory, eventLabel } from "@/lib/events";
+import { eventSlug } from "@/lib/slugs";
 
 export const revalidate = 3600;
 
@@ -52,26 +56,36 @@ export default async function AthletePage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ year?: string; event?: string; wind?: string; category?: string; indoor?: string }>;
 }) {
-  const { id } = await params;
+  const { id: idParam } = await params;
   const { year: yearParam, event: eventParam, wind: windParam, category: categoryParam, indoor: indoorParam } = await searchParams;
   const includeIllegalWind = windParam === "all";
   const indoor = indoorParam === "true";
 
-  const info = await getAthleteInfo(id);
-  if (!info) notFound();
+  // SEO: canonical URL is the name-based slug (v_athlete_slugs), not the
+  // raw athlete_id hash. Existing links/bookmarks using the hash still
+  // work -- they resolve here and redirect once to the slug -- while the
+  // slug itself resolves directly, no extra round trip.
+  let id = idParam;
+  const isRawHashId = /^[0-9a-f]{20,}$/i.test(idParam);
+  if (isRawHashId) {
+    const slug = await getAthleteSlug(idParam);
+    if (slug) permanentRedirect(`/athletes/${slug}`);
+    // no slug available (e.g. no events_enriched rows carry a display
+    // name for this id) -- fall through and try idParam as a raw id below
+  } else {
+    const resolved = await getAthleteIdBySlug(idParam);
+    if (!resolved) notFound();
+    id = resolved;
+  }
 
-  const [athleteEvents, bestResults, personalBests, yearlyPoints, photo, championships, recordStats, natHistory] = await Promise.all([
-    getAthleteEvents(id),
-    getAthleteBestResults(id, 7),
-    getAthletePersonalBests(id, includeIllegalWind, indoor),
-    getAthleteYearlyPoints(id, info.gender ?? ""),
-    getAthletePhotoInfo(info.display_name, info.birth_year),
-    getAthleteChampionships(id),
-    getAthleteRecordStats(id),
-    getAthleteNationalityHistory(id),
-  ]);
-  // earlier countries the athlete competed for (URS -> UKR, transfers...)
-  const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
+  // info and athleteEvents are the only two things everything else below
+  // needs to compute (info.gender/birth_year/display_name for several
+  // calls; athleteEvents + the year/event params for `year`, which
+  // getAthleteResultsForYear needs) -- fetched together so the rest of the
+  // page's calls (including results) can all run in one shared Promise.all
+  // instead of a third sequential round trip after it.
+  const [info, athleteEvents] = await Promise.all([getAthleteInfo(id), getAthleteEvents(id)]);
+  if (!info) notFound();
 
   // Default: every discipline, most recent year -- the full picture of the
   // athlete's latest season, not just one event.
@@ -87,7 +101,23 @@ export default async function AthletePage({
       ? requestedYear
       : eventYears[0] ?? info.last_year;
 
-  const results = event ? await getAthleteResultsForYear(id, year, event) : [];
+  // The athlete photo is *not* awaited here: a cold (uncached) Wikipedia/
+  // Wikidata lookup can take seconds, and it used to sit in this same
+  // Promise.all, so the whole page waited on it even though every other
+  // field was long since ready from BigQuery. It's fetched by the
+  // <AthletePhoto>/<AthletePhotoToast> Server Components below instead,
+  // each wrapped in <Suspense> so they stream in independently.
+  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results] = await Promise.all([
+    getAthleteBestResults(id, 7),
+    getAthletePersonalBests(id, includeIllegalWind, indoor),
+    getAthleteYearlyPoints(id, info.gender ?? ""),
+    getAthleteChampionships(id),
+    getAthleteRecordStats(id),
+    getAthleteNationalityHistory(id),
+    event ? getAthleteResultsForYear(id, year, event) : Promise.resolve([]),
+  ]);
+  // earlier countries the athlete competed for (URS -> UKR, transfers...)
+  const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
 
   // Personal Bests: filter by broad category (Track/Road/Cross Country/...)
   // so road and track marks over similar distances (10km vs 10,000m) don't
@@ -152,16 +182,15 @@ export default async function AthletePage({
                 (bio, top results, key stats) instead of pushing it. */}
             <div className="flex items-start lg:items-stretch gap-4 lg:h-[calc(100%-2rem)]">
               <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
-                {photo ? (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo.url} alt={info.display_name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
-                  </>
-                ) : (
-                  <span className="absolute inset-0">
-                    <GenericAthlete name={info.display_name} gender={info.gender} nationality={info.nationality} />
-                  </span>
-                )}
+                <Suspense
+                  fallback={
+                    <span className="absolute inset-0">
+                      <GenericAthlete name={info.display_name} gender={info.gender} nationality={info.nationality} />
+                    </span>
+                  }
+                >
+                  <AthletePhoto name={info.display_name} birthYear={info.birth_year} gender={info.gender} nationality={info.nationality} />
+                </Suspense>
               </div>
               <dl className="text-sm space-y-1">
                 <div className="flex gap-2">
@@ -453,7 +482,7 @@ export default async function AthletePage({
                 {filteredPersonalBests.map((pb, i) => (
                   <Link
                     key={i}
-                    href={`/rankings?event=${encodeURIComponent(pb.athletics_event)}&gender=${info.gender ?? ""}&year=all`}
+                    href={`/disciplines/${eventSlug(pb.athletics_event)}?gender=${info.gender ?? ""}`}
                     className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
                   >
                     {/* fixed columns so marks and ranks line up row to row */}
@@ -496,9 +525,39 @@ export default async function AthletePage({
           </section>
         </div>
       </main>
-      {photo && <PhotoCreditsToast items={[{ who: info.display_name, credit: photoCredit(photo), url: photo.sourceUrl }]} />}
+      <Suspense fallback={null}>
+        <AthletePhotoToast name={info.display_name} birthYear={info.birth_year} />
+      </Suspense>
     </div>
   );
+}
+
+async function AthletePhoto({
+  name,
+  birthYear,
+  gender,
+  nationality,
+}: {
+  name: string;
+  birthYear: number | null;
+  gender: string | null;
+  nationality: string | null;
+}) {
+  const photo = await getAthletePhotoInfo(name, birthYear);
+  return photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photo.url} alt={name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
+  ) : (
+    <span className="absolute inset-0">
+      <GenericAthlete name={name} gender={gender} nationality={nationality} />
+    </span>
+  );
+}
+
+async function AthletePhotoToast({ name, birthYear }: { name: string; birthYear: number | null }) {
+  const photo = await getAthletePhotoInfo(name, birthYear);
+  if (!photo) return null;
+  return <PhotoCreditsToast items={[{ who: name, credit: photoCredit(photo), url: photo.sourceUrl }]} />;
 }
 
 function OlympicRings() {

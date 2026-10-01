@@ -22,14 +22,15 @@ const GROUPS = [
 type Mode = "ranking" | "marks";
 type Gender = "Men" | "Women";
 
-type RankingRow = { athlete_id: string; display_name: string; points: number; n_results: number; nationality: string | null; photo: string | null };
-type MarkRow = { athlete_id: string; display_name: string; mark_display: string; event_name: string; date: string; nationality: string | null; photo: string | null };
+type RankingRow = { athlete_id: string; display_name: string; points: number; n_results: number; nationality: string | null; photo: string | null; slug?: string | null };
+type MarkRow = { athlete_id: string; display_name: string; mark_display: string; event_name: string; date: string; nationality: string | null; photo: string | null; slug?: string | null };
 
 export default function StatsWidget({ year }: { year: number }) {
   const [mode, setMode] = useState<Mode>("ranking");
   const [gender, setGender] = useState<Gender>("Men");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
+  const isAll = groupKey === "all";
   const [event, setEvent] = useState<string>(group.events[gender][0]);
 
   const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
@@ -43,10 +44,18 @@ export default function StatsWidget({ year }: { year: number }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupKey, gender]);
 
+  // "All" has no single comparable mark across disciplines (a 100m time and
+  // a shot put distance can't share a "best mark" ranking) -- only total
+  // points makes sense there, same as the full Rankings page's event=all.
+  useEffect(() => {
+    if (isAll && mode === "marks") setMode("ranking");
+  }, [isAll, mode]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    const url = `/api/${mode === "ranking" ? "ranking" : "marks"}?event=${encodeURIComponent(event)}&gender=${gender}&year=${year}`;
+    const eventParam = isAll ? "all" : event;
+    const url = `/api/${mode === "ranking" ? "ranking" : "marks"}?event=${encodeURIComponent(eventParam)}&gender=${gender}&year=${year}`;
     fetch(url)
       .then((r) => r.json())
       .then((data) => {
@@ -58,21 +67,23 @@ export default function StatsWidget({ year }: { year: number }) {
     return () => {
       cancelled = true;
     };
-  }, [mode, event, gender, year]);
+  }, [mode, event, gender, year, isAll]);
 
   return (
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
       <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
-          {(["ranking", "marks"] as Mode[]).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
-              className={`px-2 py-1 rounded ${mode === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-            >
-              {m === "ranking" ? `${year} Points` : `${year} Marks`}
-            </button>
-          ))}
+          {(["ranking", "marks"] as Mode[]).map((m) =>
+            m === "marks" && isAll ? null : (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                className={`px-2 py-1 rounded ${mode === m ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              >
+                {m === "ranking" ? `${year} Points` : `${year} Marks`}
+              </button>
+            )
+          )}
         </div>
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["Men", "Women"] as Gender[]).map((g) => (
@@ -108,7 +119,7 @@ export default function StatsWidget({ year }: { year: number }) {
 
       <div
         className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
-          (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
+          !isAll && (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
         }`}
       >
         <select
@@ -122,7 +133,11 @@ export default function StatsWidget({ year }: { year: number }) {
             </option>
           ))}
         </select>
-        {(group.events[gender] as readonly string[]).length > 1 && (
+        {/* "All": one combined ranking across every discipline -- the
+            per-discipline dropdown has no meaning here (see isAll in the
+            data-fetch effect above), so it's hidden rather than left
+            pointing at a discipline the shown ranking doesn't reflect. */}
+        {!isAll && (group.events[gender] as readonly string[]).length > 1 && (
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
@@ -145,7 +160,7 @@ export default function StatsWidget({ year }: { year: number }) {
           rankingRows.map((r, i) => (
             <Link
               key={r.athlete_id}
-              href={`/athletes/${r.athlete_id}`}
+              href={`/athletes/${r.slug ?? r.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
@@ -163,7 +178,7 @@ export default function StatsWidget({ year }: { year: number }) {
           markRows.map((m, i) => (
             <Link
               key={i}
-              href={`/athletes/${m.athlete_id}`}
+              href={`/athletes/${m.slug ?? m.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
@@ -177,7 +192,7 @@ export default function StatsWidget({ year }: { year: number }) {
           ))}
 
         {!loading && mode === "ranking" && rankingRows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
+          <div className="px-4 py-4 text-xs text-neutral-500">No results yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
         )}
         {!loading && mode === "marks" && markRows.length === 0 && (
           <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>

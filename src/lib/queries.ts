@@ -52,6 +52,40 @@ export async function getAthleteInfo(athleteId: string): Promise<AthleteInfo | n
   return { ...r, birth_date_full: r.birth_date_raw && r.birth_date_raw.length > 4 ? r.birth_date_raw : null };
 }
 
+// Name-based SEO slugs for athlete profile URLs (athletics_all.v_athlete_slugs,
+// disambiguated name -> +nationality -> +first year -> numeric suffix, so two
+// athletes never collide -- see matchAthletesIncremental/athlete_slugs_view.sql).
+export async function getAthleteSlug(athleteId: string): Promise<string | null> {
+  const rows = await runQuery<{ slug: string }>(`
+    SELECT slug FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE athlete_id = @athleteId
+  `, { athleteId });
+  return rows[0]?.slug ?? null;
+}
+
+export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
+  const rows = await runQuery<{ athlete_id: string }>(`
+    SELECT athlete_id FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE slug = @slug
+  `, { slug });
+  return rows[0]?.athlete_id ?? null;
+}
+
+// Batched slug lookup for pages/components that link to several athletes at
+// once (rankings, meet results, search...): one query for every id on the
+// page instead of one per row. Falls back to the raw id (still resolves,
+// just via the redirect in /athletes/[id]) for any id missing a slug.
+export async function getAthleteSlugs(athleteIds: string[]): Promise<Map<string, string>> {
+  const ids = Array.from(new Set(athleteIds.filter(Boolean)));
+  if (ids.length === 0) return new Map();
+  const rows = await runQuery<{ athlete_id: string; slug: string }>(`
+    SELECT athlete_id, slug FROM \`athletics-database.athletics_all.v_athlete_slugs\` WHERE athlete_id IN UNNEST(@ids)
+  `, { ids });
+  return new Map(rows.map((r) => [r.athlete_id, r.slug]));
+}
+
+export function athleteHref(athleteId: string, slugs?: Map<string, string>): string {
+  return `/athletes/${slugs?.get(athleteId) ?? athleteId}`;
+}
+
 export type BestResultRow = {
   athletics_event: string;
   gender: string;
@@ -262,6 +296,7 @@ export type AthleteYearResultRow = {
   mark_display: string;
   competition_level: string | null;
   competition_score: number | null;
+  race_level: number | null; // field strength of this specific race, 0-100, tier-anchored (see registry/16_compute_race_level.sql) -- "Quality", not to be confused with competition_score ("Points": this athlete's own scored points for this result)
   record: string | null;
   mark_value: number | null;
   wind: string | null;
@@ -281,15 +316,25 @@ export async function getAthleteResultsForYear(
   // (and only gets used for sorting) in the single-discipline case.
   const isField = isFieldEvent(event);
   return runQuery<AthleteYearResultRow>(`
-    SELECT CAST(date AS STRING) AS date, year, event_name, athletics_event, round, place, mark_display,
-      division_key_resolved AS competition_level, ROUND(competition_score, 0) AS competition_score,
-      NULLIF(record, '') AS record, wind, wind_legal,
-      ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athlete_id = @athleteId
-      ${event !== "all" ? "AND athletics_event = @event" : ""}
-      ${year !== "all" ? "AND year = @year" : ""}
-    ORDER BY competition_score DESC NULLS LAST, date DESC
+    SELECT CAST(e.date AS STRING) AS date, e.year, e.event_name, e.athletics_event, e.round, e.place, e.mark_display,
+      e.division_key_resolved AS competition_level, ROUND(e.competition_score, 0) AS competition_score, rl.race_level,
+      NULLIF(e.record, '') AS record, e.wind, e.wind_legal,
+      ${isField ? "SAFE_CAST(e.mark AS FLOAT64)" : "e.mark_seconds"} AS mark_value
+    FROM \`athletics-database.athletics_all.events_enriched\` e
+    -- Same race_level join as getMeetResults -- keyed by RAW event_name,
+    -- round NULL-safe (see its comment there).
+    LEFT JOIN (
+      SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
+        gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
+      FROM \`athletics-database.registry.race_level\`
+    ) rl
+      ON rl.rl_event_name = e.event_name AND rl.rl_athletics_event = e.athletics_event
+     AND rl.rl_gender = e.gender AND CAST(rl.rl_date AS STRING) = CAST(e.date AS STRING)
+     AND (rl.rl_round = e.round OR (rl.rl_round IS NULL AND e.round IS NULL))
+    WHERE e.athlete_id = @athleteId
+      ${event !== "all" ? "AND e.athletics_event = @event" : ""}
+      ${year !== "all" ? "AND e.year = @year" : ""}
+    ORDER BY e.competition_score DESC NULLS LAST, e.date DESC
   `, { athleteId, ...(event !== "all" ? { event } : {}), ...(year !== "all" ? { year } : {}) });
 }
 
@@ -325,7 +370,7 @@ export type PodiumEntry = {
   record: string | null;
   wind: string | null;
   wind_legal: boolean | null;
-  athletes: { athlete_id: string | null; display_name: string }[];
+  athletes: { athlete_id: string | null; display_name: string; slug: string | null }[];
 };
 
 export type Race = {
@@ -482,7 +527,7 @@ async function fetchWindow(
       podiums.set(podiumKey, entry);
       race.top3.push(entry);
     }
-    entry.athletes.push({ athlete_id: r.athlete_id, display_name: r.display_name });
+    entry.athletes.push({ athlete_id: r.athlete_id, display_name: r.display_name, slug: null });
   }
 
   const list = Array.from(races.values());
@@ -537,6 +582,11 @@ async function fetchWindow(
     slots += g.races.length;
     if (slots >= maxSlots) break;
   }
+
+  const ids = result.flatMap((g) => g.races.flatMap((race) => race.top3.flatMap((e) => e.athletes.map((a) => a.athlete_id))));
+  const slugs = await getAthleteSlugs(ids.filter((id): id is string => !!id));
+  for (const g of result) for (const race of g.races) for (const entry of race.top3) for (const a of entry.athletes) a.slug = slugs.get(a.athlete_id ?? "") ?? null;
+
   return result;
 }
 
@@ -565,14 +615,24 @@ export async function getUpcomingCompetitions(
   category?: string,
   discipline?: string
 ): Promise<UpcomingCompetition[]> {
+  // No category filter ("All categories"): OW-B all weigh the same (not a
+  // strict tier hierarchy among themselves) -- a nearer B shows ahead of a
+  // later A, exactly like a nearer A shows ahead of a later OW. Only the
+  // OW-B bucket as a whole outranks C-F, so a flood of small club meets
+  // can't crowd the real ones out of the 10 slots, but a C-F race still
+  // gets through when there's room (e.g. a quiet week with nothing bigger
+  // nearby). An explicit category filter cares only about date.
+  const orderBy = category
+    ? "date_start ASC"
+    : "IF(category IN ('OW','DF','GW','GL','A','B'), 0, 1) ASC, date_start ASC";
   return runQuery<UpcomingCompetition>(`
     WITH up AS (
       SELECT row_key, date_start, date_end, name, venue, country, category, disciplines
       FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
       WHERE date_start >= CURRENT_DATE()
-        AND category IN ${category ? "(@category)" : "('OW','DF','GW','GL','A','B')"}
+        ${category ? "AND category = @category" : ""}
         ${discipline ? "AND disciplines LIKE CONCAT('%', @discipline, '%')" : ""}
-      ORDER BY date_start ASC
+      ORDER BY ${orderBy}
       LIMIT ${limit}
     ),
     matches AS (
@@ -609,6 +669,7 @@ export type RankingRow = {
   best_mark_value: number | null;
   best_mark_wind: string | null;
   best_mark_wind_legal: boolean | null;
+  slug?: string | null;
 };
 
 // Standard World Athletics age categories: age is measured as of Dec 31
@@ -801,6 +862,7 @@ export type GlobalRankingRow = {
   n_results: number;
   nationality: string | null;
   birth_year: number | null;
+  slug?: string | null;
 };
 
 function globalRankingAggCte(year: number | "all", ageMax: number | undefined, hasNationality: boolean) {
@@ -881,7 +943,7 @@ export type MarkRow = {
 };
 
 export async function getEventAllTimeBest(
-  event: string, gender: string, limit = 10, ageCategory?: string, indoor = false
+  event: string, gender: string, limit = 10, ageCategory?: string, indoor = false, nationality?: string, area?: string
 ): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
@@ -897,11 +959,13 @@ export async function getEventAllTimeBest(
       AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
       ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
       ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+      ${nationality ? "AND nationality = @nationality" : ""}
+      ${area ? "AND nationality IN (SELECT code FROM `athletics-database.tablasauxiliares.countries` WHERE area = @area)" : ""}
       AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
     ORDER BY ${orderExpr}
     LIMIT ${limit}
-  `, { event, gender });
+  `, { event, gender, ...(nationality ? { nationality } : {}), ...(area ? { area } : {}) });
 }
 
 export type AreaBestRow = MarkRow & { area: string; area_name: string };
@@ -1025,7 +1089,9 @@ export async function getEventYearBestMarks(
   year: number,
   limit = 10,
   ageCategory?: string,
-  indoor = false
+  indoor = false,
+  nationality?: string,
+  area?: string
 ): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
@@ -1041,11 +1107,13 @@ export async function getEventYearBestMarks(
       AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
       ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
       ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+      ${nationality ? "AND nationality = @nationality" : ""}
+      ${area ? "AND nationality IN (SELECT code FROM `athletics-database.tablasauxiliares.countries` WHERE area = @area)" : ""}
       AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
     ORDER BY ${orderExpr}
     LIMIT ${limit}
-  `, { event, gender });
+  `, { event, gender, ...(nationality ? { nationality } : {}), ...(area ? { area } : {}) });
 }
 
 // ---------------------------------------------------------------------
@@ -1405,6 +1473,7 @@ export type YearProgressionPoint = {
   athlete_id?: string | null;
   athlete?: string | null;
   nationality?: string | null;
+  slug?: string | null;
 };
 
 export async function getEventYearlyProgression(
@@ -1417,7 +1486,7 @@ export async function getEventYearlyProgression(
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
-  return runQuery<YearProgressionPoint>(`
+  const rows = await runQuery<YearProgressionPoint>(`
     SELECT year, mark_display,
       ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value,
       athlete_id, athlete_display_name AS athlete, nationality
@@ -1430,6 +1499,102 @@ export async function getEventYearlyProgression(
     QUALIFY ROW_NUMBER() OVER (PARTITION BY year ORDER BY ${orderExpr}) = 1
     ORDER BY year ASC
   `, { event, gender });
+  const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id).filter((id): id is string => !!id));
+  for (const r of rows) r.slug = slugs.get(r.athlete_id ?? "") ?? null;
+  return rows;
+}
+
+// ---------------------------------------------------------------------
+// Top races of a year by quality (field-strength, see registry/16_compute_race_level.sql)
+// or by recency -- Home's third sidebar widget, same shape as the
+// athlete/nation stats widgets (gender + discipline group/event filters).
+// ---------------------------------------------------------------------
+
+export type TopRaceRow = {
+  event_name: string;
+  athletics_event: string;
+  gender: string;
+  date: string | null;
+  year: number | null;
+  round: string | null;
+  race_level: number;
+  tier: string | null;
+  top_athlete_id: string | null;
+  top_athlete: string | null;
+  top_nationality: string | null;
+  top_mark: string | null;
+};
+
+// Some historical sources (sports123, mainly pre-2012 marathon majors)
+// have no `date` at all, only `year` -- registry/16_compute_race_level.sql
+// groups those as one race per year instead of merging a decade of
+// editions together (see that file's v6 header). Matches that same
+// fallback here so the frontend's join lines up with how race_level was
+// actually grouped.
+const RACE_KEY_SQL = `IFNULL(CAST(date AS STRING), CONCAT('Y', CAST(year AS STRING)))`;
+
+function racesCte(event: string, gender: string, year: number | "all", indoor: boolean) {
+  // registry.race_level has no track_key (events_enriched does -- see
+  // INDOOR_EXPR above), so this is name-only, the weaker half of that
+  // check; good enough here and avoids an extra join.
+  const indoorFilter = `AND ${indoor ? "" : "NOT "}LOWER(event_name) LIKE '%indoor%'`;
+  return `
+    SELECT event_name, athletics_event, gender, CAST(date AS STRING) AS date, year,
+      ${RACE_KEY_SQL} AS race_key, IFNULL(round, '') AS round, race_level, tier
+    FROM \`athletics-database.registry.race_level\`
+    WHERE gender = @gender
+      ${year !== "all" ? "AND year = @year" : ""}
+      ${event !== "all" ? "AND athletics_event = @event" : ""}
+      ${indoorFilter}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, race_key, IFNULL(round, '') ORDER BY race_level DESC) = 1
+  `;
+}
+
+export async function getTopRaces(
+  event: string,
+  gender: string,
+  year: number | "all",
+  sortBy: "quality" | "recent" = "quality",
+  pageSize = 10,
+  indoor = false,
+  page = 1
+): Promise<TopRaceRow[]> {
+  const order = sortBy === "recent" ? "race_key DESC, race_level DESC" : "race_level DESC, race_key DESC";
+  return runQuery<TopRaceRow>(`
+    WITH races AS (${racesCte(event, gender, year, indoor)}),
+    winners AS (
+      SELECT event_name, athletics_event, gender, ${RACE_KEY_SQL} AS race_key, IFNULL(round, '') AS round,
+        athlete_id, athlete_display_name AS display_name, nationality, mark_display
+      FROM \`athletics-database.athletics_all.events_enriched\`
+      WHERE place = 1 AND gender = @gender
+        ${year !== "all" ? "AND year = @year" : ""}
+        ${event !== "all" ? "AND athletics_event = @event" : ""}
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, race_key, round ORDER BY athlete_id) = 1
+    )
+    SELECT r.event_name, r.athletics_event, r.gender, r.date, r.year, r.round, r.race_level, r.tier,
+      w.athlete_id AS top_athlete_id, w.display_name AS top_athlete, w.nationality AS top_nationality, w.mark_display AS top_mark
+    FROM races r
+    LEFT JOIN winners w USING (event_name, athletics_event, gender, race_key, round)
+    ORDER BY ${order}
+    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+  `, { event, gender, ...(year !== "all" ? { year } : {}) });
+}
+
+export async function getTopRacesCount(event: string, gender: string, year: number | "all", indoor = false): Promise<number> {
+  const rows = await runQuery<{ n: number }>(`
+    SELECT COUNT(*) AS n FROM (${racesCte(event, gender, year, indoor)})
+  `, { event, gender, ...(year !== "all" ? { year } : {}) });
+  return rows[0]?.n ?? 0;
+}
+
+export async function getRaceYears(): Promise<number[]> {
+  const rows = await runQuery<{ year: number }>(`
+    SELECT DISTINCT year
+    FROM \`athletics-database.registry.race_level\`
+    WHERE year IS NOT NULL
+    ORDER BY year DESC
+  `);
+  return rows.map((r) => r.year);
 }
 
 // ---------------------------------------------------------------------

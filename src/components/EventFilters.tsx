@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 type AgeCategory = "" | "U18" | "U20" | "U23";
 
 const AGE_CATEGORIES: { value: AgeCategory; label: string }[] = [
-  { value: "", label: "Senior (all ages)" },
+  { value: "", label: "All ages" },
   { value: "U23", label: "U23" },
   { value: "U20", label: "U20" },
   { value: "U18", label: "U18" },
@@ -20,6 +20,8 @@ export default function EventFilters({
   ageCategory,
   limit,
   indoor,
+  nationality,
+  area,
   baseHref,
 }: {
   // "all" (the disciplines page's all-time view) is left out of the URL
@@ -29,6 +31,8 @@ export default function EventFilters({
   ageCategory: string;
   limit: number;
   indoor?: boolean;
+  nationality?: string;
+  area?: string;
   baseHref: string;
 }) {
   const router = useRouter();
@@ -38,6 +42,8 @@ export default function EventFilters({
     if (year !== "all") params.set("year", String(year));
     if (nextAge) params.set("age", nextAge);
     if (limit !== 10) params.set("limit", String(limit));
+    if (nationality) params.set("nationality", nationality);
+    if (area) params.set("area", area);
     // Always explicit, never just omitted when true -- some events (60m/
     // 60mH) default to indoor, so dropping a "false" would silently flip
     // back to that default instead of keeping whatever's showing now.

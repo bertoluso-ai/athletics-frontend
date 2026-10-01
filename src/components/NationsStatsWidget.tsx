@@ -29,6 +29,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
   const [gender, setGender] = useState<Gender>("Men");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
+  const isAll = groupKey === "all";
   const [event, setEvent] = useState<string>(group.events[gender][0]);
 
   const [rows, setRows] = useState<NationRow[]>([]);
@@ -44,7 +45,12 @@ export default function NationsStatsWidget({ year }: { year: number }) {
     let cancelled = false;
     setLoading(true);
     const view = mode === "wins" ? "wins" : "season";
-    const url = `/api/nation-ranking?event=${encodeURIComponent(event)}&gender=${gender}&year=${year}&view=${view}`;
+    // "All": the backend (getNationRanking) already sums across every
+    // discipline when no event is given -- same as the full Rankings page's
+    // "All disciplines" option -- so omitting the param, not pinning it to
+    // whatever the (hidden) discipline dropdown last held, is what actually
+    // combines every event.
+    const url = `/api/nation-ranking?${isAll ? "" : `event=${encodeURIComponent(event)}&`}gender=${gender}&year=${year}&view=${view}`;
     fetch(url)
       .then((r) => r.json())
       .then((data) => !cancelled && setRows(data))
@@ -52,7 +58,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
     return () => {
       cancelled = true;
     };
-  }, [mode, event, gender, year]);
+  }, [mode, event, gender, year, isAll]);
 
   return (
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
@@ -99,7 +105,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
 
       <div
         className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
-          (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
+          !isAll && (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
         }`}
       >
         <select
@@ -113,7 +119,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
             </option>
           ))}
         </select>
-        {(group.events[gender] as readonly string[]).length > 1 && (
+        {!isAll && (group.events[gender] as readonly string[]).length > 1 && (
           <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
@@ -150,7 +156,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
           ))}
 
         {!loading && rows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
+          <div className="px-4 py-4 text-xs text-neutral-500">No results yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
         )}
       </div>
     </div>

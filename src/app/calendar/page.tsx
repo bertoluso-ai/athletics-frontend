@@ -1,8 +1,10 @@
 import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
+import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getCalendar, getCalendarYears, TIER_ORDER } from "@/lib/calendar";
+import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
 export const revalidate = 3600;
 
@@ -33,42 +35,43 @@ function TierBadge({ tier }: { tier: string | null }) {
 export default async function CalendarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; tier?: string; month?: string; sort?: string; dir?: string }>;
+  searchParams: Promise<{
+    year?: string;
+    tier?: string | string[];
+    month?: string | string[];
+    sort?: string;
+    dir?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const years = await getCalendarYears();
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
+  const tierValues = Array.isArray(sp.tier) ? sp.tier : sp.tier ? sp.tier.split(",") : [];
   const selectedTiers: string[] =
-    !sp.tier || sp.tier === "ALL"
-      ? [...TIER_ORDER]
-      : sp.tier.split(",").filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
-  const tierParam =
-    selectedTiers.length === 0 ? "" : selectedTiers.length === TIER_ORDER.length ? "ALL" : selectedTiers.join(",");
-  const month = sp.month ? Number(sp.month) : undefined;
+    tierValues.length === 0 ? [...TIER_ORDER] : tierValues.filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
+  const monthValues = Array.isArray(sp.month) ? sp.month : sp.month ? sp.month.split(",") : [];
+  // No month in the URL at all, viewing the current year: default to the
+  // current month instead of "All year" (which, sorted by date ascending,
+  // visually looked like it defaulted to January).
+  const thisMonth = new Date().getMonth() + 1;
+  const selectedMonths: number[] =
+    sp.month === undefined && year === thisYear ? [thisMonth] : monthValues.map(Number).filter((m) => m >= 1 && m <= 12);
   const sort = sp.sort === "name" || sp.sort === "tier" ? sp.sort : "date";
   const dir = sp.dir === "desc" ? "desc" : "asc";
-  const rows = await getCalendar(year, selectedTiers, month, sort, dir);
+  const rows = await getCalendar(year, selectedTiers, selectedMonths, sort, dir);
   const today = new Date().toISOString().slice(0, 10);
+  const athleteSlugs = await getAthleteSlugs(rows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
 
-  const href = (over: { year?: number; tier?: string; month?: number | null; sort?: string; dir?: string }) => {
-    const q = new URLSearchParams({ year: String(over.year ?? year), tier: over.tier ?? tierParam });
-    const m = over.month === null ? undefined : over.month ?? month;
-    if (m) q.set("month", String(m));
+  const href = (over: { year?: number; tier?: string[]; month?: number[]; sort?: string; dir?: string }) => {
+    const q = new URLSearchParams();
+    q.set("year", String(over.year ?? year));
+    (over.tier ?? selectedTiers).forEach((t) => q.append("tier", t));
+    (over.month ?? selectedMonths).forEach((m) => q.append("month", String(m)));
     q.set("sort", over.sort ?? sort);
     q.set("dir", over.dir ?? dir);
     return `/calendar?${q.toString()}`;
   };
-  // toggles one tier on/off within the current multi-selection; keeps at
-  // least one tier selected (deselecting the last one is a no-op)
-  const tierToggleHref = (t: string) => {
-    if (selectedTiers.includes(t) && selectedTiers.length === 1) return href({});
-    const next = selectedTiers.includes(t) ? selectedTiers.filter((x) => x !== t) : [...selectedTiers, t];
-    const param = next.length === TIER_ORDER.length ? "ALL" : next.join(",");
-    return href({ tier: param });
-  };
-  const pill = (active: boolean) =>
-    `shrink-0 text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
   const sortHref = (col: "date" | "name" | "tier") => href({ sort: col, dir: sort === col && dir === "asc" ? "desc" : "asc" });
   const sortArrow = (col: string) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
 
@@ -78,46 +81,41 @@ export default async function CalendarPage({
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Calendar</h1>
 
-        <form action="/calendar" className="flex flex-wrap items-center gap-2 mb-3">
-          <label className="text-xs text-neutral-400">Year</label>
-          <select name="year" defaultValue={year} className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700">
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-          <input type="hidden" name="tier" value={tierParam} />
-          {month && <input type="hidden" name="month" value={month} />}
+        <form action="/calendar" className="flex flex-wrap items-end gap-2 mb-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Year</label>
+            <select name="year" defaultValue={year} className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700">
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Month</label>
+            <MultiSelectDropdown
+              name="month"
+              className="min-w-[8rem]"
+              placeholder="All year"
+              defaultSelected={selectedMonths.map(String)}
+              options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Level</label>
+            <MultiSelectDropdown
+              name="tier"
+              className="min-w-[8rem]"
+              placeholder="All levels"
+              defaultSelected={tierValues}
+              options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
+            />
+          </div>
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
           <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
         </form>
-
-        <div className="flex flex-wrap items-center gap-1.5 mb-3">
-          <span className="text-xs text-neutral-400 mr-1">Level</span>
-          {TIER_ORDER.map((t) => (
-            <Link
-              key={t}
-              href={tierToggleHref(t)}
-              title={TIER_LABELS.find((x) => x.value === t)?.label ?? t}
-              className={pill(selectedTiers.includes(t))}
-            >
-              {t}
-            </Link>
-          ))}
-        </div>
-
-        <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 mb-4">
-          <Link href={href({ month: null })} className={pill(!month)}>
-            All year
-          </Link>
-          {MONTHS.map((m, i) => (
-            <Link key={m} href={href({ month: i + 1 })} className={pill(month === i + 1)}>
-              {m}
-            </Link>
-          ))}
-        </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
           <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
@@ -140,7 +138,7 @@ export default async function CalendarPage({
                 r.kind === "past" && r.top_athlete ? (
                   <>
                     <Flag code={r.top_nationality} className="mr-1" />
-                    <Link href={`/athletes/${r.top_athlete_id}`} className="text-neutral-200 hover:text-orange-400">
+                    <Link href={athleteHref(r.top_athlete_id!, athleteSlugs)} className="text-neutral-200 hover:text-orange-400">
                       {r.top_athlete}
                     </Link>
                     <span className="text-neutral-500"> · {eventLabel(r.top_event ?? "")} · </span>
@@ -150,7 +148,7 @@ export default async function CalendarPage({
                         className="ml-1.5 text-[10px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400"
                         title="Field strength of this edition (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
                       >
-                        Lvl {Math.round(r.level)}
+                        Quality {Math.round(r.level)}
                       </span>
                     )}
                   </>

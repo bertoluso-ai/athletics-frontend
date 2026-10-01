@@ -3,7 +3,11 @@
 export const EVENT_GROUPS = [
   {
     key: "sprints", label: "Sprints",
-    events: { Men: ["60 Metres", "100 Metres", "200 Metres", "400 Metres"], Women: ["60 Metres", "100 Metres", "200 Metres", "400 Metres"] },
+    // 100m first: it's the event's default discipline everywhere a
+    // group's own first entry is used as the initial selection (Home's
+    // Athletes/Races widgets, Rankings, Disciplines...) -- 60m is indoor-
+    // only and far less representative to lead with.
+    events: { Men: ["100 Metres", "60 Metres", "200 Metres", "400 Metres"], Women: ["100 Metres", "60 Metres", "200 Metres", "400 Metres"] },
     names: { "60 Metres": "60m", "100 Metres": "100m", "200 Metres": "200m", "400 Metres": "400m" } as Record<string, string>,
   },
   {

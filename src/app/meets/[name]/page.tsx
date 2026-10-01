@@ -3,7 +3,7 @@ import Header from "@/components/Header";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
-import { getMeetAvailableYears, getMeetResults } from "@/lib/queries";
+import { getMeetAvailableYears, getMeetResults, getAthleteSlugs } from "@/lib/queries";
 import MeetEventStats from "@/components/MeetEventStats";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
@@ -36,6 +36,7 @@ export default async function MeetPage({
 
   const year = yearParam ? Number(yearParam) : years[0];
   const results = await getMeetResults(eventName, year);
+  const athleteSlugs = await getAthleteSlugs(results.map((r) => r.athlete_id).filter((id): id is string => !!id));
   const allGroups = groupResults(results).sort(
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
   );
@@ -105,7 +106,14 @@ export default async function MeetPage({
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold">{first?.series_name ?? eventName}</h1>
+            {/* Itinerant series (World Champs, Grand Prix Final, ...) share
+                one display_series_name across editions hosted in different
+                cities each year -- showing that anchor name here would label
+                e.g. a 2001 Melbourne edition "Paris IAAF Grand Prix Final"
+                just because Paris 2002 happened to have more rows and got
+                picked as the series' representative name. The edition's own
+                event_name always matches the city/date actually shown below. */}
+            <h1 className="text-2xl font-bold">{first?.event_name ?? eventName}</h1>
             {(first?.city || meetDate || bestTier) && (
               <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
                 <span>
@@ -139,7 +147,7 @@ export default async function MeetPage({
         {/* results | history of the selected event at this meet */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
-            <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
+            <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} athleteSlugs={athleteSlugs} />
           </div>
           {statsEvent && statsGender && (
             <div>

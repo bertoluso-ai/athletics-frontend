@@ -26,6 +26,7 @@ type RankingRow = {
   best_mark_wind?: string | null;
   best_mark_wind_legal?: boolean | null;
   photo: string | null;
+  slug?: string | null;
 };
 
 type RelayRankingRow = {
@@ -352,7 +353,7 @@ export default function RankingsExplorer() {
           (visibleRows as RankingRow[]).map((r, i) => (
             <Link
               key={r.athlete_id}
-              href={`/athletes/${r.athlete_id}`}
+              href={`/athletes/${r.slug ?? r.athlete_id}`}
               className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
             >
               <span className="text-sm flex items-center gap-2 min-w-0 flex-1">

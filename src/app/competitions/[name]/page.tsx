@@ -3,7 +3,7 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import YearSelect from "@/components/YearSelect";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
-import { getCompetitionResults, getCompetitionYears } from "@/lib/queries";
+import { getCompetitionResults, getCompetitionYears, getAthleteSlugs } from "@/lib/queries";
 import { TIER_LABELS } from "@/lib/events";
 
 function tierLabel(code: string) {
@@ -39,6 +39,7 @@ export default async function CompetitionDetailPage({
 
   const year = yearParam ? Number(yearParam) : years[0];
   const results = await getCompetitionResults(eventName, year);
+  const athleteSlugs = await getAthleteSlugs(results.map((r) => r.athlete_id).filter((id): id is string => !!id));
   const groups = groupResults(results).sort(
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
   );
@@ -76,7 +77,7 @@ export default async function CompetitionDetailPage({
           <YearSelect years={years} year={year} baseHref={`/competitions/${encodeURIComponent(eventName)}`} />
         </div>
 
-        <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} />
+        <MeetResultsSections groups={groups} emptyLabel={`No results for ${year}.`} athleteSlugs={athleteSlugs} />
       </main>
     </div>
   );

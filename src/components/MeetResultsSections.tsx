@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
-import { type MeetResultRow } from "@/lib/queries";
+import { type MeetResultRow, athleteHref } from "@/lib/queries";
 import { eventLabel, isRelayEvent, isFieldEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
@@ -179,7 +179,7 @@ function lastName(fullName: string) {
   return parts[parts.length - 1];
 }
 
-function ResultRowItem({ r }: { r: MeetResultRow }) {
+function ResultRowItem({ r, athleteSlugs }: { r: MeetResultRow; athleteSlugs: Map<string, string> }) {
   const content = (
     <>
       <span className="text-sm flex items-center gap-2 min-w-0">
@@ -200,13 +200,13 @@ function ResultRowItem({ r }: { r: MeetResultRow }) {
     return <div className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40">{content}</div>;
   }
   return (
-    <Link href={`/athletes/${r.athlete_id}`} className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40 hover:bg-neutral-800">
+    <Link href={athleteHref(r.athlete_id, athleteSlugs)} className="flex items-center justify-between px-4 py-1.5 bg-neutral-900/40 hover:bg-neutral-800">
       {content}
     </Link>
   );
 }
 
-function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
+function RelayGroup({ rows, athleteSlugs }: { rows: MeetResultRow[]; athleteSlugs: Map<string, string> }) {
   const teams = new Map<
     string,
     { place: number | null; nationality: string | null; mark_display: string; record: string | null; roster: { athlete_id: string | null; display_name: string }[] }
@@ -235,7 +235,7 @@ function RelayGroup({ rows }: { rows: MeetResultRow[] }) {
                   <span key={ri}>
                     {ri > 0 && " · "}
                     {a.athlete_id ? (
-                      <Link href={`/athletes/${a.athlete_id}`} className="hover:text-orange-400">
+                      <Link href={athleteHref(a.athlete_id, athleteSlugs)} className="hover:text-orange-400">
                         {lastName(a.display_name)}
                       </Link>
                     ) : (
@@ -267,7 +267,15 @@ function isFinalRound(round: string | null): boolean {
   return r.includes("final") && !r.includes("semifinal") && !r.includes("quarterfinal");
 }
 
-export default function MeetResultsSections({ groups, emptyLabel }: { groups: Group[]; emptyLabel: string }) {
+export default function MeetResultsSections({
+  groups,
+  emptyLabel,
+  athleteSlugs,
+}: {
+  groups: Group[];
+  emptyLabel: string;
+  athleteSlugs: Map<string, string>;
+}) {
   return (
     <div className="flex flex-col gap-6 mt-6">
       {groups.map((g) => {
@@ -310,7 +318,7 @@ export default function MeetResultsSections({ groups, emptyLabel }: { groups: Gr
                   className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400 normal-case"
                   title="Field strength of this race (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
                 >
-                  Lvl {Math.round(g.level)}
+                  Quality {Math.round(g.level)}
                 </span>
               )}
             </h2>
@@ -318,9 +326,9 @@ export default function MeetResultsSections({ groups, emptyLabel }: { groups: Gr
           </div>
           <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
             {isRelayEvent(g.athletics_event) ? (
-              <RelayGroup rows={g.rows} />
+              <RelayGroup rows={g.rows} athleteSlugs={athleteSlugs} />
             ) : (
-              g.rows.map((r, i) => <ResultRowItem key={i} r={r} />)
+              g.rows.map((r, i) => <ResultRowItem key={i} r={r} athleteSlugs={athleteSlugs} />)
             )}
           </div>
         </section>

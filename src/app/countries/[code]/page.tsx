@@ -20,6 +20,7 @@ import {
   type CountryFilters,
   type CountryResultRow,
 } from "@/lib/countries";
+import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
 export const revalidate = 3600;
 
@@ -88,6 +89,11 @@ export default async function CountryPage({
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
   const { athletes, lastWins, topResults, seasons, owMedals } = detail;
+  const athleteSlugs = await getAthleteSlugs([
+    ...athletes.map((a) => a.athlete_id),
+    ...lastWins.map((r) => r.athlete_id),
+    ...topResults.map((r) => r.athlete_id),
+  ]);
   const bestRankEver = seasons.length ? Math.min(...seasons.map((x) => x.rank)) : null;
   const goldSeasons = seasons.filter((x) => x.rank <= 8).length;
 
@@ -235,7 +241,7 @@ export default async function CountryPage({
                     {r.event_name}
                   </Link>{" "}
                   <span className="text-neutral-400">{eventLabel(r.athletics_event)}</span>{" "}
-                  <Link href={`/athletes/${r.athlete_id}`} className="text-neutral-500 hover:text-orange-400">
+                  <Link href={athleteHref(r.athlete_id, athleteSlugs)} className="text-neutral-500 hover:text-orange-400">
                     {r.display_name}
                   </Link>
                 </div>
@@ -274,7 +280,7 @@ export default async function CountryPage({
                 {scoring.slice(0, 12).map((a, i) => (
                   <Link
                     key={a.athlete_id}
-                    href={`/athletes/${a.athlete_id}`}
+                    href={athleteHref(a.athlete_id, athleteSlugs)}
                     title={`${a.display_name} — ${a.points} pts${photos[i] ? `
 ${photoCredit(photos[i]!)}` : ""}`}
                     className="group relative aspect-[3/4] rounded-md overflow-hidden bg-neutral-800 border border-neutral-800"
@@ -315,7 +321,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
                   <span className="text-[11px] text-neutral-500">latest {lastWins.length} of {me!.wins}</span>
                 )}
               </div>
-              <ResultsTable rows={list === "wins" ? lastWins : topResults} showPoints={list === "top"} />
+              <ResultsTable rows={list === "wins" ? lastWins : topResults} showPoints={list === "top"} athleteSlugs={athleteSlugs} />
             </section>
           </div>
 
@@ -344,7 +350,7 @@ ${photoCredit(photos[i]!)}` : ""}`}
                 items={squad.slice(0, 500).map((a) => (
                   <Link
                     key={a.athlete_id}
-                    href={`/athletes/${a.athlete_id}`}
+                    href={athleteHref(a.athlete_id, athleteSlugs)}
                     className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
                     title={a.counts ? `Scores for ${name} (#${a.rn_in_country} in the country)` : `#${a.rn_in_country} in the country, outside the best ${COUNTED_ATHLETES}`}
                   >
@@ -439,12 +445,27 @@ ${photoCredit(photos[i]!)}` : ""}`}
   );
 }
 
-function ResultsTable({ rows, showPoints }: { rows: CountryResultRow[]; showPoints: boolean }) {
+function ResultsTable({
+  rows,
+  showPoints,
+  athleteSlugs,
+}: {
+  rows: CountryResultRow[];
+  showPoints: boolean;
+  athleteSlugs: Map<string, string>;
+}) {
   if (rows.length === 0) return <p className="text-sm text-neutral-500">None this season.</p>;
-  return <ViewAllList noun="results" initial={15} scrollOnMobile items={rows.map((r, i) => <ResultRow key={i} r={r} showPoints={showPoints} />)} />;
+  return (
+    <ViewAllList
+      noun="results"
+      initial={15}
+      scrollOnMobile
+      items={rows.map((r, i) => <ResultRow key={i} r={r} showPoints={showPoints} athleteSlugs={athleteSlugs} />)}
+    />
+  );
 }
 
-function ResultRow({ r, showPoints }: { r: CountryResultRow; showPoints: boolean }) {
+function ResultRow({ r, showPoints, athleteSlugs }: { r: CountryResultRow; showPoints: boolean; athleteSlugs: Map<string, string> }) {
   return (
     <div
       className={`grid ${showPoints ? "grid-cols-[3.25rem_1.75rem_1fr_3rem]" : "grid-cols-[3.25rem_1fr]"} items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40`}
@@ -463,7 +484,7 @@ function ResultRow({ r, showPoints }: { r: CountryResultRow; showPoints: boolean
         </span>
         <span className="block text-[11px] text-neutral-500 truncate">
           {eventLabel(r.athletics_event)} ·{" "}
-          <Link href={`/athletes/${r.athlete_id}`} className="text-neutral-300 hover:text-orange-400">
+          <Link href={athleteHref(r.athlete_id, athleteSlugs)} className="text-neutral-300 hover:text-orange-400">
             {r.display_name}
           </Link>{" "}
           · <span className="font-mono">{r.mark_display}</span>

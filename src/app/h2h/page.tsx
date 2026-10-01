@@ -4,7 +4,7 @@ import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import { GenericAthlete } from "@/components/Avatar";
 import H2HPicker from "@/components/H2HPicker";
-import { getAthleteInfo, getAthletePersonalBests } from "@/lib/queries";
+import { getAthleteInfo, getAthletePersonalBests, getAthleteSlugs } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
@@ -29,9 +29,10 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 
   if (!b) {
     const suggestions = await getH2HSuggestions(a);
+    const slugsA = await getAthleteSlugs([a]);
     return (
       <Shell>
-        <AthleteTitle id={a} name={infoA.display_name} nationality={infoA.nationality} />
+        <AthleteTitle id={a} slug={slugsA.get(a)} name={infoA.display_name} nationality={infoA.nationality} />
         <h2 className="text-lg font-semibold mt-4 mb-1">Head-to-head</h2>
         <p className="text-sm text-neutral-400 mb-3">Pick an athlete to compare results and careers.</p>
         <H2HPicker baseId={a} />
@@ -77,6 +78,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
   ]);
   const kA = kpis.find((k) => k.athlete_id === a);
   const kB = kpis.find((k) => k.athlete_id === b);
+  const slugs = await getAthleteSlugs([a, b]);
   const aheadA = shared.filter((r) => r.place_a < r.place_b).length;
   const aheadB = shared.filter((r) => r.place_b < r.place_a).length;
   const decided = aheadA + aheadB;
@@ -106,15 +108,15 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
   return (
     <Shell>
       <p className="text-sm text-neutral-400 mb-4">
-        <Link href={`/athletes/${a}`} className="text-orange-400 hover:underline">{infoA.display_name}</Link> vs{" "}
-        <Link href={`/athletes/${b}`} className="text-sky-400 hover:underline">{infoB.display_name}</Link> ·{" "}
+        <Link href={`/athletes/${slugs.get(a) ?? a}`} className="text-orange-400 hover:underline">{infoA.display_name}</Link> vs{" "}
+        <Link href={`/athletes/${slugs.get(b) ?? b}`} className="text-sky-400 hover:underline">{infoB.display_name}</Link> ·{" "}
         <Link href={`/h2h?a=${b}&b=${a}`} className="hover:text-neutral-200 underline">swap</Link> ·{" "}
         <Link href={`/h2h?a=${a}`} className="hover:text-neutral-200 underline">change rival</Link>
       </p>
 
       {/* Duel header */}
       <section className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 mb-8 max-w-3xl mx-auto">
-        <DuelSide name={infoA.display_name} id={a} nationality={infoA.nationality} gender={infoA.gender} photo={photoA} pct={pctA} color="text-orange-400" align="end" />
+        <DuelSide name={infoA.display_name} id={a} slug={slugs.get(a)} nationality={infoA.nationality} gender={infoA.gender} photo={photoA} pct={pctA} color="text-orange-400" align="end" />
         <div className="text-center">
           <div className="text-3xl font-black text-neutral-500">VS</div>
           <div className="text-xs text-neutral-500 mt-1">
@@ -123,7 +125,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
             {aheadA}–{aheadB}
           </div>
         </div>
-        <DuelSide name={infoB.display_name} id={b} nationality={infoB.nationality} gender={infoB.gender} photo={photoB} pct={pctB} color="text-sky-400" align="start" />
+        <DuelSide name={infoB.display_name} id={b} slug={slugs.get(b)} nationality={infoB.nationality} gender={infoB.gender} photo={photoB} pct={pctB} color="text-sky-400" align="start" />
       </section>
 
       {/* one centred column, every block the same width */}
@@ -266,11 +268,11 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function AthleteTitle({ id, name, nationality }: { id: string; name: string; nationality: string | null }) {
+function AthleteTitle({ id, slug, name, nationality }: { id: string; slug?: string; name: string; nationality: string | null }) {
   return (
     <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
       <Flag code={nationality} className="w-7 h-5" />
-      <Link href={`/athletes/${id}`} className="hover:text-orange-400">
+      <Link href={`/athletes/${slug ?? id}`} className="hover:text-orange-400">
         {name}
       </Link>
     </h1>
@@ -280,6 +282,7 @@ function AthleteTitle({ id, name, nationality }: { id: string; name: string; nat
 function DuelSide({
   name,
   id,
+  slug,
   nationality,
   gender,
   photo,
@@ -289,6 +292,7 @@ function DuelSide({
 }: {
   name: string;
   id: string;
+  slug?: string;
   nationality: string | null;
   gender: string | null;
   photo: AthletePhoto | null;
@@ -298,7 +302,7 @@ function DuelSide({
 }) {
   return (
     <div className={`flex flex-col gap-2 ${align === "end" ? "items-end text-right" : "items-start text-left"}`}>
-      <Link href={`/athletes/${id}`} className="text-lg sm:text-2xl font-bold hover:underline flex items-center gap-2">
+      <Link href={`/athletes/${slug ?? id}`} className="text-lg sm:text-2xl font-bold hover:underline flex items-center gap-2">
         {align === "start" && <Flag code={nationality} />}
         {name}
         {align === "end" && <Flag code={nationality} />}

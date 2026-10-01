@@ -6,9 +6,10 @@ import { TIER_PRIORITY } from "@/lib/events";
 import type { UpcomingCompetition } from "@/lib/queries";
 import Flag from "./Flag";
 
-const CATEGORIES = Object.keys(TIER_PRIORITY)
-  .filter((c) => ["OW", "DF", "GW", "GL", "A", "B"].includes(c))
-  .sort((a, b) => TIER_PRIORITY[a] - TIER_PRIORITY[b]);
+// Every tier selectable, not just OW-B: "All categories" prioritizes the
+// bigger meets (see getUpcomingCompetitions) so C-F rarely surface there on
+// their own -- picking one of them here is the actual way to see them.
+const CATEGORIES = Object.keys(TIER_PRIORITY).sort((a, b) => TIER_PRIORITY[a] - TIER_PRIORITY[b]);
 
 // Coarse discipline families, as stored on the scraped calendar row itself
 // (tablasauxiliares.upcoming_competitions.disciplines) -- not the site's

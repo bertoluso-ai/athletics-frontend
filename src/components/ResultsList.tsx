@@ -173,6 +173,14 @@ export default function ResultsList({
                     {r.competition_level}
                   </span>
                 )}
+                {r.race_level != null && (
+                  <span
+                    title="Field strength of this race (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400"
+                  >
+                    Quality {Math.round(r.race_level)}
+                  </span>
+                )}
               </div>
             </span>
             <span className="sm:hidden text-right whitespace-nowrap">

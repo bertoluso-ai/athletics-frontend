@@ -8,7 +8,7 @@ import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import ViewAllList from "@/components/ViewAllList";
-import { getEventYearlyProgression } from "@/lib/queries";
+import { getEventYearlyProgression, getAthleteSlugs, athleteHref } from "@/lib/queries";
 import { isFieldEvent } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
 import { flagUrlWide } from "@/lib/flags";
@@ -191,6 +191,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
     // podium + climbers always come from the top of the (filtered) ranking
     getIndividualRanking({ ...params, page: 1, pageSize: 200 }),
   ]);
+  const athleteSlugs = await getAthleteSlugs([...rows.map((r) => r.athlete_id), ...top.rows.map((r) => r.athlete_id)]);
   const podium = top.rows.slice(0, 3);
   const climbers = movement
     ? top.rows
@@ -303,7 +304,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             { r: podium[0], pos: 1 },
             { r: podium[2], pos: 3 },
           ].map(({ r, pos }) => (
-            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} gender={gender} />
+            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} gender={gender} athleteSlugs={athleteSlugs} />
           ))}
         </section>
       )}
@@ -318,7 +319,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
               return (
                 <Link
                   key={r.athlete_id}
-                  href={`/athletes/${r.athlete_id}`}
+                  href={athleteHref(r.athlete_id, athleteSlugs)}
                   className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800"
                 >
                   <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0">
@@ -381,7 +382,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
                 </span>
               </div>
             }
-            items={top.rows.map((r) => <RankingLine key={r.athlete_id} r={r} movement={movement} discipline markFirst={sortBy === "mark"} />)}
+            items={top.rows.map((r) => <RankingLine key={r.athlete_id} r={r} movement={movement} discipline markFirst={sortBy === "mark"} athleteSlugs={athleteSlugs} />)}
           />
           {top.rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
           {event && progression.length >= 2 && (
@@ -405,7 +406,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r) => (
-              <RankingLine key={r.athlete_id} r={r} movement={movement} discipline={discipline} />
+              <RankingLine key={r.athlete_id} r={r} movement={movement} discipline={discipline} athleteSlugs={athleteSlugs} />
             ))}
             {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No athletes for this selection.</div>}
           </div>
@@ -442,13 +443,13 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
 }
 
 // pos = place within the (possibly filtered) list, not the world rank
-function PodiumCard({ r, pos, photo, view, gender }: { r: IndividualRankingRow; pos: number; photo: AthletePhoto | null; view: RankingView; gender: string }) {
+function PodiumCard({ r, pos, photo, view, gender, athleteSlugs }: { r: IndividualRankingRow; pos: number; photo: AthletePhoto | null; view: RankingView; gender: string; athleteSlugs: Map<string, string> }) {
   const tall = pos === 1;
   const medal = ["🥇", "🥈", "🥉"][pos - 1];
   const ring = pos === 1 ? "border-yellow-400/60" : pos === 2 ? "border-neutral-300/50" : "border-orange-600/60";
   return (
     <Link
-      href={`/athletes/${r.athlete_id}`}
+      href={athleteHref(r.athlete_id, athleteSlugs)}
       className={`group flex flex-col rounded-xl border ${ring} bg-neutral-900/60 overflow-hidden hover:bg-neutral-800`}
     >
       <span className={`relative w-full ${tall ? "aspect-[3/4]" : "aspect-[4/5]"} bg-neutral-800`}>
@@ -479,16 +480,18 @@ function RankingLine({
   movement,
   discipline = false,
   markFirst = false,
+  athleteSlugs,
 }: {
   r: IndividualRankingRow;
   movement: boolean;
   discipline?: boolean;
   markFirst?: boolean;
+  athleteSlugs: Map<string, string>;
 }) {
   const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
   return (
     <Link
-      href={`/athletes/${r.athlete_id}`}
+      href={athleteHref(r.athlete_id, athleteSlugs)}
       className={`grid ${cols(movement)} gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-900/40"} hover:bg-neutral-800`}
     >
       <span className={`tabular-nums ${r.rank <= 3 ? "text-orange-400 font-bold" : "text-neutral-300"}`}>{r.rank}</span>

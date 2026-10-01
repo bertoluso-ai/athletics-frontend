@@ -4,6 +4,7 @@ import { eventLabel } from "@/lib/events";
 import { getMeetEventStats } from "@/lib/meetStats";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "./PhotoCreditsToast";
+import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
 // Right-hand column of the meet page: the history of one event (discipline
 // + gender) at this meet series.
@@ -33,13 +34,16 @@ export default async function MeetEventStats({
   // record holder's photo (not for relays: that's a team)
   const recordPhoto =
     s.meetRecord && !s.relay && s.meetRecord.display_name ? await getAthletePhotoInfo(s.meetRecord.display_name) : null;
+  const athleteSlugs = await getAthleteSlugs(
+    [s.meetRecord?.athlete_id, ...s.winners.map((w) => w.athlete_id)].filter((id): id is string => !!id)
+  );
   const person = (id: string | null, name: string | null, nat: string | null) => (
     <span className="flex items-center gap-1.5 min-w-0">
       <Flag code={nat} />
       {s.relay || !id ? (
         <span className="truncate">{s.relay ? nat : name}</span>
       ) : (
-        <Link href={`/athletes/${id}`} className="truncate hover:text-orange-400">
+        <Link href={athleteHref(id, athleteSlugs)} className="truncate hover:text-orange-400">
           {name}
         </Link>
       )}
@@ -74,7 +78,7 @@ export default async function MeetEventStats({
           <div className="flex items-stretch gap-3">
             {recordPhoto && (
               <Link
-                href={s.meetRecord.athlete_id ? `/athletes/${s.meetRecord.athlete_id}` : "#"}
+                href={s.meetRecord.athlete_id ? athleteHref(s.meetRecord.athlete_id, athleteSlugs) : "#"}
                 className="relative w-16 shrink-0 rounded-md overflow-hidden border border-neutral-800 bg-neutral-800"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}

@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 // Athlete photos from free sources only (Wikimedia Commons), with the
 // author/licence credit that those licences require. Nothing is stored:
 // the image is linked from Wikimedia, lookups cached 1 day by Next's fetch.
@@ -136,9 +138,13 @@ async function fromWikidata(name: string, birthYear?: number | null): Promise<At
   return null;
 }
 
-export async function getAthletePhotoInfo(name: string, birthYear?: number | null): Promise<AthletePhoto | null> {
+// React-cached per request: the athlete page calls this from two places
+// (the photo itself, the credits toast) now that the lookup is no longer
+// stuffed into the same Promise.all as the page's BigQuery data -- without
+// this they'd fire the Wikipedia/Wikidata chain twice.
+export const getAthletePhotoInfo = cache(async (name: string, birthYear?: number | null): Promise<AthletePhoto | null> => {
   return (await fromWikipedia(name)) ?? (await fromWikidata(name, birthYear));
-}
+});
 
 // Back-compatible URL-only helper (lists, avatars).
 export async function getAthletePhoto(name: string, birthYear?: number | null): Promise<string | null> {

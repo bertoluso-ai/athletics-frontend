@@ -2,6 +2,7 @@ import { getLatestRaces, getUpcomingCompetitions, getEventYearlyProgression } fr
 import Header from "@/components/Header";
 import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
+import RacesStatsWidget from "@/components/RacesStatsWidget";
 import LatestResults from "@/components/LatestResults";
 import UpcomingRaces from "@/components/UpcomingRaces";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
@@ -47,6 +48,13 @@ export default async function Home() {
               Nations
             </h2>
             <NationsStatsWidget year={CURRENT_YEAR} />
+          </section>
+
+          <section>
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">
+              Races
+            </h2>
+            <RacesStatsWidget year={CURRENT_YEAR} />
           </section>
         </aside>
       </main>

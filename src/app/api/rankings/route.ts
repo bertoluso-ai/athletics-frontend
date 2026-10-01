@@ -8,6 +8,7 @@ import {
   getGlobalAvailableNationalities,
   getRelayYearRanking,
   getRelayYearRankingCount,
+  getAthleteSlugs,
 } from "@/lib/queries";
 import { getAthletePhoto } from "@/lib/wikipedia";
 import { isRelayEvent } from "@/lib/events";
@@ -40,8 +41,9 @@ export async function GET(req: NextRequest) {
       getGlobalYearRankingCount(gender, year, { nationality, ageCategory }),
       getGlobalAvailableNationalities(gender, year),
     ]);
+    const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id));
     const withPhotos = await Promise.all(
-      rows.map(async (r) => ({ ...r, photo: await getAthletePhoto(r.display_name) }))
+      rows.map(async (r) => ({ ...r, slug: slugs.get(r.athlete_id) ?? null, photo: await getAthletePhoto(r.display_name) }))
     );
     return NextResponse.json({ rows: withPhotos, total, pageSize: PAGE_SIZE, nationalities });
   }
@@ -68,8 +70,9 @@ export async function GET(req: NextRequest) {
     getEventYearRankingCount(event, gender, year, { nationality, ageCategory, includeIllegalWind, indoor }),
     getAvailableNationalities(event, gender, year),
   ]);
+  const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id));
   const withPhotos = await Promise.all(
-    rows.map(async (r) => ({ ...r, photo: await getAthletePhoto(r.display_name) }))
+    rows.map(async (r) => ({ ...r, slug: slugs.get(r.athlete_id) ?? null, photo: await getAthletePhoto(r.display_name) }))
   );
   return NextResponse.json({ rows: withPhotos, total, pageSize: PAGE_SIZE, nationalities });
 }
