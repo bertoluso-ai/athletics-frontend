@@ -192,7 +192,11 @@ export default async function RacesPage({
             or pill -- visible on phones too, not just desktop, so there's
             always a "Date"/"Quality" to tap. */}
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[5rem_1fr_3.5rem] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          {/* mobile: only 2 tracks -- Competition/Top performance are
+              `hidden` (display:none), which drops them from grid flow
+              entirely, so a 3rd leftover track here left Quality stranded
+              in the middle instead of flush right. */}
+          <div className="grid grid-cols-[5rem_1fr] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
             <Link href={href({ sort: "recent", page: 1 })} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
               Date{sortBy === "recent" ? " ▼" : ""}
             </Link>
