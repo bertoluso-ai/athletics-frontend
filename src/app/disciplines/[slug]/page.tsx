@@ -72,7 +72,22 @@ function RelayMarkRowItem({ m, rank }: { m: RelayMarkRow; rank: number }) {
   );
 }
 
-function Podium({ rows, gender, athleteSlugs }: { rows: MarkRow[]; gender: string; athleteSlugs: Map<string, string> }) {
+async function PodiumPhoto({ name, gender, nationality }: { name: string; gender: string; nationality: string | null }) {
+  const photo = await getAthletePhotoInfo(name);
+  return photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photo.url} alt={name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
+  ) : (
+    <span className="absolute inset-0">
+      <GenericAthlete name={name} gender={gender} nationality={nationality} />
+    </span>
+  );
+}
+
+// Podium is an async server component (not awaited at the call site -- React
+// renders it like any other RSC) so the three Wikimedia lookups below can run
+// in parallel with the rest of the page instead of blocking it.
+async function Podium({ rows, gender, athleteSlugs }: { rows: MarkRow[]; gender: string; athleteSlugs: Map<string, string> }) {
   if (rows.length < 3) return null;
   const order = [rows[1], rows[0], rows[2]];
   const ring = ["border-neutral-300/50", "border-yellow-400/60", "border-orange-600/60"];
@@ -86,7 +101,7 @@ function Podium({ rows, gender, athleteSlugs }: { rows: MarkRow[]; gender: strin
           className={`group flex flex-col rounded-xl border ${ring[i]} bg-neutral-900/60 overflow-hidden hover:bg-neutral-800`}
         >
           <span className={`relative w-full ${i === 1 ? "aspect-[3/4]" : "aspect-[4/5]"} bg-neutral-800`}>
-            <GenericAthlete name={r.display_name} gender={gender} nationality={r.nationality} />
+            <PodiumPhoto name={r.display_name} gender={gender} nationality={r.nationality} />
             <span className="absolute top-1.5 left-1.5 text-xl sm:text-2xl drop-shadow">{medal[i]}</span>
           </span>
           <span className="px-2 py-2 text-center">
