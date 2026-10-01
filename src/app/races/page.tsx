@@ -186,25 +186,22 @@ export default async function RacesPage({
               ]}
             />
           </div>
-          <div className="flex justify-end">
-            <LinkSelect
-              value={sortBy}
-              className={selectClass}
-              options={[
-                { value: "quality", label: "Order by Quality", href: href({ sort: "quality", page: 1 }) },
-                { value: "recent", label: "Order by Date", href: href({ sort: "recent", page: 1 }) },
-              ]}
-            />
-          </div>
         </div>
 
+        {/* Sortable like a real table header (Rankings style), not a combo
+            or pill -- visible on phones too, not just desktop, so there's
+            always a "Date"/"Quality" to tap. */}
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
-            <span>Date</span>
-            <span>Competition</span>
-            <span>Top performance</span>
-            <span>Level</span>
-            <span className="text-right">Quality</span>
+          <div className="grid grid-cols-[5rem_1fr_3.5rem] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+            <Link href={href({ sort: "recent", page: 1 })} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
+              Date{sortBy === "recent" ? " ▼" : ""}
+            </Link>
+            <span className="hidden sm:inline">Competition</span>
+            <span className="hidden sm:inline">Top performance</span>
+            <span className="hidden sm:inline">Level</span>
+            <Link href={href({ sort: "quality", page: 1 })} className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}>
+              Quality{sortBy === "quality" ? " ▼" : ""}
+            </Link>
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => (
