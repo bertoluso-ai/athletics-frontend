@@ -2,24 +2,23 @@ import Link from "next/link";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import LinkSelect from "@/components/LinkSelect";
-import { getTopRaces, getTopRacesCount, getRaceYears } from "@/lib/queries";
+import { getTopRaces, getTopRacesCount, getRaceYears, getAllNationalities } from "@/lib/queries";
 import { EVENT_GROUPS, eventLabel, TIER_LABELS } from "@/lib/events";
+import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
 
 const PAGE_SIZE = 50;
 
-const GROUPS = [
-  {
-    key: "all",
-    label: "All",
-    events: {
-      Men: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men]))),
-      Women: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Women]))),
-    },
-  },
-  ...EVENT_GROUPS,
-];
+// Flat across every group -- same convention Disciplines uses for its own
+// Discipline dropdown (no Group selector here either, just the four
+// bottom-row filters: discipline / area / nation / age).
+const ALL_EVENTS = {
+  Men: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men]))),
+  Women: Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Women]))),
+};
+
+const AGES = ["", "U23", "U20", "U18"] as const;
 
 // Some historical sources (pre-2012 marathon majors, mainly) have no exact
 // date on file, only the year -- show that instead of a bare dash so the
@@ -38,44 +37,48 @@ export default async function RacesPage({
   searchParams: Promise<{
     year?: string;
     gender?: string;
-    group?: string;
     event?: string;
+    tier?: string;
+    area?: string;
+    nationality?: string;
+    age?: string;
     sort?: string;
     indoor?: string;
     page?: string;
   }>;
 }) {
   const sp = await searchParams;
-  const years = await getRaceYears();
+  const [years, nationalities] = await Promise.all([getRaceYears(), getAllNationalities()]);
   const thisYear = new Date().getFullYear();
   const year: number | "all" =
     sp.year === "all" ? "all" : sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
   const gender = sp.gender === "Women" ? "Women" : "Men";
-  const groupKey = GROUPS.some((g) => g.key === sp.group) ? sp.group! : "all";
-  const group = GROUPS.find((g) => g.key === groupKey)!;
-  const groupEvents = group.events[gender] as readonly string[];
-  // event is independent of groupKey (the Discipline dropdown can pick any
-  // discipline regardless of which Group narrowed its option list) --
-  // group only decides what that dropdown shows, not what's filtered.
-  const allEvents = GROUPS[0].events[gender] as readonly string[];
+  const allEvents = ALL_EVENTS[gender] as readonly string[];
   const event = sp.event && allEvents.includes(sp.event) ? sp.event : undefined;
-  const isAll = event === undefined;
   const eventParam = event ?? "all";
+  const tier = sp.tier && TIER_LABELS.some((t) => t.value === sp.tier) ? sp.tier : undefined;
+  const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  const nationality = sp.nationality && nationalities.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
+  const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   const sortBy = sp.sort === "recent" ? "recent" : "quality";
   const indoor = sp.indoor === "true";
   const page = Math.max(1, Number(sp.page) || 1);
+  const filters = { tier, area, nationality, ageCategory: age };
 
   const [rows, total] = await Promise.all([
-    getTopRaces(eventParam, gender, year, sortBy, PAGE_SIZE, indoor, page),
-    getTopRacesCount(eventParam, gender, year, indoor),
+    getTopRaces(eventParam, gender, year, sortBy, PAGE_SIZE, indoor, page, filters),
+    getTopRacesCount(eventParam, gender, year, indoor, filters),
   ]);
   const pages = Math.ceil(total / PAGE_SIZE);
 
   const href = (over: {
     year?: number | "all";
     gender?: string;
-    group?: string;
     event?: string | null;
+    tier?: string | null;
+    area?: string | null;
+    nationality?: string | null;
+    age?: string | null;
     sort?: string;
     indoor?: boolean;
     page?: number;
@@ -83,9 +86,16 @@ export default async function RacesPage({
     const q = new URLSearchParams();
     q.set("year", String(over.year ?? year));
     q.set("gender", over.gender ?? gender);
-    q.set("group", over.group ?? groupKey);
     const nextEvent = over.event === null ? undefined : over.event ?? event;
     if (nextEvent) q.set("event", nextEvent);
+    const nextTier = over.tier === null ? undefined : over.tier ?? tier;
+    if (nextTier) q.set("tier", nextTier);
+    const nextArea = over.area === null ? undefined : over.area ?? area;
+    if (nextArea) q.set("area", nextArea);
+    const nextNationality = over.nationality === null ? undefined : over.nationality ?? nationality;
+    if (nextNationality) q.set("nationality", nextNationality);
+    const nextAge = over.age === null ? undefined : over.age ?? age;
+    if (nextAge) q.set("age", nextAge);
     q.set("sort", over.sort ?? sortBy);
     q.set("indoor", String(over.indoor ?? indoor));
     q.set("page", String(over.page ?? page));
@@ -99,12 +109,11 @@ export default async function RacesPage({
       <main className="mx-auto max-w-5xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Races</h1>
 
-        {/* Same two-pill-row look as Disciplines (compact, label-less
-            LinkSelects, horizontally scrollable on narrow screens) instead
-            of the old labelled-column layout -- no separate Quality/Recent
-            toggle either: sorting now happens the same way a table does,
-            by tapping the Date/Quality column headers below (visible on
-            phones too, not just desktop). */}
+        {/* Same two-pill-row look as Disciplines: row 1 picks the overall
+            scope (gender/year/tier), row 2 narrows it (discipline/area/
+            nation/age). Sorting is its own combo (Date / Quality), not a
+            pill or clickable column headers -- the table header below is
+            desktop-only again, like it originally was. */}
         <div className="flex flex-col gap-2 mb-4">
           <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
             <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
@@ -135,39 +144,66 @@ export default async function RacesPage({
                 ...years.map((y) => ({ value: String(y), label: String(y), href: href({ year: y, page: 1 }) })),
               ]}
             />
+            <LinkSelect
+              value={tier ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All categories", href: href({ tier: null, page: 1 }) },
+                ...TIER_LABELS.map((t) => ({ value: t.value, label: t.value, href: href({ tier: t.value, page: 1 }) })),
+              ]}
+            />
+            <LinkSelect
+              value={sortBy}
+              className={selectClass}
+              options={[
+                { value: "quality", label: "Order by Quality", href: href({ sort: "quality", page: 1 }) },
+                { value: "recent", label: "Order by Date", href: href({ sort: "recent", page: 1 }) },
+              ]}
+            />
           </div>
           <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
-            <LinkSelect
-              value={groupKey}
-              className={selectClass}
-              options={GROUPS.map((g) => ({
-                value: g.key,
-                label: g.label,
-                href: href({ group: g.key, page: 1 }),
-              }))}
-            />
             <LinkSelect
               value={event ?? ""}
               className={selectClass}
               options={[
                 { value: "", label: "All disciplines", href: href({ event: null, page: 1 }) },
-                ...groupEvents.map((ev) => ({ value: ev, label: eventLabel(ev), href: href({ event: ev, page: 1 }) })),
+                ...allEvents.map((ev) => ({ value: ev, label: eventLabel(ev), href: href({ event: ev, page: 1 }) })),
+              ]}
+            />
+            <LinkSelect
+              value={area ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All areas", href: href({ area: null, page: 1 }) },
+                ...Object.entries(AREAS).map(([code, name]) => ({ value: code, label: name, href: href({ area: code, page: 1 }) })),
+              ]}
+            />
+            <LinkSelect
+              value={nationality ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All nations", href: href({ nationality: null, page: 1 }) },
+                ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code, page: 1 }) })),
+              ]}
+            />
+            <LinkSelect
+              value={age ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All ages", href: href({ age: null, page: 1 }) },
+                ...AGES.filter((a) => a).map((a) => ({ value: a, label: a, href: href({ age: a, page: 1 }) })),
               ]}
             />
           </div>
         </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[5rem_1fr_3.5rem] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
-            <Link href={href({ sort: "recent", page: 1 })} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
-              Date{sortBy === "recent" ? " ▼" : ""}
-            </Link>
-            <span className="hidden sm:inline">Competition</span>
-            <span className="hidden sm:inline">Top performance</span>
-            <span className="hidden sm:inline">Level</span>
-            <Link href={href({ sort: "quality", page: 1 })} className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}>
-              Quality{sortBy === "quality" ? " ▼" : ""}
-            </Link>
+          <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+            <span>Date</span>
+            <span>Competition</span>
+            <span>Top performance</span>
+            <span>Level</span>
+            <span className="text-right">Quality</span>
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => (

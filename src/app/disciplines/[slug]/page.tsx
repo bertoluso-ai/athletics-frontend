@@ -190,7 +190,7 @@ export default async function DisciplinePage({
       ])
     : await Promise.all([
         getEventBestByArea(event, gender, indoor),
-        getEventBestByCountry(event, gender, indoor, 12),
+        getEventBestByCountry(event, gender, indoor, 10),
         getEventRecordTenure(event, gender, 10),
       ]);
 

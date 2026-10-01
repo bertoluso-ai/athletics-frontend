@@ -1549,6 +1549,17 @@ export type TopRaceRow = {
   top_mark: string | null;
 };
 
+export type TopRaceFilters = { tier?: string; nationality?: string; area?: string; ageCategory?: string };
+
+// Full reference list (not scoped to one discipline's current nationalities
+// like getAvailableNationalities above) -- Races filters across every
+// discipline at once, so there's no single event to scope the list to.
+export async function getAllNationalities(): Promise<NationalityOption[]> {
+  return runQuery<NationalityOption>(`
+    SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\` ORDER BY name
+  `);
+}
+
 // Some historical sources (sports123, mainly pre-2012 marathon majors)
 // have no `date` at all, only `year` -- registry/16_compute_race_level.sql
 // groups those as one race per year instead of merging a decade of
@@ -1557,7 +1568,7 @@ export type TopRaceRow = {
 // actually grouped.
 const RACE_KEY_SQL = `IFNULL(CAST(date AS STRING), CONCAT('Y', CAST(year AS STRING)))`;
 
-function racesCte(event: string, gender: string, year: number | "all", indoor: boolean) {
+function racesCte(event: string, gender: string, year: number | "all", indoor: boolean, tier?: string) {
   // registry.race_level has no track_key (events_enriched does -- see
   // INDOOR_EXPR above), so this is name-only, the weaker half of that
   // check; good enough here and avoids an extra join.
@@ -1569,11 +1580,18 @@ function racesCte(event: string, gender: string, year: number | "all", indoor: b
     WHERE gender = @gender
       ${year !== "all" ? "AND year = @year" : ""}
       ${event !== "all" ? "AND athletics_event = @event" : ""}
+      ${tier ? "AND tier = @tier" : ""}
       ${indoorFilter}
     QUALIFY ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, race_key, IFNULL(round, '') ORDER BY race_level DESC) = 1
   `;
 }
 
+// nationality/area/ageCategory filter on the WINNER of each race (the only
+// per-athlete attribute a race-level listing can sensibly filter by) --
+// same AGE_CATEGORIES/tablasauxiliares.countries convention as Disciplines.
+// When any of those three is set, the winners join switches from LEFT to
+// INNER (races whose winner doesn't match the filter are excluded outright,
+// not shown with a blank "—" winner).
 export async function getTopRaces(
   event: string,
   gender: string,
@@ -1581,34 +1599,55 @@ export async function getTopRaces(
   sortBy: "quality" | "recent" = "quality",
   pageSize = 10,
   indoor = false,
-  page = 1
+  page = 1,
+  filters: TopRaceFilters = {}
 ): Promise<TopRaceRow[]> {
+  const { tier, nationality, area, ageCategory } = filters;
+  const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
+  const winnerFiltered = !!(nationality || area || ageMax);
   const order = sortBy === "recent" ? "race_key DESC, race_level DESC" : "race_level DESC, race_key DESC";
   return runQuery<TopRaceRow>(`
-    WITH races AS (${racesCte(event, gender, year, indoor)}),
+    WITH races AS (${racesCte(event, gender, year, indoor, tier)}),
     winners AS (
-      SELECT event_name, athletics_event, gender, ${RACE_KEY_SQL} AS race_key, IFNULL(round, '') AS round,
-        athlete_id, athlete_display_name AS display_name, nationality, mark_display
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE place = 1 AND gender = @gender
-        ${year !== "all" ? "AND year = @year" : ""}
-        ${event !== "all" ? "AND athletics_event = @event" : ""}
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, race_key, round ORDER BY athlete_id) = 1
+      SELECT e.event_name, e.athletics_event, e.gender, ${RACE_KEY_SQL} AS race_key, IFNULL(e.round, '') AS round,
+        e.athlete_id, e.athlete_display_name AS display_name, e.nationality, e.mark_display
+      FROM \`athletics-database.athletics_all.events_enriched\` e
+      ${area ? "JOIN `athletics-database.tablasauxiliares.countries` c ON c.code = e.nationality" : ""}
+      WHERE e.place = 1 AND e.gender = @gender
+        ${year !== "all" ? "AND e.year = @year" : ""}
+        ${event !== "all" ? "AND e.athletics_event = @event" : ""}
+        ${nationality ? "AND e.nationality = @nationality" : ""}
+        ${area ? "AND c.area = @area" : ""}
+        ${ageMax ? "AND e.birth_year IS NOT NULL AND (e.year - e.birth_year) <= @ageMax" : ""}
+      QUALIFY ROW_NUMBER() OVER (PARTITION BY e.event_name, e.athletics_event, e.gender, race_key, e.round ORDER BY e.athlete_id) = 1
     )
     SELECT r.event_name, r.athletics_event, r.gender, r.date, r.year, r.round, r.race_level, r.tier,
       w.athlete_id AS top_athlete_id, w.display_name AS top_athlete, w.nationality AS top_nationality, w.mark_display AS top_mark
     FROM races r
-    LEFT JOIN winners w USING (event_name, athletics_event, gender, race_key, round)
+    ${winnerFiltered ? "JOIN" : "LEFT JOIN"} winners w USING (event_name, athletics_event, gender, race_key, round)
     ORDER BY ${order}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-  `, { event, gender, ...(year !== "all" ? { year } : {}) });
+  `, { event, gender, ...(year !== "all" ? { year } : {}), ...(tier ? { tier } : {}), ...(nationality ? { nationality } : {}), ...(area ? { area } : {}), ...(ageMax ? { ageMax } : {}) });
 }
 
-export async function getTopRacesCount(event: string, gender: string, year: number | "all", indoor = false): Promise<number> {
-  const rows = await runQuery<{ n: number }>(`
-    SELECT COUNT(*) AS n FROM (${racesCte(event, gender, year, indoor)})
-  `, { event, gender, ...(year !== "all" ? { year } : {}) });
-  return rows[0]?.n ?? 0;
+export async function getTopRacesCount(
+  event: string,
+  gender: string,
+  year: number | "all",
+  indoor = false,
+  filters: TopRaceFilters = {}
+): Promise<number> {
+  const { tier, nationality, area, ageCategory } = filters;
+  const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
+  if (!nationality && !area && !ageMax) {
+    const rows = await runQuery<{ n: number }>(`
+      SELECT COUNT(*) AS n FROM (${racesCte(event, gender, year, indoor, tier)})
+    `, { event, gender, ...(year !== "all" ? { year } : {}), ...(tier ? { tier } : {}) });
+    return rows[0]?.n ?? 0;
+  }
+  // winner-filtered: count via the same join getTopRaces uses, uncapped.
+  const rows = await getTopRaces(event, gender, year, "quality", 100000, indoor, 1, filters);
+  return rows.length;
 }
 
 export async function getRaceYears(): Promise<number[]> {
