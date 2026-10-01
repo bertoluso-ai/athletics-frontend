@@ -59,10 +59,14 @@ type SP = { view?: string; gender?: string; year?: string; nationality?: string;
 const NATION_VIEWS = ["n-season", "n-rolling", "n-wins", "n-discipline"] as const;
 
 // Same columns for the table header and every row.
+// Mobile columns narrowed from the desktop widths (#/PREV/DIFF/POINTS
+// don't need nearly as much room as the Athlete name does, and on a phone
+// every spare rem matters -- names were truncating hard, e.g. "Miltiadis
+// Tent...") -- also tightened the gap between columns on mobile only.
 function cols(movement: boolean) {
   return movement
-    ? "grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_9rem_3rem_4rem]"
-    : "grid-cols-[2.5rem_minmax(0,1fr)_4rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_3rem_4rem]";
+    ? "grid-cols-[1.5rem_1.75rem_2rem_minmax(0,1fr)_3.5rem] sm:grid-cols-[2.5rem_2.5rem_2.75rem_minmax(0,1fr)_9rem_3rem_4rem]"
+    : "grid-cols-[1.75rem_minmax(0,1fr)_3.5rem] sm:grid-cols-[2.5rem_minmax(0,1fr)_9rem_3rem_4rem]";
 }
 
 export default async function RankingsPage({ searchParams }: { searchParams: Promise<SP> }) {
@@ -369,7 +373,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             initial={20}
             scrollOnMobile
             header={
-              <div className={`grid ${cols(movement)} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
+              <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
                 <span>#</span>
                 {movement && <span>Prev</span>}
                 {movement && <span>Diff</span>}
@@ -395,7 +399,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         <>
         {/* Table */}
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className={`grid ${cols(movement)} gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
+          <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
             <span>#</span>
             {movement && <span>Prev</span>}
             {movement && <span>Diff</span>}
@@ -492,7 +496,7 @@ function RankingLine({
   return (
     <Link
       href={athleteHref(r.athlete_id, athleteSlugs)}
-      className={`grid ${cols(movement)} gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-900/40"} hover:bg-neutral-800`}
+      className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-900/40"} hover:bg-neutral-800`}
     >
       <span className={`tabular-nums ${r.rank <= 3 ? "text-orange-400 font-bold" : "text-neutral-300"}`}>{r.rank}</span>
       {movement && <span className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
