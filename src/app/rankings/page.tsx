@@ -86,6 +86,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+        <h1 className="text-2xl font-bold mb-4">Rankings</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
             {view.startsWith("n-") ? (
@@ -118,7 +119,7 @@ function SideMenu({ view }: { view: string }) {
               <Link
                 key={m.title}
                 href={`/rankings?view=${target}`}
-                className={`text-center py-2 rounded-md font-semibold ${active ? "bg-orange-500 text-black" : "text-neutral-400"}`}
+                className={`h-8 flex items-center justify-center rounded-md font-semibold ${active ? "bg-orange-500 text-black" : "text-neutral-400"}`}
               >
                 {m.title}
               </Link>
@@ -130,7 +131,7 @@ function SideMenu({ view }: { view: string }) {
             <Link
               key={it.view}
               href={`/rankings?view=${it.view}`}
-              className={`text-center py-1.5 rounded-md border ${
+              className={`h-8 flex items-center justify-center rounded-md border ${
                 it.view === view ? "border-orange-500/60 bg-orange-500/15 text-orange-400 font-semibold" : "border-neutral-800 text-neutral-400"
               }`}
             >
@@ -222,7 +223,6 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-4">Rankings</h1>
 
       {/* Filters: two rows, no submit button -- every control navigates as
           soon as it changes (gender/year are plain links, the rest are
@@ -560,7 +560,6 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
 
   return (
     <>
-      <h1 className="text-2xl font-bold mb-4">Rankings</h1>
 
       <div className="flex flex-col gap-2 mb-6">
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
