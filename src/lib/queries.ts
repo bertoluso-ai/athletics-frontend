@@ -1,4 +1,5 @@
 import { runQuery } from "./bigquery";
+import { pgQuery } from "./pg";
 import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
 
 // Indoor vs outdoor isn't a naming difference (both use the exact same
@@ -52,25 +53,25 @@ export async function getAthleteInfo(athleteId: string): Promise<AthleteInfo | n
   return { ...r, birth_date_full: r.birth_date_raw && r.birth_date_raw.length > 4 ? r.birth_date_raw : null };
 }
 
-// Name-based SEO slugs for athlete profile URLs. athletics_all.athlete_slugs
-// is a materialized table (refreshed daily), not a live view -- the view
-// (v_athlete_slugs) recomputed every athlete's slug from scratch on every
-// query (3.7s/466MB for a single WHERE athlete_id=... lookup, since the
-// window functions that disambiguate collisions need the full athlete set
-// regardless of the filter -- see matchAthletesIncremental/registry/
-// 17_materialize_athlete_slugs.sql). Disambiguation: name -> +nationality
-// -> +first year -> numeric suffix, so two athletes never collide.
+// Name-based SEO slugs for athlete profile URLs. Read from the Postgres
+// serving layer (table athlete_slugs, mirrored from BigQuery's
+// athletics_all.athlete_slugs -- see matchAthletesIncremental/serving/
+// export_to_postgres.py), not BigQuery directly: BigQuery's own per-query
+// floor (~1-2s, job dispatch + distributed planning) doesn't shrink no
+// matter how small the table or how well it's clustered -- measured this
+// same lookup at 2.0s even against the materialized table. Postgres
+// returns an indexed point lookup in single-digit milliseconds. Hit on
+// almost every page (any athlete link needs a slug), so this was the
+// single highest-leverage query to move. Disambiguation (name ->
+// +nationality -> +first year -> numeric suffix) happens once, upstream,
+// in 17_materialize_athlete_slugs.sql -- this table is just the result.
 export async function getAthleteSlug(athleteId: string): Promise<string | null> {
-  const rows = await runQuery<{ slug: string }>(`
-    SELECT slug FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE athlete_id = @athleteId
-  `, { athleteId });
+  const rows = await pgQuery<{ slug: string }>(`SELECT slug FROM athlete_slugs WHERE athlete_id = $1`, [athleteId]);
   return rows[0]?.slug ?? null;
 }
 
 export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
-  const rows = await runQuery<{ athlete_id: string }>(`
-    SELECT athlete_id FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE slug = @slug
-  `, { slug });
+  const rows = await pgQuery<{ athlete_id: string }>(`SELECT athlete_id FROM athlete_slugs WHERE slug = $1`, [slug]);
   return rows[0]?.athlete_id ?? null;
 }
 
@@ -81,9 +82,10 @@ export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
 export async function getAthleteSlugs(athleteIds: string[]): Promise<Map<string, string>> {
   const ids = Array.from(new Set(athleteIds.filter(Boolean)));
   if (ids.length === 0) return new Map();
-  const rows = await runQuery<{ athlete_id: string; slug: string }>(`
-    SELECT athlete_id, slug FROM \`athletics-database.athletics_all.athlete_slugs\` WHERE athlete_id IN UNNEST(@ids)
-  `, { ids });
+  const rows = await pgQuery<{ athlete_id: string; slug: string }>(
+    `SELECT athlete_id, slug FROM athlete_slugs WHERE athlete_id = ANY($1)`,
+    [ids]
+  );
   return new Map(rows.map((r) => [r.athlete_id, r.slug]));
 }
 
@@ -1300,10 +1302,16 @@ export const MEET_SERIES_MATCH_SQL = `
 // compromising on both. Each step now scans ~10-30MB instead of
 // 200-330MB (clustering on a non-leading column barely prunes at all,
 // tested live before landing on the two-table split).
+// Reads the Postgres serving layer (mirrored from the BigQuery tables
+// above by matchAthletesIncremental/serving/export_to_postgres.py) --
+// same reasoning as getAthleteSlug: BigQuery's own ~1-2s per-query floor
+// doesn't shrink no matter how well-clustered the table is, Postgres
+// returns an indexed lookup in milliseconds.
 export async function getMeetSeriesKey(eventName: string): Promise<string | null> {
-  const rows = await runQuery<{ series_key: string }>(`
-    SELECT series_key FROM \`athletics-database.registry.meet_series_key\` WHERE event_name = @eventName
-  `, { eventName });
+  const rows = await pgQuery<{ series_key: string }>(
+    `SELECT series_key FROM meet_series_key WHERE event_name = $1 LIMIT 1`,
+    [eventName]
+  );
   return rows[0]?.series_key ?? null;
 }
 
@@ -1313,12 +1321,10 @@ export async function getMeetSeriesKey(eventName: string): Promise<string | null
 export async function getMeetAvailableYears(eventName: string, seriesKey?: string | null): Promise<number[]> {
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
   if (!key) return [];
-  const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year
-    FROM \`athletics-database.registry.meet_results\`
-    WHERE series_key = @seriesKey AND year IS NOT NULL
-    ORDER BY year DESC
-  `, { seriesKey: key });
+  const rows = await pgQuery<{ year: number }>(
+    `SELECT DISTINCT year FROM meet_results WHERE series_key = $1 AND year IS NOT NULL ORDER BY year DESC`,
+    [key]
+  );
   return rows.map((r) => r.year);
 }
 
@@ -1367,21 +1373,24 @@ export async function getMeetResults(eventName: string, year: number, seriesKey?
   // filters are all precomputed in meet_results itself now (see
   // 19_materialize_meet_results.sql) -- no JOIN, no WHERE filtering
   // needed here beyond series_key + year.
-  return runQuery<MeetResultRow>(`
+  return pgQuery<MeetResultRow>(
+    `
     SELECT event_name, COALESCE(display_series_name, event_name) AS series_name,
       athletics_event, gender, round, place, athlete_id,
       display_name, mark_display, mark_value, nationality, record, city, country,
-      CAST(date AS STRING) AS date, wind, wind_legal,
+      date::text AS date, wind, wind_legal,
       division_key_resolved, is_shadow_result, race_level
-    FROM \`athletics-database.registry.meet_results\`
-    WHERE series_key = @seriesKey AND year = @year
+    FROM meet_results
+    WHERE series_key = $1 AND year = $2
     -- Finals first, qualifying rounds (heats, semis) after -- reading the
     -- final before its own heats matches how a results page is normally
     -- read, and MeetResultsSections groups by round anyway so mixing the
     -- literal chronological order in isn't needed here.
     ORDER BY athletics_event, gender,
-      IF(round IS NULL OR LOWER(round) LIKE '%final%', 0, 1), round, place ASC NULLS LAST
-  `, { seriesKey: key, year });
+      CASE WHEN round IS NULL OR LOWER(round) LIKE '%final%' THEN 0 ELSE 1 END, round, place ASC NULLS LAST
+  `,
+    [key, year]
+  );
 }
 
 // ---------------------------------------------------------------------

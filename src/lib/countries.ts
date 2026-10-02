@@ -1,4 +1,5 @@
 import { runQuery } from "./bigquery";
+import { pgQuery } from "./pg";
 import { AGE_CATEGORIES } from "./queries";
 
 // Country ranking: a country's points for a season are the sum of the
@@ -53,18 +54,17 @@ export type CountryRankingRow = {
 // clustering, so the only real fix was precomputing it once a day instead
 // of on every page view (139MB/1.7s -> 10MB/0.8s, measured live).
 export async function getCountryRanking(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
-  return runQuery<CountryRankingRow>(
+  return pgQuery<CountryRankingRow>(
     `
-    WITH ${NAMES_CTE}
-    SELECT c.code, IFNULL(n.name, c.code) AS name,
+    SELECT c.code, COALESCE(n.name, c.code) AS name,
       RANK() OVER (ORDER BY c.points DESC) AS rank,
       c.points, c.n_counted, c.n_athletes, c.wins, c.podiums
-    FROM \`athletics-database.registry.country_season_points\` c
-    LEFT JOIN names n USING (code)
-    WHERE c.year = @year AND c.gender = @gender AND c.age_cat = @ageCat AND c.points > 0
+    FROM country_season_points c
+    LEFT JOIN countries n USING (code)
+    WHERE c.year = $1 AND c.gender = $2 AND c.age_cat = $3 AND c.points > 0
     ORDER BY rank
   `,
-    { year, gender: f.gender, ageCat: f.age ?? "" }
+    [year, f.gender, f.age ?? ""]
   );
 }
 
@@ -101,26 +101,31 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
   // exact filter this page always applies, instead of events_enriched's
   // (athlete_id, athletics_event, gender, year) which doesn't help a
   // nationality-keyed page at all (151MB/0.96s -> 29MB, measured live).
-  const params = { code, year, gender: f.gender };
+  const ageFilterPg = (age: string | undefined, yearExpr = "year") => {
+    const max = age ? AGE_CATEGORIES[age] : undefined;
+    return max !== undefined ? `AND birth_year IS NOT NULL AND (${yearExpr} - birth_year) <= ${max}` : "";
+  };
   const resultsSql = (extraWhere: string, order: string, limit: number) => `
-    SELECT date, year, event_name, athletics_event, place, mark_display,
-      division_key_resolved AS competition_level, ROUND(competition_score, 0) AS competition_score,
+    SELECT date::text AS date, year, event_name, athletics_event, place, mark_display,
+      division_key_resolved AS competition_level, ROUND(competition_score::numeric, 0) AS competition_score,
       athlete_id, athlete_display_name AS display_name
-    FROM \`athletics-database.registry.country_results\`
-    WHERE year = @year AND nationality = @code AND gender = @gender
-      AND competition_score IS NOT NULL ${ageFilter(f.age)} ${extraWhere}
+    FROM country_results
+    WHERE year = $1 AND nationality = $2 AND gender = $3
+      AND competition_score IS NOT NULL ${ageFilterPg(f.age)} ${extraWhere}
     ORDER BY ${order}
     LIMIT ${limit}`;
+  const params = [year, code, f.gender];
 
   const [athletes, lastWins, topResults, seasons, owMedals] = await Promise.all([
-    runQuery<CountryAthleteRow>(
+    pgQuery<CountryAthleteRow>(
       `
       WITH athletes AS (
-        SELECT athlete_id, ANY_VALUE(athlete_display_name) AS display_name, ANY_VALUE(birth_year) AS birth_year,
-          ROUND(SUM(competition_score), 0) AS points, COUNTIF(place = 1) AS wins,
-          ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event
-        FROM \`athletics-database.registry.country_results\`
-        WHERE year = @year AND nationality = @code AND gender = @gender AND competition_score IS NOT NULL ${ageFilter(f.age)}
+        SELECT athlete_id, (ARRAY_AGG(athlete_display_name))[1] AS display_name, (ARRAY_AGG(birth_year))[1] AS birth_year,
+          ROUND(SUM(competition_score)::numeric, 0) AS points,
+          COUNT(*) FILTER (WHERE place = 1) AS wins,
+          (ARRAY_AGG(athletics_event ORDER BY competition_score DESC))[1] AS main_event
+        FROM country_results
+        WHERE year = $1 AND nationality = $2 AND gender = $3 AND competition_score IS NOT NULL ${ageFilterPg(f.age)}
         GROUP BY athlete_id
       )
       SELECT *, ROW_NUMBER() OVER (ORDER BY points DESC) AS rn_in_country,
@@ -130,21 +135,21 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
     `,
       params
     ),
-    runQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC", 300), params),
-    runQuery<CountryResultRow>(resultsSql("", "competition_score DESC", 200), params),
+    pgQuery<CountryResultRow>(resultsSql("AND place = 1", "date DESC, competition_score DESC", 300), params),
+    pgQuery<CountryResultRow>(resultsSql("", "competition_score DESC", 200), params),
     getCountrySeasons(code, f, seasonEvent),
     // all-time Olympic / World Championships medals of the country (finals,
     // one per discipline and edition; relays count once)
-    runQuery<{ olympic: number; worlds: number }>(
+    pgQuery<{ olympic: number; worlds: number }>(
       `
       SELECT
-        COUNT(DISTINCT IF(is_olympics, CONCAT(year, athletics_event, place), NULL)) AS olympic,
-        COUNT(DISTINCT IF(NOT is_olympics, CONCAT(year, athletics_event, place), NULL)) AS worlds
-      FROM \`athletics-database.registry.country_results\`
-      WHERE nationality = @code AND gender = @gender AND division_key_resolved = 'OW'
+        COUNT(DISTINCT CASE WHEN is_olympics THEN year::text || athletics_event || place::text END) AS olympic,
+        COUNT(DISTINCT CASE WHEN NOT is_olympics THEN year::text || athletics_event || place::text END) AS worlds
+      FROM country_results
+      WHERE nationality = $1 AND gender = $2 AND division_key_resolved = 'OW'
         AND counts_for_medals AND place BETWEEN 1 AND 3 AND is_final
     `,
-      { code, gender: f.gender }
+      [code, f.gender]
     ),
   ]);
 
@@ -160,17 +165,17 @@ async function getCountrySeasons(code: string, f: CountryFilters, seasonEvent?: 
     // RANK() still needs every country's points for that year, but reading
     // them from the tiny precomputed table instead of aggregating
     // events_enriched live is the same win as getCountryRanking above.
-    return runQuery<CountrySeasonRow>(
+    return pgQuery<CountrySeasonRow>(
       `
       SELECT year, points, rank FROM (
         SELECT year, code, points, RANK() OVER (PARTITION BY year ORDER BY points DESC) AS rank
-        FROM \`athletics-database.registry.country_season_points\`
-        WHERE gender = @gender AND age_cat = @ageCat
-      )
-      WHERE code = @code
+        FROM country_season_points
+        WHERE gender = $1 AND age_cat = $2
+      ) t
+      WHERE code = $3
       ORDER BY year DESC
     `,
-      { code, gender: f.gender, ageCat: f.age ?? "" }
+      [f.gender, f.age ?? "", code]
     );
   }
   return runQuery<CountrySeasonRow>(
@@ -203,18 +208,13 @@ async function getCountrySeasons(code: string, f: CountryFilters, seasonEvent?: 
 }
 
 export async function getCountryName(code: string): Promise<string> {
-  const rows = await runQuery<{ name: string }>(
-    `SELECT name FROM \`athletics-database.tablasauxiliares.countries\` WHERE code = @code`,
-    { code }
-  );
+  const rows = await pgQuery<{ name: string }>(`SELECT name FROM countries WHERE code = $1`, [code]);
   return rows[0]?.name ?? code;
 }
 
 export async function getCountryYears(): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE competition_score IS NOT NULL AND year IS NOT NULL
-    ORDER BY year DESC
+  const rows = await pgQuery<{ year: number }>(`
+    SELECT DISTINCT year FROM country_season_points WHERE year IS NOT NULL ORDER BY year DESC
   `);
   return rows.map((r) => r.year);
 }
