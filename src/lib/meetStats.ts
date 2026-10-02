@@ -1,5 +1,5 @@
-import { runQuery } from "./bigquery";
-import { MEET_SERIES_MATCH_SQL } from "./queries";
+import { pgQuery } from "./pg";
+import { getMeetSeriesKey } from "./queries";
 import { isRelayEvent } from "./events";
 
 // Context for one event (discipline + gender) of a meet series, for the
@@ -11,10 +11,11 @@ import { isRelayEvent } from "./events";
 // negated), wind-legal only, and indoor never mixes with outdoor: each mark
 // is ranked against marks of the same kind.
 
-const T = "`athletics-database.athletics_all.events_enriched`";
+const T = "events";
 
-const V = `IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds)`;
-const INDOOR = `(IFNULL(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
+const safeCast = (col: string) => `CASE WHEN ${col} ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN ${col}::double precision ELSE NULL END`;
+const V = `CASE WHEN athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') THEN -(${safeCast("mark")}) ELSE mark_seconds END`;
+const INDOOR = `(COALESCE(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
 const FINAL = `(round IS NULL OR round = '' OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semi%' AND LOWER(round) NOT LIKE '%quarter%'))`;
 
 export type MeetWinner = {
@@ -36,18 +37,25 @@ export type MeetMark = {
 
 export async function getMeetEventStats(eventName: string, event: string, gender: string) {
   const relay = isRelayEvent(event);
-  const params = { eventName, event, gender };
+  const seriesKey = await getMeetSeriesKey(eventName);
+  // $1 = series_key (or the raw event_name itself if it has no series --
+  // meet_series_key then simply has no row matching it, so fall back to
+  // matching event_name directly), $2 = event, $3 = gender.
+  const params = [seriesKey ?? eventName, event, gender];
+  const meetSeriesFilter = seriesKey
+    ? `event_name IN (SELECT event_name FROM meet_series_key WHERE series_key = $1)`
+    : `event_name = $1`;
   // Only the columns the three queries below actually read (plus whatever
-  // V/INDOOR/FINAL need to compute their derived fields) -- events_enriched
-  // has 49 columns; a bare SELECT * here scanned every one of them on every
-  // meet-page load, the single heaviest query against the 3GB table.
+  // V/INDOOR/FINAL need to compute their derived fields) -- events has 27
+  // columns; a bare SELECT * here would scan every one of them on every
+  // meet-page load.
   const meet = `
     meet AS (
       SELECT event_row_key, year, date, place, round, record, athlete_id, athlete_display_name,
         nationality, mark_display, wind_legal, athletics_discipline, mark, mark_seconds, track_key, event_name,
         ${V} AS v, ${INDOOR} AS indoor
       FROM ${T}
-      WHERE ${MEET_SERIES_MATCH_SQL} AND athletics_event = @event AND gender = @gender
+      WHERE ${meetSeriesFilter} AND athletics_event = $2 AND gender = $3
     )`;
 
   const [winners, records, wrs] = await Promise.all([
@@ -60,24 +68,21 @@ export async function getMeetEventStats(eventName: string, event: string, gender
     // 10.55, as the year's winner instead of the real final's Akani
     // Simbine, 9.99). The mark's own value has no such tie, and wind-legal
     // marks are preferred when both exist.
-    runQuery<MeetWinner>(
+    pgQuery<MeetWinner>(
       `
       WITH ${meet}
-      SELECT year, w.athlete_id, w.athlete_display_name AS display_name, w.nationality, w.mark_display
-      FROM (
-        SELECT year,
-          ARRAY_AGG(STRUCT(athlete_id, athlete_display_name, nationality, mark_display)
-            ORDER BY IFNULL(wind_legal, TRUE) DESC, v, date LIMIT 1)[OFFSET(0)] AS w
+      SELECT * FROM (
+        SELECT DISTINCT ON (year) year, athlete_id, athlete_display_name AS display_name, nationality, mark_display
         FROM meet
         WHERE place = 1 AND ${FINAL} AND v IS NOT NULL AND v != 0
-        GROUP BY year
-      )
+        ORDER BY year, COALESCE(wind_legal, TRUE) DESC, v, date
+      ) t
       ORDER BY year DESC
     `,
       params
     ),
     // best marks at the meet + their world all-time performance rank
-    runQuery<MeetMark>(
+    pgQuery<MeetMark>(
       `
       WITH ${meet},
       world AS (
@@ -85,16 +90,20 @@ export async function getMeetEventStats(eventName: string, event: string, gender
         FROM (
           SELECT event_row_key, ${V} AS v, ${INDOOR} AS indoor
           FROM ${T}
-          WHERE athletics_event = @event AND gender = @gender AND IFNULL(wind_legal, TRUE)
-        )
+          WHERE athletics_event = $2 AND gender = $3 AND COALESCE(wind_legal, TRUE)
+        ) z
         WHERE v IS NOT NULL AND v != 0
       )
-      SELECT m.year, m.athlete_id, m.athlete_display_name AS display_name, m.nationality, m.mark_display, w.all_time_rank
-      FROM meet m
-      LEFT JOIN world w USING (event_row_key)
-      WHERE m.v IS NOT NULL AND m.v != 0 AND IFNULL(m.wind_legal, TRUE)
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY ${relay ? "m.nationality, m.year" : "IFNULL(m.athlete_id, m.athlete_display_name)"} ORDER BY m.v) = 1
-      ORDER BY m.v
+      SELECT year, athlete_id, display_name, nationality, mark_display, all_time_rank FROM (
+        SELECT m.year, m.athlete_id, m.athlete_display_name AS display_name, m.nationality, m.mark_display,
+          w.all_time_rank, m.v,
+          ROW_NUMBER() OVER (PARTITION BY ${relay ? "m.nationality, m.year" : "COALESCE(m.athlete_id, m.athlete_display_name)"} ORDER BY m.v) AS rn
+        FROM meet m
+        LEFT JOIN world w USING (event_row_key)
+        WHERE m.v IS NOT NULL AND m.v != 0 AND COALESCE(m.wind_legal, TRUE)
+      ) t
+      WHERE rn = 1
+      ORDER BY v
       LIMIT 10
     `,
       params
@@ -103,34 +112,38 @@ export async function getMeetEventStats(eventName: string, event: string, gender
     // earlier legal mark we know of, including the hand-kept reference of
     // records set outside our sources. Only from 1983 on: before that our
     // coverage is too thin to call a mark a world record.
-    runQuery<MeetMark>(
+    pgQuery<MeetMark>(
       `
       WITH ${meet},
       world AS (
         -- undated rows (old sports123 championships) are placed mid-year
-        SELECT event_row_key, COALESCE(date, DATE(year, 7, 1)) AS date, ${V} AS v, ${INDOOR} AS indoor
+        SELECT event_row_key, COALESCE(date, make_date(year, 7, 1)) AS date, ${V} AS v, ${INDOOR} AS indoor
         FROM ${T}
-        WHERE athletics_event = @event AND gender = @gender AND IFNULL(wind_legal, TRUE) AND year IS NOT NULL
+        WHERE athletics_event = $2 AND gender = $3 AND COALESCE(wind_legal, TRUE) AND year IS NOT NULL
         UNION ALL
-        SELECT CAST(NULL AS STRING), record_date,
-          IF(mark_seconds IS NULL, -SAFE_CAST(mark_display AS FLOAT64), mark_seconds), FALSE
-        FROM \`athletics-database.tablasauxiliares.world_records_reference\`
-        WHERE athletics_event = @event AND gender = @gender
+        SELECT CAST(NULL AS TEXT), record_date,
+          CASE WHEN mark_seconds IS NULL THEN -(${safeCast("mark_display")}) ELSE mark_seconds END, FALSE
+        FROM world_records_reference
+        WHERE athletics_event = $2 AND gender = $3
       ),
       progression AS (
         SELECT event_row_key, date, v,
-          MIN(v) OVER (PARTITION BY indoor ORDER BY UNIX_DATE(date) RANGE BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS best_before
+          MIN(v) OVER (PARTITION BY indoor ORDER BY date RANGE BETWEEN UNBOUNDED PRECEDING AND INTERVAL '1 day' PRECEDING) AS best_before
         FROM world
         WHERE v IS NOT NULL AND v != 0
       )
-      SELECT m.year, m.athlete_id, m.athlete_display_name AS display_name, m.nationality, m.mark_display, CAST(NULL AS INT64) AS all_time_rank
-      FROM meet m
-      LEFT JOIN progression p USING (event_row_key)
-      WHERE m.year >= 1983 AND IFNULL(m.wind_legal, TRUE)
-        -- the source's own WR flag always counts (e.g. Lewis 9.92, Seoul 1988)
-        AND (p.v <= p.best_before OR m.record = 'WR')
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY m.year, m.mark_display ORDER BY m.date) = 1
-      ORDER BY m.year DESC
+      SELECT year, athlete_id, display_name, nationality, mark_display, all_time_rank FROM (
+        SELECT m.year, m.athlete_id, m.athlete_display_name AS display_name, m.nationality, m.mark_display,
+          CAST(NULL AS INTEGER) AS all_time_rank,
+          ROW_NUMBER() OVER (PARTITION BY m.year, m.mark_display ORDER BY m.date) AS rn
+        FROM meet m
+        LEFT JOIN progression p USING (event_row_key)
+        WHERE m.year >= 1983 AND COALESCE(m.wind_legal, TRUE)
+          -- the source's own WR flag always counts (e.g. Lewis 9.92, Seoul 1988)
+          AND (p.v <= p.best_before OR m.record = 'WR')
+      ) t
+      WHERE rn = 1
+      ORDER BY year DESC
     `,
       params
     ),

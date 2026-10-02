@@ -33,7 +33,7 @@ function ageFilter(age: string | undefined, yearExpr = "year") {
 
 const NAMES_CTE = `
   names AS (
-    SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
+    SELECT code, name FROM countries
   )`;
 
 export type CountryRankingRow = {
@@ -252,46 +252,68 @@ export async function getNationRanking(p: {
   event?: string;
   area?: string; // World Athletics area; ranks stay world ranks
 }): Promise<NationRankingRow[]> {
-  const nowWin = p.view === "rolling" ? "date > DATE_SUB(l.d, INTERVAL 365 DAY) AND date <= l.d" : "year = @year";
+  // Positional params built up as needed -- Postgres infers a prepared
+  // statement's parameter count from the highest $N actually referenced,
+  // so a $N for `year` must be left out entirely on the rolling view
+  // (same gotcha hit migrating rankings.ts's rolling view).
+  const params: unknown[] = [p.gender];
+  let idx = 2;
+  let yearPh = "";
+  if (p.view !== "rolling") {
+    params.push(p.year);
+    yearPh = `$${idx++}`;
+  }
+  let eventPh = "";
+  if (p.event) {
+    params.push(p.event);
+    eventPh = `$${idx++}`;
+  }
+  let areaPh = "";
+  if (p.area) {
+    params.push(p.area);
+    areaPh = `$${idx++}`;
+  }
+
+  const nowWin = p.view === "rolling" ? "date > l.d - INTERVAL '365 days' AND date <= l.d" : `year = ${yearPh}`;
   const prevWin =
     p.view === "rolling"
-      ? "date > DATE_SUB(DATE_SUB(l.d, INTERVAL 14 DAY), INTERVAL 365 DAY) AND date <= DATE_SUB(l.d, INTERVAL 14 DAY)"
-      : "year = @year AND date <= DATE_SUB(l.d, INTERVAL 14 DAY)";
+      ? "date > (l.d - INTERVAL '14 days' - INTERVAL '365 days') AND date <= (l.d - INTERVAL '14 days')"
+      : `year = ${yearPh} AND date <= (l.d - INTERVAL '14 days')`;
   const order = p.view === "wins" ? "wins DESC, points DESC" : "points DESC";
   const agg = (win: string) => `
     SELECT nationality AS code,
-      ROUND(SUM(IF(rn <= ${COUNTED_ATHLETES}, points, 0)), 0) AS points,
-      COUNTIF(rn <= ${COUNTED_ATHLETES}) AS n_counted,
+      ROUND(SUM(CASE WHEN rn <= ${COUNTED_ATHLETES} THEN points ELSE 0 END)::numeric, 0) AS points,
+      COUNT(*) FILTER (WHERE rn <= ${COUNTED_ATHLETES}) AS n_counted,
       SUM(wins) AS wins
     FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY points DESC) AS rn
       FROM (
         SELECT athlete_id,
-          ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
-          SUM(competition_score) AS points, COUNTIF(place = 1) AS wins
-        FROM \`athletics-database.athletics_all.events_enriched\`, latest l
-        WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
-          AND ${win} ${ageFilter(p.age)} ${p.event ? "AND athletics_event = @event" : ""}
+          (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
+          SUM(competition_score) AS points, COUNT(*) FILTER (WHERE place = 1) AS wins
+        FROM events, latest l
+        WHERE gender = $1 AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
+          AND ${win} ${ageFilter(p.age)} ${eventPh ? `AND athletics_event = ${eventPh}` : ""}
         GROUP BY athlete_id
-      )
+      ) x
       WHERE nationality IS NOT NULL
-    )
+    ) y
     GROUP BY nationality`;
-  return runQuery<NationRankingRow>(
+  return pgQuery<NationRankingRow>(
     `
-    WITH latest AS (SELECT MAX(date) AS d FROM \`athletics-database.athletics_all.events_enriched\` WHERE date <= CURRENT_DATE()),
+    WITH latest AS (SELECT MAX(date) AS d FROM events WHERE date <= CURRENT_DATE),
     ${NAMES_CTE},
     now_c AS (${agg(nowWin)}),
     prev_c AS (${agg(prevWin)}),
     ranked AS (SELECT *, RANK() OVER (ORDER BY ${order}) AS rank FROM now_c WHERE points > 0 OR wins > 0),
     prev_ranked AS (SELECT code, RANK() OVER (ORDER BY ${order}) AS prev_rank FROM prev_c WHERE points > 0 OR wins > 0)
-    SELECT r.code, IFNULL(n.name, r.code) AS name, r.rank, pr.prev_rank, r.points, r.wins, r.n_counted
+    SELECT r.code, COALESCE(n.name, r.code) AS name, r.rank, pr.prev_rank, r.points, r.wins, r.n_counted
     FROM ranked r
     LEFT JOIN prev_ranked pr USING (code)
     LEFT JOIN names n USING (code)
-    ${p.area ? "WHERE r.code IN (SELECT code FROM \`athletics-database.tablasauxiliares.countries\` WHERE area = @area)" : ""}
+    ${areaPh ? `WHERE r.code IN (SELECT code FROM countries WHERE area = ${areaPh})` : ""}
     ORDER BY r.rank
   `,
-    { gender: p.gender, year: p.year, ...(p.event ? { event: p.event } : {}), ...(p.area ? { area: p.area } : {}) }
+    params
   );
 }

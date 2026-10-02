@@ -1894,13 +1894,13 @@ export async function getAthleteRecordStats(athleteId: string): Promise<AthleteR
 export type NationalitySpan = { nationality: string; first_year: number; last_year: number; n_results: number };
 
 export async function getAthleteNationalityHistory(athleteId: string): Promise<NationalitySpan[]> {
-  return runQuery<NationalitySpan>(`
+  return pgQuery<NationalitySpan>(`
     SELECT nationality, EXTRACT(YEAR FROM MIN(from_date)) AS first_year, EXTRACT(YEAR FROM MAX(to_date)) AS last_year,
-      SUM(a.n_results) AS n_results
-    FROM \`athletics-database.athletics_all.athlete_nationality\` a
-    WHERE athlete_id = @athleteId
+      SUM(n_results) AS n_results
+    FROM athlete_nationality
+    WHERE athlete_id = $1
     GROUP BY nationality
-    HAVING SUM(a.n_results) >= 3
+    HAVING SUM(n_results) >= 3
     ORDER BY first_year
-  `, { athleteId });
+  `, [athleteId]);
 }
