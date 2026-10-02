@@ -1821,17 +1821,14 @@ export async function getAthleteChampionships(athleteId: string): Promise<Champi
 
 export type AthleteRecordStats = { wr: number; nr: number; wl: number };
 
-// Unlike every other query moved to Postgres on this page, this one is
-// still genuinely slow (~5s, measured live for Bolt's sprint disciplines)
-// on both BigQuery and Postgres -- it's not an indexing problem (athlete_id
-// filters most of the other queries here), it's that computing the best
-// mark EVER / best mark PER NATION / best mark PER YEAR for a discipline
-// inherently means aggregating across every athlete who's ever competed in
-// it, same shape as the individual ranking before registry/
-// 20_materialize_country_points.sql-style precomputation fixed that one.
-// Candidate for a future `discipline_best_marks` precomputed table
-// (best-all / best-by-nation / best-by-year per discipline+gender) if this
-// page's load time needs to come down further -- not done yet.
+// best_all/best_nat/best_year now come from registry.discipline_best_marks
+// (see matchAthletesIncremental/registry/21_materialize_discipline_best_
+// marks.sql), precomputed daily, instead of scanning every athlete who's
+// ever competed in each of the athlete's disciplines live -- that scan
+// alone took ~5s for Bolt's sprint disciplines, dominating this page's
+// load time even after every other query here moved to Postgres. Only
+// the athlete's OWN marks (mine_best/mine_year, already athlete_id-
+// filtered and fast) are still computed live.
 export async function getAthleteRecordStats(athleteId: string): Promise<AthleteRecordStats> {
   const events = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women])));
   const safeMark = `CASE WHEN t.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN t.mark::double precision ELSE NULL END`;
@@ -1851,25 +1848,34 @@ export async function getAthleteRecordStats(athleteId: string): Promise<AthleteR
         CASE WHEN t.athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') THEN -(${safeMark}) ELSE t.mark_seconds END AS v
       FROM events t
       JOIN mine USING (athletics_event, gender)
-      WHERE t.athlete_id IS NOT NULL
+      WHERE t.athlete_id = $1
         AND COALESCE(t.wind_legal, TRUE)
         AND NOT (COALESCE(t.track_key, '') = 'Short Track' OR LOWER(t.event_name) LIKE '%indoor%')
     ),
     valid AS (SELECT * FROM marks WHERE v IS NOT NULL AND v != 0),
     me AS (
       SELECT (ARRAY_AGG(nationality ORDER BY year DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nat
-      FROM valid WHERE athlete_id = $1
+      FROM valid
     ),
-    best_all AS (SELECT athletics_event, gender, MIN(v) AS best FROM valid GROUP BY 1, 2),
+    best_all AS (
+      SELECT athletics_event, gender, best_v AS best FROM discipline_best_marks
+      WHERE scope_type = 'all' AND (athletics_event, gender) IN (SELECT athletics_event, gender FROM mine)
+    ),
     best_nat AS (
-      SELECT athletics_event, gender, MIN(v) AS best FROM valid, me WHERE valid.nationality = me.nat GROUP BY 1, 2
+      SELECT d.athletics_event, d.gender, d.best_v AS best
+      FROM discipline_best_marks d, me
+      WHERE d.scope_type = 'nation' AND d.scope_key = me.nat
+        AND (d.athletics_event, d.gender) IN (SELECT athletics_event, gender FROM mine)
     ),
-    best_year AS (SELECT athletics_event, gender, year, MIN(v) AS best FROM valid GROUP BY 1, 2, 3),
+    best_year AS (
+      SELECT athletics_event, gender, scope_key::int AS year, best_v AS best FROM discipline_best_marks
+      WHERE scope_type = 'year' AND (athletics_event, gender) IN (SELECT athletics_event, gender FROM mine)
+    ),
     mine_best AS (
-      SELECT athletics_event, gender, MIN(v) AS pb FROM valid WHERE athlete_id = $1 GROUP BY 1, 2
+      SELECT athletics_event, gender, MIN(v) AS pb FROM valid GROUP BY 1, 2
     ),
     mine_year AS (
-      SELECT athletics_event, gender, year, MIN(v) AS sb FROM valid WHERE athlete_id = $1 GROUP BY 1, 2, 3
+      SELECT athletics_event, gender, year, MIN(v) AS sb FROM valid GROUP BY 1, 2, 3
     )
     SELECT
       (SELECT COUNT(*) FROM mine_best m JOIN best_all b USING (athletics_event, gender) WHERE m.pb <= b.best) AS wr,
