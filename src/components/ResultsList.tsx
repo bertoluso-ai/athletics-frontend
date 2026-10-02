@@ -72,11 +72,16 @@ export default function ResultsList({
   const [sortBy, setSortBy] = useState<SortBy>("date");
   const [sortDir, setSortDir] = useState<1 | -1 | null>(null);
   const isField = isFieldEvent(event);
-  // Raw marks mix seconds and metres once disciplines are mixed together --
-  // sorting by that raw value only makes sense within a single discipline.
   const isAll = event === "all";
-  const effectiveSortBy = isAll && sortBy === "mark" ? "points" : sortBy;
-  const activeDir = sortDir ?? defaultDirFor(effectiveSortBy, isField);
+  // Mark is sortable even with every discipline mixed together (seconds
+  // and metres on the same numeric column don't mean "better"/"worse"
+  // against each other, but sorting the raw value is still a meaningful,
+  // requested view -- e.g. "show me every sub-10 100m and every PB over
+  // 9m together" isn't the goal here, just letting the column sort at
+  // all). Direction defaults ascending for "all" (no single discipline to
+  // tell low-is-better from high-is-better from).
+  const effectiveSortBy = sortBy;
+  const activeDir = sortDir ?? defaultDirFor(effectiveSortBy, isAll ? false : isField);
   const metric: "mark" | "points" = effectiveSortBy === "mark" ? "mark" : "points";
 
   function handleSort(col: SortBy) {
@@ -121,18 +126,16 @@ export default function ResultsList({
         </button>
         <span>Race</span>
         <button
-          onClick={() => handleSort(metric === "mark" ? "points" : isAll ? "points" : "mark")}
+          onClick={() => handleSort(metric === "mark" ? "points" : "mark")}
           className="sm:hidden text-right flex items-center justify-end gap-0.5 hover:text-neutral-300"
           title="Click to switch between Mark and Points, or click again to flip the sort direction"
         >
           {metric === "mark" ? "Mark" : "Points"} {arrow(metric)}
         </button>
-        {/* desktop: both columns, each sorts on its own. Mark isn't sortable
-            with every discipline mixed (seconds vs metres). */}
+        {/* desktop: both columns, each sorts on its own. */}
         <button
-          onClick={() => !isAll && handleSort("mark")}
-          disabled={isAll}
-          className="hidden sm:flex text-right items-center justify-end gap-0.5 enabled:hover:text-neutral-300"
+          onClick={() => handleSort("mark")}
+          className="hidden sm:flex text-right items-center justify-end gap-0.5 hover:text-neutral-300"
         >
           Mark {effectiveSortBy === "mark" && arrow("mark")}
         </button>

@@ -228,6 +228,43 @@ export async function getAthletePersonalBests(
   // an invalid ::double precision cast instead of returning NULL like
   // BigQuery's SAFE_CAST does). IF(...) -> CASE WHEN.
   const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
+
+  // The common case (outdoor, wind-legal-only -- the page's default) joins
+  // against athlete_discipline_rank, precomputed once a day for exactly
+  // this filter combination (see matchAthletesIncremental/registry/
+  // 22_materialize_athlete_discipline_rank.sql) -- NOT the live RANK()
+  // OVER (...) this used to run on every page load, which meant
+  // aggregating every athlete's best mark across every discipline THIS
+  // athlete competes in just to place their own rank. Measured live: 3.7s
+  // for a 16-discipline athlete, dominated by a disk-spilling sort over
+  // 1M+ rows. The rare indoor/illegal-wind views fall back to computing
+  // it live, since those aren't worth a second precomputed table.
+  if (!includeIllegalWind && !indoor) {
+    return pgQuery<PersonalBestRow>(
+      `
+      WITH my_pbs AS (
+        SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
+          ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY mark_seconds ASC) AS rk
+        FROM events
+        WHERE athlete_id = $1 AND mark_seconds IS NOT NULL ${windFilter} ${indoorFilter}
+        UNION ALL
+        SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
+          ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY ${safeMark} DESC) AS rk
+        FROM events
+        WHERE athlete_id = $1 AND mark_seconds IS NULL AND ${safeMark} IS NOT NULL ${windFilter} ${indoorFilter}
+      )
+      SELECT p.athletics_event, p.gender, p.mark_display, p.event_name, p.year,
+        p.wind, p.wind_legal, r.rnk AS all_time_rank
+      FROM my_pbs p
+      LEFT JOIN athlete_discipline_rank r
+        ON r.athletics_event = p.athletics_event AND r.gender = p.gender AND r.athlete_id = $1
+      WHERE p.rk = 1
+      ORDER BY r.rnk ASC NULLS LAST
+    `,
+      [athleteId]
+    );
+  }
+
   return pgQuery<PersonalBestRow>(
     `
     WITH my_pbs AS (
@@ -289,6 +326,13 @@ export type YearPointsRow = { year: number; points: number; n_results: number; w
 // with the athlete's rank that year among all athletes of the same gender
 // by total annual points -- an overall "how good was this athlete's year"
 // ranking, not a per-discipline one.
+// Joins the precomputed athlete_year_rank (see
+// matchAthletesIncremental/registry/23_materialize_athlete_year_rank.sql)
+// instead of the live SUM+RANK() OVER (...) this used to run on every
+// athlete-page load -- measured live, that recomputed EVERY athlete's
+// total points for EACH year the page's athlete competed in, just to
+// place their own rank: 8.6s for a 20-year athlete, the single worst
+// query on the athlete page.
 export async function getAthleteYearlyPoints(athleteId: string, gender: string): Promise<YearPointsRow[]> {
   return pgQuery<YearPointsRow>(
     `
@@ -298,22 +342,10 @@ export async function getAthleteYearlyPoints(athleteId: string, gender: string):
       FROM events
       WHERE athlete_id = $1 AND competition_score IS NOT NULL
       GROUP BY year
-    ),
-    my_years AS (SELECT DISTINCT year FROM my_totals),
-    all_totals AS (
-      SELECT e.athlete_id, e.year, SUM(e.competition_score) AS total
-      FROM events e
-      JOIN my_years y ON y.year = e.year
-      WHERE e.competition_score IS NOT NULL AND e.athlete_id IS NOT NULL AND e.gender = $2
-      GROUP BY e.athlete_id, e.year
-    ),
-    ranked AS (
-      SELECT athlete_id, year, RANK() OVER (PARTITION BY year ORDER BY total DESC) AS rnk
-      FROM all_totals
     )
     SELECT t.year, t.points, t.n_results, t.wins, r.rnk AS rank
     FROM my_totals t
-    LEFT JOIN ranked r ON r.year = t.year AND r.athlete_id = $1
+    LEFT JOIN athlete_year_rank r ON r.year = t.year AND r.athlete_id = $1 AND r.gender = $2
     ORDER BY t.year DESC
   `,
     [athleteId, gender]
@@ -345,10 +377,6 @@ export async function getAthleteResultsForYear(
   year: number | "all",
   event: string
 ): Promise<AthleteYearResultRow[]> {
-  // event === "all" shows every discipline for the year(s) selected -- mark
-  // values then mix seconds and metres, so mark_value/isField only matters
-  // (and only gets used for sorting) in the single-discipline case.
-  const isField = isFieldEvent(event);
   const params: unknown[] = [athleteId];
   let i = 1;
   const eventFilter = event !== "all" ? `AND e.athletics_event = $${++i}` : "";
@@ -361,7 +389,13 @@ export async function getAthleteResultsForYear(
     SELECT e.date::text AS date, e.year, e.event_name, e.athletics_event, e.round, e.place, e.mark_display,
       e.division_key_resolved AS competition_level, ROUND(e.competition_score::numeric, 0) AS competition_score, rl.race_level,
       NULLIF(e.record, '') AS record, e.wind, e.wind_legal,
-      ${isField ? safeMark : "e.mark_seconds"} AS mark_value
+      -- Per-row, not per the query's event filter -- "all" mixes track and
+      -- field rows in the same result set, and mark_seconds is NULL for
+      -- field events regardless of what single discipline (if any) this
+      -- call is scoped to. Same track-signal-first rule as
+      -- getAthletePersonalBests' global_best CTE: mark_seconds when
+      -- present (track), else the field-style numeric mark.
+      COALESCE(e.mark_seconds, ${safeMark}) AS mark_value
     FROM events e
     -- Same race_level join as getMeetResults -- keyed by RAW event_name,
     -- round NULL-safe (see its comment there).
