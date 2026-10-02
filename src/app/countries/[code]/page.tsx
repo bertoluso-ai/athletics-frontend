@@ -89,21 +89,29 @@ export default async function CountryPage({
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
   const { athletes, lastWins, topResults, seasons, owMedals } = detail;
-  const athleteSlugs = await getAthleteSlugs([
-    ...athletes.map((a) => a.athlete_id),
-    ...lastWins.map((r) => r.athlete_id),
-    ...topResults.map((r) => r.athlete_id),
-  ]);
   const bestRankEver = seasons.length ? Math.min(...seasons.map((x) => x.rank)) : null;
   const goldSeasons = seasons.filter((x) => x.rank <= 8).length;
-
   const scoring = athletes.filter((a) => a.counts);
-  // three lookups at a time: Wikimedia throttles bursts
-  const photos: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
   const wall = scoring.slice(0, 12);
-  for (let i = 0; i < wall.length; i += 3) {
-    photos.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
-  }
+
+  // athleteSlugs (a Postgres query) and the photo wall (external Wikimedia
+  // lookups, throttled 3-at-a-time on purpose -- "Wikimedia throttles
+  // bursts") don't depend on each other, so they run together instead of
+  // one after the other.
+  const [athleteSlugs, photos] = await Promise.all([
+    getAthleteSlugs([
+      ...athletes.map((a) => a.athlete_id),
+      ...lastWins.map((r) => r.athlete_id),
+      ...topResults.map((r) => r.athlete_id),
+    ]),
+    (async () => {
+      const result: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
+      for (let i = 0; i < wall.length; i += 3) {
+        result.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
+      }
+      return result;
+    })(),
+  ]);
 
   const squad = [...athletes].sort((a, b) => {
     // ascending comparison, flipped for desc; unknown ages always last

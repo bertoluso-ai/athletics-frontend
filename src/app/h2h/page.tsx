@@ -24,12 +24,10 @@ const COLOR_B = "#38bdf8"; // sky-400
 export default async function H2HPage({ searchParams }: { searchParams: Promise<{ a?: string; b?: string }> }) {
   const { a, b } = await searchParams;
   if (!a) notFound();
-  const infoA = await getAthleteInfo(a);
-  if (!infoA) notFound();
 
   if (!b) {
-    const suggestions = await getH2HSuggestions(a);
-    const slugsA = await getAthleteSlugs([a]);
+    const [infoA, suggestions, slugsA] = await Promise.all([getAthleteInfo(a), getH2HSuggestions(a), getAthleteSlugs([a])]);
+    if (!infoA) notFound();
     return (
       <Shell>
         <AthleteTitle id={a} slug={slugsA.get(a)} name={infoA.display_name} nationality={infoA.nationality} />
@@ -67,18 +65,22 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
     );
   }
 
-  const infoB = await getAthleteInfo(b);
+  // infoA/infoB are independent lookups (used to run one after the other
+  // for no reason); slugs doesn't depend on any of the other 5 either, so
+  // it joins the same batch instead of waiting behind it.
+  const [infoA, infoB] = await Promise.all([getAthleteInfo(a), getAthleteInfo(b)]);
+  if (!infoA) notFound();
   if (!infoB) notFound();
-  const [{ shared, kpis, seasons }, photoA, photoB, pbA, pbB] = await Promise.all([
+  const [{ shared, kpis, seasons }, photoA, photoB, pbA, pbB, slugs] = await Promise.all([
     getH2H(a, b),
     getAthletePhotoInfo(infoA.display_name, infoA.birth_year),
     getAthletePhotoInfo(infoB.display_name, infoB.birth_year),
     getAthletePersonalBests(a),
     getAthletePersonalBests(b),
+    getAthleteSlugs([a, b]),
   ]);
   const kA = kpis.find((k) => k.athlete_id === a);
   const kB = kpis.find((k) => k.athlete_id === b);
-  const slugs = await getAthleteSlugs([a, b]);
   const aheadA = shared.filter((r) => r.place_a < r.place_b).length;
   const aheadB = shared.filter((r) => r.place_b < r.place_a).length;
   const decided = aheadA + aheadB;

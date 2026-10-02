@@ -172,21 +172,29 @@ function SideMenu({ view }: { view: string }) {
 }
 
 async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
-  const years = await getRankingYears();
   const currentYear = new Date().getFullYear();
-  const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const gender = sp.gender === "Women" ? "Women" : "Men";
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   const nationality = sp.nationality || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
-  const movement = hasMovement(view, year, currentYear);
   // optional discipline filter: the same ranking restricted to one event
   const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
   const event = sp.event && eventOptions.includes(sp.event) ? sp.event : undefined;
   const discipline = !!event;
-  const progression = event ? await getEventYearlyProgression(event, gender, age) : [];
 
-  const nationalities = await getRankingNationalities(gender);
+  // years/nationalities/progression are independent of each other -- this
+  // used to be 3 sequential awaits (plus the main ranking query only
+  // starting after all 3 resolved) for no reason, same mistake as
+  // Disciplines' two-batch Promise.all had. Confirmed live:
+  // /rankings?event=100+Metres&gender=Men dropped noticeably once this and
+  // the photo-fetch loop below were parallelized.
+  const [years, nationalities, progression] = await Promise.all([
+    getRankingYears(),
+    getRankingNationalities(gender),
+    event ? getEventYearlyProgression(event, gender, age) : Promise.resolve([]),
+  ]);
+  const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
+  const movement = hasMovement(view, year, currentYear);
   const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
   const sortBy: "points" | "mark" = discipline && sp.sort === "mark" ? "mark" : "points";
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
@@ -196,7 +204,6 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
     // podium + climbers always come from the top of the (filtered) ranking
     getIndividualRanking({ ...params, page: 1, pageSize: 200 }),
   ]);
-  const athleteSlugs = await getAthleteSlugs([...rows.map((r) => r.athlete_id), ...top.rows.map((r) => r.athlete_id)]);
   const podium = top.rows.slice(0, 3);
   const climbers = movement
     ? top.rows
@@ -204,12 +211,17 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         .sort((a, b) => b.prev_rank! - b.rank - (a.prev_rank! - a.rank))
         .slice(0, 4)
     : [];
-
   const photoFor = [...podium, ...climbers];
-  const photos: (AthletePhoto | null)[] = [];
-  for (let i = 0; i < photoFor.length; i += 3) {
-    photos.push(...(await Promise.all(photoFor.slice(i, i + 3).map((r) => getAthletePhotoInfo(r.display_name, r.birth_year)))));
-  }
+
+  // athleteSlugs and the podium/climber photos depend on rows/top, but not
+  // on each other -- fire together instead of one after the other. The
+  // photo lookups themselves also used to go in sequential chunks of 3;
+  // at most 7 of them (3 podium + 4 climbers), firing them all at once is
+  // a small enough burst against Wikipedia/Wikidata to not need throttling.
+  const [athleteSlugs, photos] = await Promise.all([
+    getAthleteSlugs([...rows.map((r) => r.athlete_id), ...top.rows.map((r) => r.athlete_id)]),
+    Promise.all(photoFor.map((r) => getAthletePhotoInfo(r.display_name, r.birth_year))),
+  ]);
   const photoOf = new Map(photoFor.map((r, i) => [r.athlete_id, photos[i]]));
 
   const href = (over: Partial<SP>) => {
