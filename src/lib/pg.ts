@@ -26,11 +26,14 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 // warm instances between invocations, so this isn't a new connection per
 // request in practice) -- `max: 3` keeps it well under Cloud SQL's
 // connection limit even if several instances are warm at once.
+// .trim() defensively -- a trailing newline snuck into the env var once
+// (piped in via `echo` when it was first set on Vercel) and broke DNS
+// resolution for the host at build time with a cryptic ENOTFOUND.
 const pool = new Pool({
-  host: process.env.PG_SERVING_HOST,
+  host: process.env.PG_SERVING_HOST?.trim(),
   port: 5432,
   user: "serving",
-  password: process.env.PG_SERVING_PASSWORD,
+  password: process.env.PG_SERVING_PASSWORD?.trim(),
   database: "athletics",
   ssl: { rejectUnauthorized: false },
   max: 3,
