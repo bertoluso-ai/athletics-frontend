@@ -22,10 +22,14 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 // for serving many small reads per page load. Postgres point/indexed
 // reads come back in single-digit milliseconds instead.
 //
-// One pooled connection per serverless function instance (Vercel reuses
-// warm instances between invocations, so this isn't a new connection per
-// request in practice) -- `max: 3` keeps it well under Cloud SQL's
-// connection limit even if several instances are warm at once.
+// Pooled per serverless function instance (Vercel reuses warm instances
+// between invocations, so this isn't a new connection per request in
+// practice). `max: 3` was too low -- a single athlete-profile page load
+// fires 6+ of these in parallel (Promise.all across getAthleteBestResults/
+// Events/PersonalBests/YearlyPoints/Championships/RecordStats), and with
+// only 3 slots the rest queued behind each other, caught live as an
+// 11s page load that should have been well under 1s. The db-custom-2-7680
+// instance comfortably handles far more than this.
 // .trim() defensively -- a trailing newline snuck into the env var once
 // (piped in via `echo` when it was first set on Vercel) and broke DNS
 // resolution for the host at build time with a cryptic ENOTFOUND.
@@ -36,7 +40,7 @@ const pool = new Pool({
   password: process.env.PG_SERVING_PASSWORD?.trim(),
   database: "athletics",
   ssl: { rejectUnauthorized: false },
-  max: 3,
+  max: 15,
   idleTimeoutMillis: 30000,
 });
 
