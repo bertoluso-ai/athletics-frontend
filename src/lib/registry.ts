@@ -3,6 +3,16 @@ import { runQuery } from "./bigquery";
 // Read side of the competition registry (athletics-database.registry.*),
 // used by the /competitions debugging pages while the new grouping is being
 // validated against what production shows today.
+//
+// Deliberately stays on BigQuery (not migrated to the Postgres serving
+// layer like the rest of this project): it's an internal, low-traffic
+// debugging tool (not linked from the public site nav), and saveVerdict
+// below WRITES to BigQuery (an INSERT) -- the serving layer is a read-only
+// mirror refreshed by a nightly TRUNCATE+COPY, so a write here would need
+// either a second write path into Postgres (sync risk, extra infra) or a
+// cross-database join in application code. Neither is worth it for a tool
+// whose whole audience is the one person validating the registry build;
+// BigQuery's ~1-2s per-query floor is a non-issue at this traffic level.
 
 const R = "`athletics-database.registry";
 
