@@ -822,7 +822,7 @@ export async function getAvailableNationalities(event: string, gender: string, y
     WITH codes AS (
       SELECT DISTINCT nationality AS code
       FROM events
-      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = $1 AND gender = $2 AND nationality IS NOT NULL
+      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event_base = $1 AND gender = $2 AND nationality IS NOT NULL
     ),
     names AS (
       SELECT code, name FROM countries
@@ -1037,7 +1037,7 @@ export async function getEventAllTimeBest(
         NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) AS rn
       FROM events
-      WHERE athletics_event = $1 AND gender = $2
+      WHERE athletics_event_base = $1 AND gender = $2
         AND athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
@@ -1071,7 +1071,7 @@ export async function getEventBestByArea(event: string, gender: string, indoor =
         ROW_NUMBER() OVER (PARTITION BY c.area ORDER BY ${orderExpr}) AS rn
       FROM events e
       JOIN countries c ON c.code = e.nationality
-      WHERE c.area IS NOT NULL AND e.athletics_event = $1 AND e.gender = $2
+      WHERE c.area IS NOT NULL AND e.athletics_event_base = $1 AND e.gender = $2
         AND e.athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkE} IS NOT NULL` : "e.mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (e.wind_legal IS NULL OR e.wind_legal = TRUE)" : ""}
@@ -1096,7 +1096,7 @@ export async function getEventBestByCountry(event: string, gender: string, indoo
         NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY ${orderExpr}) AS rn
       FROM events
-      WHERE athletics_event = $1 AND gender = $2 AND nationality IS NOT NULL
+      WHERE athletics_event_base = $1 AND gender = $2 AND nationality IS NOT NULL
         AND athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
@@ -1135,7 +1135,7 @@ export async function getEventRecordTenure(event: string, gender: string, limit 
       SELECT athlete_id, athlete_display_name AS display_name, nationality, date,
         ${isField ? safeMarkEvents : "mark_seconds"} AS v
       FROM events
-      WHERE athletics_event = $1 AND gender = $2 AND date IS NOT NULL
+      WHERE athletics_event_base = $1 AND gender = $2 AND date IS NOT NULL
         AND athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
@@ -1173,7 +1173,7 @@ export async function getEventRecordTenure(event: string, gender: string, limit 
 export async function getEventAvailableYears(event: string, gender: string): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year FROM events
-    WHERE athletics_event = $1 AND gender = $2 AND year IS NOT NULL
+    WHERE athletics_event_base = $1 AND gender = $2 AND year IS NOT NULL
     ORDER BY year DESC
   `, [event, gender]);
   return rows.map((r) => r.year);
@@ -1207,7 +1207,7 @@ export async function getEventYearBestMarks(
         NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) AS rn
       FROM events
-      WHERE year = ${year} AND athletics_event = $1 AND gender = $2
+      WHERE year = ${year} AND athletics_event_base = $1 AND gender = $2
         AND athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
@@ -1628,7 +1628,7 @@ export async function getEventYearlyProgression(
         athlete_id, athlete_display_name AS athlete, nationality,
         ROW_NUMBER() OVER (PARTITION BY year ORDER BY ${orderExpr}) AS rn
       FROM events
-      WHERE athletics_event = $1 AND gender = $2 AND year IS NOT NULL
+      WHERE athletics_event_base = $1 AND gender = $2 AND year IS NOT NULL
         AND athlete_display_name IS NOT NULL
         AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}

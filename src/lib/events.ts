@@ -81,12 +81,18 @@ export const EVENT_GROUPS = [
   },
   {
     key: "cross", label: "Cross Country",
+    // "Cross Country Senior Race" era una entrada duplicada en este
+    // selector: ambas comparten la misma athletics_event_base ("Cross
+    // Country", ver matchAthletesIncremental/match_incremental.sql), asi
+    // que las paginas de disciplinas ya agrupan sus resultados juntos --
+    // mantenerla aqui aparte solo confundia (dos opciones que mostraban
+    // el mismo "todas las edades" pero con listas distintas).
     events: {
-      Men: ["Cross Country", "Cross Country Senior Race"],
-      Women: ["Cross Country", "Cross Country Senior Race"],
+      Men: ["Cross Country"],
+      Women: ["Cross Country"],
     },
     names: {
-      "Cross Country": "Cross Country", "Cross Country Senior Race": "Cross Country Senior Race",
+      "Cross Country": "Cross Country",
     } as Record<string, string>,
   },
   {

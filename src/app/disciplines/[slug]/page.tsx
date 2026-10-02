@@ -147,9 +147,6 @@ export default async function DisciplinePage({
       ) as ("Men" | "Women")[])
     : (["Men", "Women"] as const);
   const gender = (sp.gender as "Men" | "Women") && availableGenders.includes(sp.gender as "Men" | "Women") ? (sp.gender as "Men" | "Women") : availableGenders[0] ?? "Men";
-  // Flat list across every group (no category selector): same "All
-  // disciplines" single-dropdown convention as Rankings.
-  const eventOptions = Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[])));
 
   const yearParam = sp.year === "all" ? null : sp.year ? Number(sp.year) : null;
   const ageCategory = sp.age ?? "";
@@ -170,6 +167,16 @@ export default async function DisciplinePage({
     (sp.indoor ? sp.indoor === "true" : INDOOR_DEFAULT_EVENTS.includes(event));
   const nationality = sp.nationality || undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+
+  // Flat list across every group (no category selector): same "All
+  // disciplines" single-dropdown convention as Rankings. When Indoor is
+  // selected, drop disciplines that are never run indoors (Road, Cross
+  // Country, Relays never have indoor results) -- otherwise the dropdown
+  // offered "Marathon"/"Cross Country" while Indoor was active, which
+  // always rendered empty since no row of those ever has an indoor mark.
+  const eventOptions = Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[]))).filter(
+    (ev) => !indoor || (eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && !isRelayEvent(ev))
+  );
 
   const [allTime, years, yearBest, progression, nationalities] = await Promise.all([
     isRelay ? getEventAllTimeBestRelay(event, gender, limit) : getEventAllTimeBest(event, gender, limit, ageCategory || undefined, indoor, nationality, area),
