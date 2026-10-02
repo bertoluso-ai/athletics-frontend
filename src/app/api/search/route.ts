@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runQuery } from "@/lib/bigquery";
-import { normalizeSeries, displaySeries, getAthleteSlugs, athleteHref } from "@/lib/queries";
+import { pgQuery } from "@/lib/pg";
+import { normalizeSeriesPg, displaySeriesPg, getAthleteSlugs, athleteHref } from "@/lib/queries";
 import { EVENT_GROUPS, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
@@ -36,19 +36,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // Athletes (BigQuery, name search)
-  const athletes = await runQuery<{ athlete_id: string; display_name: string; nationality: string | null }>(`
-    SELECT athlete_id, ANY_VALUE(athlete_display_name) AS display_name,
-      ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality
-    FROM \`athletics-database.athletics_all.events_enriched\`
+  // Athletes (Postgres, name search)
+  const athletes = await pgQuery<{ athlete_id: string; display_name: string; nationality: string | null }>(`
+    SELECT athlete_id, (ARRAY_AGG(athlete_display_name))[1] AS display_name,
+      (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality
+    FROM events
     -- accent-insensitive on both sides ("hanzekovic" finds "Hanžeković")
     WHERE athlete_id IS NOT NULL
-      AND LOWER(REGEXP_REPLACE(NORMALIZE(athlete_display_name, NFD), r'\\p{M}', '')) LIKE @pattern
+      AND LOWER(unaccent(athlete_display_name)) LIKE $1
     GROUP BY athlete_id
     -- best athletes first: career points, then number of results
-    ORDER BY IFNULL(SUM(competition_score), 0) DESC, COUNT(*) DESC
+    ORDER BY COALESCE(SUM(competition_score), 0) DESC, COUNT(*) DESC
     LIMIT 8
-  `, { pattern: `%${qLower.normalize("NFD").replace(/\p{M}/gu, "")}%` });
+  `, [`%${qLower.normalize("NFD").replace(/\p{M}/gu, "")}%`]);
 
   const athleteSlugs = await getAthleteSlugs(athletes.map((a) => a.athlete_id));
   for (const a of athletes) {
@@ -66,12 +66,12 @@ export async function GET(req: NextRequest) {
   // host-city suffixes) so the series shows up as ONE result instead of
   // one per edition; linking with the most recent edition's exact name
   // still lands on a page listing every edition.
-  const meets = await runQuery<{ event_name: string; year: number; n_results: number; label: string }>(`
+  const meets = await pgQuery<{ event_name: string; year: number; n_results: number; label: string }>(`
     WITH normalized AS (
       SELECT event_name, year, COALESCE(display_series_name, event_name) AS series_label,
-        ${normalizeSeries("COALESCE(display_series_name, event_name)")} AS series_key
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE @pattern
+        ${normalizeSeriesPg("COALESCE(display_series_name, event_name)")} AS series_key
+      FROM events
+      WHERE event_name IS NOT NULL AND LOWER(event_name) LIKE $1
     ),
     best_label AS (
       -- The shortest series_label in the group is the best proxy for the
@@ -80,17 +80,22 @@ export async function GET(req: NextRequest) {
       -- doesn't, e.g. "Olympic Games" (17 chars) vs "The XXXIII Olympic
       -- Games" (23 chars) both belong to the same normalized series.
       SELECT series_key,
-        ${displaySeries("ARRAY_AGG(series_label ORDER BY LENGTH(series_label) ASC, series_label ASC LIMIT 1)[OFFSET(0)]")} AS label
+        ${displaySeriesPg("(ARRAY_AGG(series_label ORDER BY LENGTH(series_label) ASC, series_label ASC))[1]")} AS label
       FROM normalized
       GROUP BY series_key
+    ),
+    joined AS (
+      SELECT n.event_name, n.year, COUNT(*) OVER (PARTITION BY n.series_key) AS n_results, b.label,
+        ROW_NUMBER() OVER (PARTITION BY n.series_key ORDER BY n.year DESC) AS rn
+      FROM normalized n
+      JOIN best_label b USING (series_key)
     )
-    SELECT n.event_name, n.year, COUNT(*) OVER (PARTITION BY n.series_key) AS n_results, b.label
-    FROM normalized n
-    JOIN best_label b USING (series_key)
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY n.series_key ORDER BY n.year DESC) = 1
+    SELECT event_name, year, n_results, label
+    FROM joined
+    WHERE rn = 1
     ORDER BY n_results DESC
     LIMIT 8
-  `, { pattern: `%${qLower}%` });
+  `, [`%${qLower}%`]);
 
   for (const m of meets) {
     results.push({

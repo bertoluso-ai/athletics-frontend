@@ -1,4 +1,3 @@
-import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
 import { AGE_CATEGORIES } from "./queries";
 
@@ -178,32 +177,32 @@ async function getCountrySeasons(code: string, f: CountryFilters, seasonEvent?: 
       [f.gender, f.age ?? "", code]
     );
   }
-  return runQuery<CountrySeasonRow>(
+  return pgQuery<CountrySeasonRow>(
     `
     WITH athletes AS (
       SELECT year, athlete_id,
-        ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
+        (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
         SUM(competition_score) AS points
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE gender = @gender AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
-        ${ageFilter(f.age)} AND athletics_event = @seasonEvent
+      FROM events
+      WHERE gender = $1 AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
+        ${ageFilter(f.age)} AND athletics_event = $2
       GROUP BY year, athlete_id
     ),
     per_country AS (
-      SELECT year, nationality AS code, ROUND(SUM(points), 0) AS points
+      SELECT year, nationality AS code, ROUND(SUM(points)::numeric, 0) AS points
       FROM (
         SELECT *, ROW_NUMBER() OVER (PARTITION BY year, nationality ORDER BY points DESC) AS rn
         FROM athletes WHERE nationality IS NOT NULL
-      )
+      ) x
       WHERE rn <= ${COUNTED_ATHLETES}
       GROUP BY year, nationality
     )
     SELECT year, points, rank
-    FROM (SELECT *, RANK() OVER (PARTITION BY year ORDER BY points DESC) AS rank FROM per_country)
-    WHERE code = @code
+    FROM (SELECT *, RANK() OVER (PARTITION BY year ORDER BY points DESC) AS rank FROM per_country) y
+    WHERE code = $3
     ORDER BY year DESC
   `,
-    { code, gender: f.gender, seasonEvent }
+    [f.gender, seasonEvent, code]
   );
 }
 

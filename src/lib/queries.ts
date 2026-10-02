@@ -15,6 +15,12 @@ import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
 // signal either way.
 const INDOOR_EXPR = `(track_key = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
 
+// Postgres port of BigQuery's SAFE_CAST(mark AS FLOAT64) against the
+// `events` mirror's `mark` column -- Postgres errors on a bad cast where
+// BigQuery's SAFE_CAST just returns NULL, so every numeric-field-mark
+// comparison needs this regex guard instead of a bare `::double precision`.
+const safeMarkEvents = `CASE WHEN mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
+
 // ---------------------------------------------------------------------
 // Athlete profile
 // ---------------------------------------------------------------------
@@ -460,6 +466,22 @@ async function fetchWindow(
   filters: { event?: string; tier?: string; from?: string; to?: string }
 ): Promise<LatestResultGroup[]> {
   const { event, tier, from, to } = filters;
+  // Parametros opcionales construidos dinamicamente: Postgres infiere el
+  // numero de parametros del placeholder $N mas alto REALMENTE referenciado
+  // en el SQL, asi que un filtro que no aplica no puede dejar un $N "hueco"
+  // en el texto (mismo patron que getNationRanking en countries.ts).
+  const params: unknown[] = [];
+  let idx = 1;
+  let fromPh = "";
+  let toPh = "";
+  let eventPh = "";
+  let tierPh = "";
+  if (from) { params.push(from); fromPh = `$${idx++}`; }
+  if (to) { params.push(to); toPh = `$${idx++}`; }
+  if (event) { params.push(event); eventPh = `$${idx++}`; }
+  if (tier) { params.push(tier); tierPh = `$${idx++}`; }
+  const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
+
   // The source "place" field is heat-relative, not race-relative -- meets
   // that run many parallel non-eliminating heats (all labelled some variant
   // of "Final") each produce their own place 1/2/3, which would otherwise
@@ -467,27 +489,27 @@ async function fetchWindow(
   // we ignore the source place and rank by the actual mark ourselves,
   // capped to the real top 3. Relays keep the source place (it already
   // identifies one row per team leg correctly).
-  const rows = await runQuery<ResultRow>(`
+  const rows = await pgQuery<ResultRow>(`
     WITH candidates AS (
       SELECT
         event_name, athletics_event, gender, round,
-        CAST(date AS STRING) AS date,
+        date::text AS date,
         division_key_resolved AS competition_level,
-        ROUND(competition_score) AS level,
+        ROUND(competition_score::numeric) AS level,
         place, athlete_id, athlete_display_name AS display_name, mark_display,
         nationality, NULLIF(record, '') AS record, city, country, wind, wind_legal,
-        mark_seconds, SAFE_CAST(mark AS FLOAT64) AS mark_num,
+        mark_seconds, ${safeMark} AS mark_num,
         LOWER(athletics_event) LIKE '%relay%' AS is_relay
-      FROM \`athletics-database.athletics_all.events_enriched\`
+      FROM events
       WHERE place IS NOT NULL
         AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
-        AND LOWER(IFNULL(round,'')) NOT LIKE '%combined%'
-        ${from ? "AND date >= @from" : "AND date >= DATE_SUB(CURRENT_DATE(), INTERVAL 7 DAY)"}
-        ${to ? "AND date <= @to" : ""}
+        AND LOWER(COALESCE(round,'')) NOT LIKE '%combined%'
+        ${from ? `AND date >= ${fromPh}` : "AND date >= CURRENT_DATE - INTERVAL '7 days'"}
+        ${to ? `AND date <= ${toPh}` : ""}
         AND athlete_display_name IS NOT NULL
-        AND (mark_seconds IS NOT NULL OR SAFE_CAST(mark AS FLOAT64) IS NOT NULL)
-        ${event ? "AND athletics_event = @event" : ""}
-        ${tier ? "AND division_key_resolved = @tier" : ""}
+        AND (mark_seconds IS NOT NULL OR ${safeMark} IS NOT NULL)
+        ${event ? `AND athletics_event = ${eventPh}` : ""}
+        ${tier ? `AND division_key_resolved = ${tierPh}` : ""}
     ),
     ranked AS (
       SELECT *,
@@ -500,18 +522,17 @@ async function fetchWindow(
         -- but a single real race only ever has one wind reading, so two
         -- different non-null wind values under the same round means two
         -- different races got merged.
-        IF(is_relay, place, RANK() OVER (
+        CASE WHEN is_relay THEN place ELSE RANK() OVER (
           PARTITION BY event_name, athletics_event, gender, date, round, wind
           -- Combined events (Decathlon/Heptathlon) score by points, higher
           -- better, and never populate mark_seconds -- without them here
           -- every participant ties on a NULL sort value and RANK() puts
           -- them all at 1, so the whole field passes the "top 3" filter
           -- below instead of just the real podium.
-          ORDER BY IF(
-            athletics_event IN ('Long Jump','High Jump','Triple Jump','Pole Vault','Shot Put','Discus Throw','Javelin Throw','Hammer Throw','Decathlon','Heptathlon'),
-            -mark_num, mark_seconds
-          ) ASC
-        )) AS real_place
+          ORDER BY CASE WHEN
+            athletics_event IN ('Long Jump','High Jump','Triple Jump','Pole Vault','Shot Put','Discus Throw','Javelin Throw','Hammer Throw','Decathlon','Heptathlon')
+            THEN -mark_num ELSE mark_seconds END ASC
+        ) END AS real_place
       FROM candidates
     )
     SELECT event_name, athletics_event, gender, round, date, competition_level, level,
@@ -519,7 +540,7 @@ async function fetchWindow(
     FROM ranked
     WHERE real_place BETWEEN 1 AND 3
     ORDER BY date DESC
-  `, { ...(event ? { event } : {}), ...(tier ? { tier } : {}), ...(from ? { from } : {}), ...(to ? { to } : {}) });
+  `, params);
 
   // Group into races, then within each race group by place -- a relay
   // team has one row per runner sharing the same place/mark/nationality,
@@ -654,6 +675,11 @@ export async function getUpcomingCompetitions(
   // can't crowd the real ones out of the 10 slots, but a C-F race still
   // gets through when there's room (e.g. a quiet week with nothing bigger
   // nearby). An explicit category filter cares only about date.
+  // Stays on BigQuery: joining upcoming_competitions (~10 rows) against
+  // events by a regex-normalized series match has no indexable scope --
+  // even a 1-year date prefilter still leaves 660k+ candidate rows for the
+  // regex join, which took 90s+ on Postgres's single node (fine on
+  // BigQuery's distributed engine). Same lesson as calendar.ts.
   const orderBy = category
     ? "date_start ASC"
     : "IF(category IN ('OW','DF','GW','GL','A','B'), 0, 1) ASC, date_start ASC";
@@ -717,21 +743,22 @@ function rankingAggCte(event: string, year: number | "all", ageMax: number | und
   // Indoor/outdoor works the same way: outdoor is the default view (the
   // far more common context, and "the" record for most events), indoor
   // is a separate, explicit view -- never blended in the same ranking.
+  const markValueExpr = isField ? safeMarkEvents : "mark_seconds";
   return `
     SELECT
-      athlete_id, ANY_VALUE(athlete_display_name) AS display_name,
-      ROUND(SUM(competition_score), 0) AS points,
+      athlete_id, (ARRAY_AGG(athlete_display_name))[1] AS display_name,
+      ROUND(SUM(competition_score)::numeric, 0) AS points,
       COUNT(*) AS n_results,
-      ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
-      ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
-      ARRAY_AGG(mark_display IGNORE NULLS ORDER BY ${markOrderExpr} LIMIT 1)[SAFE_OFFSET(0)] AS best_mark,
-      ARRAY_AGG(${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} IGNORE NULLS ORDER BY ${markOrderExpr} LIMIT 1)[SAFE_OFFSET(0)] AS best_mark_value,
-      ARRAY_AGG(wind IGNORE NULLS ORDER BY ${markOrderExpr} LIMIT 1)[SAFE_OFFSET(0)] AS best_mark_wind,
-      ARRAY_AGG(wind_legal ORDER BY ${markOrderExpr} LIMIT 1)[SAFE_OFFSET(0)] AS best_mark_wind_legal
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = @event AND gender = @gender
+      (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
+      (ARRAY_AGG(birth_year) FILTER (WHERE birth_year IS NOT NULL))[1] AS birth_year,
+      (ARRAY_AGG(mark_display ORDER BY ${markOrderExpr}) FILTER (WHERE mark_display IS NOT NULL))[1] AS best_mark,
+      (ARRAY_AGG(${markValueExpr} ORDER BY ${markOrderExpr}) FILTER (WHERE ${markValueExpr} IS NOT NULL))[1] AS best_mark_value,
+      (ARRAY_AGG(wind ORDER BY ${markOrderExpr}) FILTER (WHERE wind IS NOT NULL))[1] AS best_mark_wind,
+      (ARRAY_AGG(wind_legal ORDER BY ${markOrderExpr}))[1] AS best_mark_wind_legal
+    FROM events
+    WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = $1 AND gender = $2
       AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
-      ${hasNationality ? "AND nationality = @nationality" : ""}
+      ${hasNationality ? "AND nationality = $3" : ""}
       ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
       ${excludeIllegalWind ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
       AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
@@ -754,17 +781,19 @@ export async function getEventYearRanking(
   // athlete actually was U20, across their whole career.
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const isField = isFieldEvent(event);
-  const markOrderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const markOrderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
   const outerOrder =
     sortBy === "mark"
       ? `best_mark_value IS NULL, ${isField ? "best_mark_value DESC" : "best_mark_value ASC"}`
       : "points DESC";
-  return runQuery<RankingRow>(`
+  const params: unknown[] = [event, gender];
+  if (nationality) params.push(nationality);
+  return pgQuery<RankingRow>(`
     WITH agg AS (${rankingAggCte(event, year, ageMax, isField, markOrderExpr, !!nationality, !includeIllegalWind, indoor)})
     SELECT * FROM agg
     ORDER BY ${outerOrder}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-  `, { event, gender, ...(nationality ? { nationality } : {}) });
+  `, params);
 }
 
 export async function getEventYearRankingCount(
@@ -776,31 +805,33 @@ export async function getEventYearRankingCount(
   const { nationality, ageCategory, includeIllegalWind = false, indoor = false } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const isField = isFieldEvent(event);
-  const markOrderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
-  const rows = await runQuery<{ n: number }>(`
+  const markOrderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
+  const params: unknown[] = [event, gender];
+  if (nationality) params.push(nationality);
+  const rows = await pgQuery<{ n: number }>(`
     WITH agg AS (${rankingAggCte(event, year, ageMax, isField, markOrderExpr, !!nationality, !includeIllegalWind, indoor)})
     SELECT COUNT(*) AS n FROM agg
-  `, { event, gender, ...(nationality ? { nationality } : {}) });
+  `, params);
   return rows[0]?.n ?? 0;
 }
 
 export type NationalityOption = { code: string; name: string };
 
 export async function getAvailableNationalities(event: string, gender: string, year: number | "all"): Promise<NationalityOption[]> {
-  return runQuery<NationalityOption>(`
+  return pgQuery<NationalityOption>(`
     WITH codes AS (
       SELECT DISTINCT nationality AS code
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = @event AND gender = @gender AND nationality IS NOT NULL
+      FROM events
+      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = $1 AND gender = $2 AND nationality IS NOT NULL
     ),
     names AS (
-      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
+      SELECT code, name FROM countries
     )
-    SELECT c.code, IFNULL(n.name, c.code) AS name
+    SELECT c.code, COALESCE(n.name, c.code) AS name
     FROM codes c
     LEFT JOIN names n USING (code)
     ORDER BY name
-  `, { event, gender });
+  `, [event, gender]);
 }
 
 // ---------------------------------------------------------------------
@@ -824,23 +855,26 @@ export type RelayRankingRow = {
 function relayRankingAggCte(event: string, year: number | "all", hasNationality: boolean) {
   return `
     WITH races AS (
-      SELECT event_name, CAST(date AS STRING) AS date, nationality, mark_display, mark_seconds, competition_score,
-        ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = @event AND gender = @gender
+      SELECT event_name, date::text AS date, nationality, mark_display, mark_seconds, competition_score,
+        COALESCE(ARRAY_AGG(DISTINCT athlete_display_name ORDER BY athlete_display_name) FILTER (WHERE athlete_display_name IS NOT NULL), ARRAY[]::text[]) AS roster
+      FROM events
+      WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event = $1 AND gender = $2
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
-        ${hasNationality ? "AND nationality = @nationality" : ""}
+        ${hasNationality ? "AND nationality = $3" : ""}
       GROUP BY event_name, date, nationality, mark_display, mark_seconds, competition_score
     ),
     totals AS (
-      SELECT nationality, ROUND(SUM(competition_score), 0) AS points
+      SELECT nationality, ROUND(SUM(competition_score)::numeric, 0) AS points
       FROM races
       GROUP BY nationality
     ),
     best AS (
-      SELECT nationality, mark_display AS best_mark, mark_seconds AS best_mark_value, roster
-      FROM races
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
+      SELECT nationality, mark_display AS best_mark, mark_seconds AS best_mark_value, roster FROM (
+        SELECT nationality, mark_display, mark_seconds, roster,
+          ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) AS rn
+        FROM races
+      ) z
+      WHERE rn = 1
     )
     SELECT t.nationality, t.points, b.best_mark, b.best_mark_value, b.roster
     FROM totals t
@@ -858,12 +892,14 @@ export async function getRelayYearRanking(
 ): Promise<RelayRankingRow[]> {
   const { nationality, sortBy = "mark" } = filters;
   const outerOrder = sortBy === "mark" ? "best_mark_value IS NULL, best_mark_value ASC" : "points DESC";
-  return runQuery<RelayRankingRow>(`
+  const params: unknown[] = [event, gender];
+  if (nationality) params.push(nationality);
+  return pgQuery<RelayRankingRow>(`
     WITH agg AS (${relayRankingAggCte(event, year, !!nationality)})
     SELECT * FROM agg
     ORDER BY ${outerOrder}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-  `, { event, gender, ...(nationality ? { nationality } : {}) });
+  `, params);
 }
 
 export async function getRelayYearRankingCount(
@@ -873,10 +909,12 @@ export async function getRelayYearRankingCount(
   filters: { nationality?: string } = {}
 ): Promise<number> {
   const { nationality } = filters;
-  const rows = await runQuery<{ n: number }>(`
+  const params: unknown[] = [event, gender];
+  if (nationality) params.push(nationality);
+  const rows = await pgQuery<{ n: number }>(`
     WITH agg AS (${relayRankingAggCte(event, year, !!nationality)})
     SELECT COUNT(*) AS n FROM agg
-  `, { event, gender, ...(nationality ? { nationality } : {}) });
+  `, params);
   return rows[0]?.n ?? 0;
 }
 
@@ -900,15 +938,15 @@ export type GlobalRankingRow = {
 function globalRankingAggCte(year: number | "all", ageMax: number | undefined, hasNationality: boolean) {
   return `
     SELECT
-      athlete_id, ANY_VALUE(athlete_display_name) AS display_name,
-      ROUND(SUM(competition_score), 0) AS points,
+      athlete_id, (ARRAY_AGG(athlete_display_name))[1] AS display_name,
+      ROUND(SUM(competition_score)::numeric, 0) AS points,
       COUNT(*) AS n_results,
-      ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
-      ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE ${year !== "all" ? `year = ${year} AND` : ""} gender = @gender
+      (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
+      (ARRAY_AGG(birth_year) FILTER (WHERE birth_year IS NOT NULL))[1] AS birth_year
+    FROM events
+    WHERE ${year !== "all" ? `year = ${year} AND` : ""} gender = $1
       AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
-      ${hasNationality ? "AND nationality = @nationality" : ""}
+      ${hasNationality ? "AND nationality = $2" : ""}
       ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
     GROUP BY athlete_id
   `;
@@ -923,12 +961,14 @@ export async function getGlobalYearRanking(
 ): Promise<GlobalRankingRow[]> {
   const { nationality, ageCategory } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
-  return runQuery<GlobalRankingRow>(`
+  const params: unknown[] = [gender];
+  if (nationality) params.push(nationality);
+  return pgQuery<GlobalRankingRow>(`
     WITH agg AS (${globalRankingAggCte(year, ageMax, !!nationality)})
     SELECT * FROM agg
     ORDER BY points DESC
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-  `, { gender, ...(nationality ? { nationality } : {}) });
+  `, params);
 }
 
 export async function getGlobalYearRankingCount(
@@ -938,28 +978,30 @@ export async function getGlobalYearRankingCount(
 ): Promise<number> {
   const { nationality, ageCategory } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
-  const rows = await runQuery<{ n: number }>(`
+  const params: unknown[] = [gender];
+  if (nationality) params.push(nationality);
+  const rows = await pgQuery<{ n: number }>(`
     WITH agg AS (${globalRankingAggCte(year, ageMax, !!nationality)})
     SELECT COUNT(*) AS n FROM agg
-  `, { gender, ...(nationality ? { nationality } : {}) });
+  `, params);
   return rows[0]?.n ?? 0;
 }
 
 export async function getGlobalAvailableNationalities(gender: string, year: number | "all"): Promise<NationalityOption[]> {
-  return runQuery<NationalityOption>(`
+  return pgQuery<NationalityOption>(`
     WITH codes AS (
       SELECT DISTINCT nationality AS code
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE ${year !== "all" ? `year = ${year} AND` : ""} gender = @gender AND nationality IS NOT NULL
+      FROM events
+      WHERE ${year !== "all" ? `year = ${year} AND` : ""} gender = $1 AND nationality IS NOT NULL
     ),
     names AS (
-      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
+      SELECT code, name FROM countries
     )
-    SELECT c.code, IFNULL(n.name, c.code) AS name
+    SELECT c.code, COALESCE(n.name, c.code) AS name
     FROM codes c
     LEFT JOIN names n USING (code)
     ORDER BY name
-  `, { gender });
+  `, [gender]);
 }
 
 // ---------------------------------------------------------------------
@@ -978,26 +1020,36 @@ export async function getEventAllTimeBest(
   event: string, gender: string, limit = 10, ageCategory?: string, indoor = false, nationality?: string, area?: string
 ): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
-  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
+  const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
+  const params: unknown[] = [event, gender];
+  let idx = 3;
+  let nationalityPh = "";
+  let areaPh = "";
+  if (nationality) { params.push(nationality); nationalityPh = `$${idx++}`; }
+  if (area) { params.push(area); areaPh = `$${idx++}`; }
 
-  return runQuery<MarkRow>(`
-    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
-      NULLIF(record, '') AS record
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athletics_event = @event AND gender = @gender
-      AND athlete_display_name IS NOT NULL
-      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
-      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
-      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
-      ${nationality ? "AND nationality = @nationality" : ""}
-      ${area ? "AND nationality IN (SELECT code FROM `athletics-database.tablasauxiliares.countries` WHERE area = @area)" : ""}
-      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
-    ORDER BY ${orderExpr}
+  return pgQuery<MarkRow>(`
+    SELECT athlete_id, display_name, mark_display, nationality, record FROM (
+      SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
+        NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) AS rn
+      FROM events
+      WHERE athletics_event = $1 AND gender = $2
+        AND athlete_display_name IS NOT NULL
+        AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+        ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+        ${nationality ? `AND nationality = ${nationalityPh}` : ""}
+        ${area ? `AND nationality IN (SELECT code FROM countries WHERE area = ${areaPh})` : ""}
+        AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    ) z
+    WHERE rn = 1
+    ORDER BY ${outerOrderExpr}
     LIMIT ${limit}
-  `, { event, gender, ...(nationality ? { nationality } : {}), ...(area ? { area } : {}) });
+  `, params);
 }
 
 export type AreaBestRow = MarkRow & { area: string; area_name: string };
@@ -1007,44 +1059,53 @@ export type AreaBestRow = MarkRow & { area: string; area_name: string };
 // filter, so this stays consistent with what "area" means elsewhere.
 export async function getEventBestByArea(event: string, gender: string, indoor = false): Promise<AreaBestRow[]> {
   const isField = isFieldEvent(event);
-  const orderExpr = isField ? "SAFE_CAST(e.mark AS FLOAT64) DESC" : "e.mark_seconds ASC";
+  const safeMarkE = `CASE WHEN e.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN e.mark::double precision ELSE NULL END`;
+  const orderExpr = isField ? `${safeMarkE} DESC` : "e.mark_seconds ASC";
+  const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
 
-  return runQuery<AreaBestRow>(`
-    SELECT c.area, c.area_name, e.athlete_id, e.athlete_display_name AS display_name, e.mark_display,
-      e.nationality, NULLIF(e.record, '') AS record
-    FROM \`athletics-database.athletics_all.events_enriched\` e
-    JOIN \`athletics-database.tablasauxiliares.countries\` c ON c.code = e.nationality
-    WHERE c.area IS NOT NULL AND e.athletics_event = @event AND e.gender = @gender
-      AND e.athlete_display_name IS NOT NULL
-      AND ${isField ? "SAFE_CAST(e.mark AS FLOAT64) IS NOT NULL" : "e.mark_seconds IS NOT NULL"}
-      ${windFiltered ? "AND (e.wind_legal IS NULL OR e.wind_legal = TRUE)" : ""}
-      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY c.area ORDER BY ${orderExpr}) = 1
-    ORDER BY ${orderExpr}
-  `, { event, gender });
+  return pgQuery<AreaBestRow>(`
+    SELECT area, area_name, athlete_id, display_name, mark_display, nationality, record FROM (
+      SELECT c.area, c.area_name, e.athlete_id, e.athlete_display_name AS display_name, e.mark_display,
+        e.nationality, NULLIF(e.record, '') AS record, ${isField ? safeMarkE : "e.mark_seconds"} AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY c.area ORDER BY ${orderExpr}) AS rn
+      FROM events e
+      JOIN countries c ON c.code = e.nationality
+      WHERE c.area IS NOT NULL AND e.athletics_event = $1 AND e.gender = $2
+        AND e.athlete_display_name IS NOT NULL
+        AND ${isField ? `${safeMarkE} IS NOT NULL` : "e.mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (e.wind_legal IS NULL OR e.wind_legal = TRUE)" : ""}
+        AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    ) z
+    WHERE rn = 1
+    ORDER BY ${outerOrderExpr}
+  `, [event, gender]);
 }
 
 // Best mark ever, one per country -- capped, sorted fastest first (a
 // compact "national records" leaderboard, not the full country list).
 export async function getEventBestByCountry(event: string, gender: string, indoor = false, limit = 15): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
-  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
+  const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
 
-  return runQuery<MarkRow>(`
-    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
-      NULLIF(record, '') AS record
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athletics_event = @event AND gender = @gender AND nationality IS NOT NULL
-      AND athlete_display_name IS NOT NULL
-      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
-      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
-      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY ${orderExpr}) = 1
-    ORDER BY ${orderExpr}
+  return pgQuery<MarkRow>(`
+    SELECT athlete_id, display_name, mark_display, nationality, record FROM (
+      SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
+        NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY ${orderExpr}) AS rn
+      FROM events
+      WHERE athletics_event = $1 AND gender = $2 AND nationality IS NOT NULL
+        AND athlete_display_name IS NOT NULL
+        AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+        AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    ) z
+    WHERE rn = 1
+    ORDER BY ${outerOrderExpr}
     LIMIT ${limit}
-  `, { event, gender });
+  `, [event, gender]);
 }
 
 export type RecordTenureRow = {
@@ -1069,20 +1130,23 @@ export async function getEventRecordTenure(event: string, gender: string, limit 
   const bestAgg = isField ? "MAX" : "MIN";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
 
-  return runQuery<RecordTenureRow>(`
+  return pgQuery<RecordTenureRow>(`
     WITH marks AS (
       SELECT athlete_id, athlete_display_name AS display_name, nationality, date,
-        ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS v
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE athletics_event = @event AND gender = @gender AND date IS NOT NULL
+        ${isField ? safeMarkEvents : "mark_seconds"} AS v
+      FROM events
+      WHERE athletics_event = $1 AND gender = $2 AND date IS NOT NULL
         AND athlete_display_name IS NOT NULL
-        AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
+        AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
         ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
     ),
     per_day AS (
-      SELECT date, athlete_id, display_name, nationality, v
-      FROM marks
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY date ORDER BY ${orderExpr}) = 1
+      SELECT date, athlete_id, display_name, nationality, v FROM (
+        SELECT date, athlete_id, display_name, nationality, v,
+          ROW_NUMBER() OVER (PARTITION BY date ORDER BY ${orderExpr}) AS rn
+        FROM marks
+      ) z
+      WHERE rn = 1
     ),
     with_prior AS (
       SELECT *, ${bestAgg}(v) OVER (ORDER BY date ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS prior_best
@@ -1093,25 +1157,25 @@ export async function getEventRecordTenure(event: string, gender: string, limit 
     ),
     spans AS (
       SELECT athlete_id, display_name, nationality, date AS start_date,
-        IFNULL(LEAD(date) OVER (ORDER BY date), CURRENT_DATE()) AS end_date
+        COALESCE(LEAD(date) OVER (ORDER BY date), CURRENT_DATE) AS end_date
       FROM new_records
     )
-    SELECT athlete_id, ANY_VALUE(display_name) AS display_name, ANY_VALUE(nationality) AS nationality,
-      ROUND(SUM(DATE_DIFF(end_date, start_date, DAY)) / 365.25, 1) AS years_held,
+    SELECT athlete_id, (ARRAY_AGG(display_name))[1] AS display_name, (ARRAY_AGG(nationality))[1] AS nationality,
+      ROUND((SUM(end_date - start_date) / 365.25)::numeric, 1) AS years_held,
       COUNT(*) AS n_spans
     FROM spans
     GROUP BY athlete_id
     ORDER BY years_held DESC
     LIMIT ${limit}
-  `, { event, gender });
+  `, [event, gender]);
 }
 
 export async function getEventAvailableYears(event: string, gender: string): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
-    SELECT DISTINCT year FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athletics_event = @event AND gender = @gender AND year IS NOT NULL
+  const rows = await pgQuery<{ year: number }>(`
+    SELECT DISTINCT year FROM events
+    WHERE athletics_event = $1 AND gender = $2 AND year IS NOT NULL
     ORDER BY year DESC
-  `, { event, gender });
+  `, [event, gender]);
   return rows.map((r) => r.year);
 }
 
@@ -1126,26 +1190,36 @@ export async function getEventYearBestMarks(
   area?: string
 ): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
-  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
+  const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
+  const params: unknown[] = [event, gender];
+  let idx = 3;
+  let nationalityPh = "";
+  let areaPh = "";
+  if (nationality) { params.push(nationality); nationalityPh = `$${idx++}`; }
+  if (area) { params.push(area); areaPh = `$${idx++}`; }
 
-  return runQuery<MarkRow>(`
-    SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
-      NULLIF(record, '') AS record
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE year = ${year} AND athletics_event = @event AND gender = @gender
-      AND athlete_display_name IS NOT NULL
-      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
-      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
-      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
-      ${nationality ? "AND nationality = @nationality" : ""}
-      ${area ? "AND nationality IN (SELECT code FROM `athletics-database.tablasauxiliares.countries` WHERE area = @area)" : ""}
-      AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) = 1
-    ORDER BY ${orderExpr}
+  return pgQuery<MarkRow>(`
+    SELECT athlete_id, display_name, mark_display, nationality, record FROM (
+      SELECT athlete_id, athlete_display_name AS display_name, mark_display, nationality,
+        NULLIF(record, '') AS record, ${isField ? safeMarkEvents : "mark_seconds"} AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY athlete_id ORDER BY ${orderExpr}) AS rn
+      FROM events
+      WHERE year = ${year} AND athletics_event = $1 AND gender = $2
+        AND athlete_display_name IS NOT NULL
+        AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+        ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+        ${nationality ? `AND nationality = ${nationalityPh}` : ""}
+        ${area ? `AND nationality IN (SELECT code FROM countries WHERE area = ${areaPh})` : ""}
+        AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    ) z
+    WHERE rn = 1
+    ORDER BY ${outerOrderExpr}
     LIMIT ${limit}
-  `, { event, gender, ...(nationality ? { nationality } : {}), ...(area ? { area } : {}) });
+  `, params);
 }
 
 // ---------------------------------------------------------------------
@@ -1161,25 +1235,28 @@ export type RelayMarkRow = {
 };
 
 export async function getEventAllTimeBestRelay(event: string, gender: string, limit = 10): Promise<RelayMarkRow[]> {
-  return runQuery<RelayMarkRow>(`
+  return pgQuery<RelayMarkRow>(`
     WITH teams AS (
       SELECT event_name, date, nationality, mark_display, mark_seconds,
-        ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster,
-        ANY_VALUE(NULLIF(record, '')) AS record
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE athletics_event = @event AND gender = @gender
+        COALESCE(ARRAY_AGG(DISTINCT athlete_display_name ORDER BY athlete_display_name) FILTER (WHERE athlete_display_name IS NOT NULL), ARRAY[]::text[]) AS roster,
+        (ARRAY_AGG(NULLIF(record, '')))[1] AS record
+      FROM events
+      WHERE athletics_event = $1 AND gender = $2
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
       -- event_name/date only group the roster into the right race, not
       -- returned -- nothing downstream renders which meet/date a relay
       -- best came from.
       GROUP BY event_name, date, nationality, mark_display, mark_seconds
     )
-    SELECT nationality, mark_display, roster, record
-    FROM teams
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
+    SELECT nationality, mark_display, roster, record FROM (
+      SELECT nationality, mark_display, mark_seconds, roster, record,
+        ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) AS rn
+      FROM teams
+    ) z
+    WHERE rn = 1
     ORDER BY mark_seconds ASC
     LIMIT ${limit}
-  `, { event, gender });
+  `, [event, gender]);
 }
 
 export async function getEventYearBestMarksRelay(
@@ -1188,22 +1265,25 @@ export async function getEventYearBestMarksRelay(
   year: number,
   limit = 10
 ): Promise<RelayMarkRow[]> {
-  return runQuery<RelayMarkRow>(`
+  return pgQuery<RelayMarkRow>(`
     WITH teams AS (
       SELECT event_name, date, nationality, mark_display, mark_seconds,
-        ARRAY_AGG(DISTINCT athlete_display_name IGNORE NULLS ORDER BY athlete_display_name) AS roster,
-        ANY_VALUE(NULLIF(record, '')) AS record
-      FROM \`athletics-database.athletics_all.events_enriched\`
-      WHERE year = ${year} AND athletics_event = @event AND gender = @gender
+        COALESCE(ARRAY_AGG(DISTINCT athlete_display_name ORDER BY athlete_display_name) FILTER (WHERE athlete_display_name IS NOT NULL), ARRAY[]::text[]) AS roster,
+        (ARRAY_AGG(NULLIF(record, '')))[1] AS record
+      FROM events
+      WHERE year = ${year} AND athletics_event = $1 AND gender = $2
         AND nationality IS NOT NULL AND mark_seconds IS NOT NULL
       GROUP BY event_name, date, nationality, mark_display, mark_seconds
     )
-    SELECT nationality, mark_display, roster, record
-    FROM teams
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) = 1
+    SELECT nationality, mark_display, roster, record FROM (
+      SELECT nationality, mark_display, mark_seconds, roster, record,
+        ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY mark_seconds ASC) AS rn
+      FROM teams
+    ) z
+    WHERE rn = 1
     ORDER BY mark_seconds ASC
     LIMIT ${limit}
-  `, { event, gender });
+  `, [event, gender]);
 }
 
 // ---------------------------------------------------------------------
@@ -1281,77 +1361,25 @@ export const displaySeriesPg = (expr: string) => `
   ))
 `;
 
+// BigQuery version of the same normalization -- still needed by
+// getUpcomingCompetitions above, which stays on BigQuery (see its comment).
 export const normalizeSeries = (expr: string) => `
   TRIM(REGEXP_REPLACE(
     REGEXP_REPLACE(
       REGEXP_REPLACE(
         REGEXP_REPLACE(
           REGEXP_REPLACE(
-            -- "Iaaf" shows up anywhere in the name across sources, not
-            -- just as a leading prefix (e.g. "Shanghai Iaaf Diamond
-            -- League" vs "Shanghai Diamond League") -- strip it as a
-            -- standalone word wherever it lands, not just at the start.
             REGEXP_REPLACE(LOWER(TRIM(${expr})), r'\\biaaf\\b\\s*', ''),
             r'^world athletics\\s+', ''
           ),
           r'^world\\s+', ''
         ),
-        -- Some sources tack a generic "Meeting" suffix onto an otherwise
-        -- matching name ("Shanghai Iaaf Diamond League Meeting").
         r'\\s+meeting$', ''
       ),
       r'(championships),\\s+.*$', r'\\1'
     ),
-    -- "Iaaf World Championships In Athletics" is yet another spelling of
-    -- the same flagship title (some 1990s/2000s editions), checked against
-    -- every "...Championships In Athletics" series site-wide before adding
-    -- this -- the others ("Toyama Championships In Athletics" etc.) keep
-    -- their own distinguishing name before "Championships" and don't merge.
     r'(?i)(championships)\\s+in athletics$', r'\\1'
   ))
-`;
-
-// Same rebrand/city-suffix cleanup as normalizeSeries, but for DISPLAY --
-// keeps real casing and the actual event word ("World Championships"),
-// only stripping the organisational branding ("Iaaf"/"World Athletics")
-// that shouldn't show up next to a name already grouped past it. Used
-// wherever a grouped series (not one specific edition) is shown, e.g.
-// Top Results -- "By Year" deliberately keeps the exact edition name
-// instead, since each of its rows is one specific competition, not a
-// summary of several.
-export const displaySeries = (expr: string) => `
-  TRIM(REGEXP_REPLACE(
-    REGEXP_REPLACE(
-      REGEXP_REPLACE(
-        REGEXP_REPLACE(
-          REGEXP_REPLACE(TRIM(${expr}), r'(?i)\\biaaf\\b\\s*', ''),
-          r'(?i)^world athletics\\s+', 'World '
-        ),
-        r'(?i)\\s+meeting$', ''
-      ),
-      r'(?i)(championships),\\s+.*$', r'\\1'
-    ),
-    r'(?i)(championships)\\s+in athletics$', r'\\1'
-  ))
-`;
-
-// Still used by meetStats.ts (the meet page's sidebar context -- winners,
-// records, all-time marks), which needs columns meet_results doesn't
-// carry (raw mark/mark_seconds/track_key/athletics_discipline) -- not
-// worth widening that slim table for one secondary query. getMeetResults/
-// getMeetAvailableYears (the main page content) no longer use this.
-export const MEET_SERIES_MATCH_SQL = `
-  (
-    (
-      display_series_name IS NOT NULL
-      AND ${normalizeSeries("display_series_name")} = (
-        SELECT ${normalizeSeries("ANY_VALUE(display_series_name)")}
-        FROM \`athletics-database.athletics_all.events_enriched\`
-        WHERE event_name = @eventName
-      )
-    )
-    OR event_name = @eventName
-  )
 `;
 
 // The /meets/[name] page (getMeetAvailableYears, getMeetResults below)
@@ -1488,37 +1516,43 @@ export async function getCompetitionsList(filters: {
   search?: string;
 } = {}): Promise<CompetitionListRow[]> {
   const { gender, tier, year, disciplines, search } = filters;
-  return runQuery<CompetitionListRow>(`
+  const params: unknown[] = [];
+  let idx = 1;
+  let genderPh = "";
+  let tierPh = "";
+  let yearPh = "";
+  let disciplinesPh = "";
+  let searchPh = "";
+  if (gender) { params.push(gender); genderPh = `$${idx++}`; }
+  if (tier) { params.push(tier); tierPh = `$${idx++}`; }
+  if (year) { params.push(year); yearPh = `$${idx++}`; }
+  if (disciplines?.length) { params.push(disciplines); disciplinesPh = `$${idx++}`; }
+  if (search) { params.push(search); searchPh = `$${idx++}`; }
+  return pgQuery<CompetitionListRow>(`
     SELECT event_name,
-      ANY_VALUE(display_series_name) AS display_series_name,
+      (ARRAY_AGG(display_series_name))[1] AS display_series_name,
       -- Same key the real /meets/[name] page groups editions by
-      -- (MEET_SERIES_MATCH_SQL) -- grouping this debug list by the raw
+      -- (meet_series_key) -- grouping this debug list by the raw
       -- stored display_series_name instead would show fragmentation
       -- that isn't actually real: e.g. "World Athletics Championships,
       -- Budapest" and "World Championships" already merge on the real
       -- page (both normalize to the same key) even though their stored
       -- display_series_name differs.
-      ANY_VALUE(${normalizeSeries("display_series_name")}) AS series_key,
-      ARRAY_AGG(DISTINCT division_key_resolved IGNORE NULLS) AS tiers,
+      (ARRAY_AGG(${normalizeSeriesPg("display_series_name")}))[1] AS series_key,
+      COALESCE(ARRAY_AGG(DISTINCT division_key_resolved) FILTER (WHERE division_key_resolved IS NOT NULL), ARRAY[]::text[]) AS tiers,
       MIN(year) AS min_year, MAX(year) AS max_year,
       COUNT(DISTINCT year) AS n_editions
-    FROM \`athletics-database.athletics_all.events_enriched\`
+    FROM events
     WHERE event_name IS NOT NULL
-      ${gender ? "AND gender = @gender" : ""}
-      ${tier ? "AND division_key_resolved = @tier" : ""}
-      ${year ? "AND year = @year" : ""}
-      ${disciplines?.length ? "AND athletics_event IN UNNEST(@disciplines)" : ""}
-      ${search ? "AND (LOWER(event_name) LIKE LOWER(CONCAT('%', @search, '%')) OR LOWER(display_series_name) LIKE LOWER(CONCAT('%', @search, '%')))" : ""}
+      ${genderPh ? `AND gender = ${genderPh}` : ""}
+      ${tierPh ? `AND division_key_resolved = ${tierPh}` : ""}
+      ${yearPh ? `AND year = ${yearPh}` : ""}
+      ${disciplinesPh ? `AND athletics_event = ANY(${disciplinesPh})` : ""}
+      ${searchPh ? `AND (LOWER(event_name) LIKE LOWER('%' || ${searchPh} || '%') OR LOWER(display_series_name) LIKE LOWER('%' || ${searchPh} || '%'))` : ""}
     GROUP BY event_name
     ORDER BY event_name ASC
     LIMIT 300
-  `, {
-    ...(gender ? { gender } : {}),
-    ...(tier ? { tier } : {}),
-    ...(year ? { year } : {}),
-    ...(disciplines?.length ? { disciplines } : {}),
-    ...(search ? { search } : {}),
-  });
+  `, params);
 }
 
 // Strict literal event_name match (unlike getMeetResults, which matches
@@ -1527,38 +1561,38 @@ export async function getCompetitionsList(filters: {
 // competitions browser: spotting a wrongly-named or wrongly-tiered raw
 // competition means looking at ONLY its own rows, not a merged group.
 export async function getCompetitionResults(eventName: string, year: number): Promise<MeetResultRow[]> {
-  return runQuery<MeetResultRow>(`
+  return pgQuery<MeetResultRow>(`
     SELECT e.event_name, COALESCE(e.display_series_name, e.event_name) AS series_name,
       e.athletics_event, e.gender, e.round, e.place, e.athlete_id,
       e.athlete_display_name AS display_name, e.mark_display,
-      IF(e.athletics_discipline IN ('Jumps','Throws'), SAFE_CAST(e.mark AS FLOAT64), e.mark_seconds) AS mark_value,
+      CASE WHEN e.athletics_discipline IN ('Jumps','Throws') THEN ${safeMarkEvents.replace(/\bmark\b/g, "e.mark")} ELSE e.mark_seconds END AS mark_value,
       e.nationality,
-      NULLIF(e.record, '') AS record, e.city, e.country, CAST(e.date AS STRING) AS date, e.wind, e.wind_legal,
+      NULLIF(e.record, '') AS record, e.city, e.country, e.date::text AS date, e.wind, e.wind_legal,
       e.division_key_resolved, e.is_shadow_result, rl.race_level
-    FROM \`athletics-database.athletics_all.events_enriched\` e
+    FROM events e
     LEFT JOIN (
       SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
         gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
-      FROM \`athletics-database.registry.race_level\`
+      FROM race_level
     ) rl
       ON rl.rl_event_name = e.event_name AND rl.rl_athletics_event = e.athletics_event
-     AND rl.rl_gender = e.gender AND CAST(rl.rl_date AS STRING) = CAST(e.date AS STRING)
+     AND rl.rl_gender = e.gender AND rl.rl_date::text = e.date::text
      AND (rl.rl_round = e.round OR (rl.rl_round IS NULL AND e.round IS NULL))
-    WHERE e.event_name = @eventName AND e.year = @year
-      AND LOWER(IFNULL(e.round,'')) NOT LIKE '%combined%'
+    WHERE e.event_name = $1 AND e.year = $2
+      AND LOWER(COALESCE(e.round,'')) NOT LIKE '%combined%'
       AND e.athlete_display_name IS NOT NULL
     ORDER BY e.athletics_event, e.gender,
-      IF(e.round IS NULL OR LOWER(e.round) LIKE '%final%', 0, 1), e.round, e.place ASC NULLS LAST
-  `, { eventName, year });
+      CASE WHEN e.round IS NULL OR LOWER(e.round) LIKE '%final%' THEN 0 ELSE 1 END, e.round, e.place ASC NULLS LAST
+  `, [eventName, year]);
 }
 
 export async function getCompetitionYears(eventName: string): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
+  const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE event_name = @eventName AND year IS NOT NULL
+    FROM events
+    WHERE event_name = $1 AND year IS NOT NULL
     ORDER BY year DESC
-  `, { eventName });
+  `, [eventName]);
   return rows.map((r) => r.year);
 }
 
@@ -1583,23 +1617,26 @@ export async function getEventYearlyProgression(
   ageCategory?: string
 ): Promise<YearProgressionPoint[]> {
   const isField = isFieldEvent(event);
-  const orderExpr = isField ? "SAFE_CAST(mark AS FLOAT64) DESC" : "mark_seconds ASC";
+  const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
 
-  const rows = await runQuery<YearProgressionPoint>(`
-    SELECT year, mark_display,
-      ${isField ? "SAFE_CAST(mark AS FLOAT64)" : "mark_seconds"} AS mark_value,
-      athlete_id, athlete_display_name AS athlete, nationality
-    FROM \`athletics-database.athletics_all.events_enriched\`
-    WHERE athletics_event = @event AND gender = @gender AND year IS NOT NULL
-      AND athlete_display_name IS NOT NULL
-      AND ${isField ? "SAFE_CAST(mark AS FLOAT64) IS NOT NULL" : "mark_seconds IS NOT NULL"}
-      ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
-      ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY year ORDER BY ${orderExpr}) = 1
+  const rows = await pgQuery<YearProgressionPoint>(`
+    SELECT year, mark_display, mark_value, athlete_id, athlete, nationality FROM (
+      SELECT year, mark_display,
+        ${isField ? safeMarkEvents : "mark_seconds"} AS mark_value,
+        athlete_id, athlete_display_name AS athlete, nationality,
+        ROW_NUMBER() OVER (PARTITION BY year ORDER BY ${orderExpr}) AS rn
+      FROM events
+      WHERE athletics_event = $1 AND gender = $2 AND year IS NOT NULL
+        AND athlete_display_name IS NOT NULL
+        AND ${isField ? `${safeMarkEvents} IS NOT NULL` : "mark_seconds IS NOT NULL"}
+        ${windFiltered ? "AND (wind_legal IS NULL OR wind_legal = TRUE)" : ""}
+        ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
+    ) z
+    WHERE rn = 1
     ORDER BY year ASC
-  `, { event, gender });
+  `, [event, gender]);
   const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id).filter((id): id is string => !!id));
   for (const r of rows) r.slug = slugs.get(r.athlete_id ?? "") ?? null;
   return rows;
@@ -1632,8 +1669,8 @@ export type TopRaceFilters = { tier?: string; nationality?: string; area?: strin
 // like getAvailableNationalities above) -- Races filters across every
 // discipline at once, so there's no single event to scope the list to.
 export async function getAllNationalities(): Promise<NationalityOption[]> {
-  return runQuery<NationalityOption>(`
-    SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\` ORDER BY name
+  return pgQuery<NationalityOption>(`
+    SELECT code, name FROM countries ORDER BY name
   `);
 }
 
@@ -1643,23 +1680,26 @@ export async function getAllNationalities(): Promise<NationalityOption[]> {
 // editions together (see that file's v6 header). Matches that same
 // fallback here so the frontend's join lines up with how race_level was
 // actually grouped.
-const RACE_KEY_SQL = `IFNULL(CAST(date AS STRING), CONCAT('Y', CAST(year AS STRING)))`;
+const RACE_KEY_SQL = `COALESCE(date::text, 'Y' || year::text)`;
 
-function racesCte(event: string, gender: string, year: number | "all", indoor: boolean, tier?: string) {
+function racesCte(eventPh: string | null, genderPh: string, yearPh: string | null, indoor: boolean, tierPh?: string) {
   // registry.race_level has no track_key (events_enriched does -- see
   // INDOOR_EXPR above), so this is name-only, the weaker half of that
   // check; good enough here and avoids an extra join.
   const indoorFilter = `AND ${indoor ? "" : "NOT "}LOWER(event_name) LIKE '%indoor%'`;
   return `
-    SELECT event_name, athletics_event, gender, CAST(date AS STRING) AS date, year,
-      ${RACE_KEY_SQL} AS race_key, IFNULL(round, '') AS round, race_level, tier
-    FROM \`athletics-database.registry.race_level\`
-    WHERE gender = @gender
-      ${year !== "all" ? "AND year = @year" : ""}
-      ${event !== "all" ? "AND athletics_event = @event" : ""}
-      ${tier ? "AND tier = @tier" : ""}
-      ${indoorFilter}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, race_key, IFNULL(round, '') ORDER BY race_level DESC) = 1
+    SELECT event_name, athletics_event, gender, date, year, race_key, round, race_level, tier FROM (
+      SELECT event_name, athletics_event, gender, date::text AS date, year,
+        ${RACE_KEY_SQL} AS race_key, COALESCE(round, '') AS round, race_level, tier,
+        ROW_NUMBER() OVER (PARTITION BY event_name, athletics_event, gender, ${RACE_KEY_SQL}, COALESCE(round, '') ORDER BY race_level DESC) AS rn
+      FROM race_level
+      WHERE gender = ${genderPh}
+        ${yearPh ? `AND year = ${yearPh}` : ""}
+        ${eventPh ? `AND athletics_event = ${eventPh}` : ""}
+        ${tierPh ? `AND tier = ${tierPh}` : ""}
+        ${indoorFilter}
+    ) z
+    WHERE rn = 1
   `;
 }
 
@@ -1683,20 +1723,41 @@ export async function getTopRaces(
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const winnerFiltered = !!(nationality || area || ageMax);
   const order = sortBy === "recent" ? "race_key DESC, race_level DESC" : "race_level DESC, race_key DESC";
-  return runQuery<TopRaceRow>(`
-    WITH races AS (${racesCte(event, gender, year, indoor, tier)}),
+
+  const params: unknown[] = [gender];
+  let idx = 2;
+  const genderPh = "$1";
+  let yearPh: string | null = null;
+  let eventPh: string | null = null;
+  let tierPh: string | undefined;
+  let nationalityPh: string | undefined;
+  let areaPh: string | undefined;
+  let ageMaxPh: string | undefined;
+  if (year !== "all") { params.push(year); yearPh = `$${idx++}`; }
+  if (event !== "all") { params.push(event); eventPh = `$${idx++}`; }
+  if (tier) { params.push(tier); tierPh = `$${idx++}`; }
+  if (nationality) { params.push(nationality); nationalityPh = `$${idx++}`; }
+  if (area) { params.push(area); areaPh = `$${idx++}`; }
+  if (ageMax) { params.push(ageMax); ageMaxPh = `$${idx++}`; }
+
+  return pgQuery<TopRaceRow>(`
+    WITH races AS (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh)}),
     winners AS (
-      SELECT e.event_name, e.athletics_event, e.gender, ${RACE_KEY_SQL} AS race_key, IFNULL(e.round, '') AS round,
-        e.athlete_id, e.athlete_display_name AS display_name, e.nationality, e.mark_display
-      FROM \`athletics-database.athletics_all.events_enriched\` e
-      ${area ? "JOIN `athletics-database.tablasauxiliares.countries` c ON c.code = e.nationality" : ""}
-      WHERE e.place = 1 AND e.gender = @gender
-        ${year !== "all" ? "AND e.year = @year" : ""}
-        ${event !== "all" ? "AND e.athletics_event = @event" : ""}
-        ${nationality ? "AND e.nationality = @nationality" : ""}
-        ${area ? "AND c.area = @area" : ""}
-        ${ageMax ? "AND e.birth_year IS NOT NULL AND (e.year - e.birth_year) <= @ageMax" : ""}
-      QUALIFY ROW_NUMBER() OVER (PARTITION BY e.event_name, e.athletics_event, e.gender, race_key, e.round ORDER BY e.athlete_id) = 1
+      SELECT event_name, athletics_event, gender, race_key, round,
+        athlete_id, display_name, nationality, mark_display FROM (
+        SELECT e.event_name, e.athletics_event, e.gender, ${RACE_KEY_SQL} AS race_key, COALESCE(e.round, '') AS round,
+          e.athlete_id, e.athlete_display_name AS display_name, e.nationality, e.mark_display,
+          ROW_NUMBER() OVER (PARTITION BY e.event_name, e.athletics_event, e.gender, ${RACE_KEY_SQL}, COALESCE(e.round, '') ORDER BY e.athlete_id) AS rn
+        FROM events e
+        ${area ? "JOIN countries c ON c.code = e.nationality" : ""}
+        WHERE e.place = 1 AND e.gender = ${genderPh}
+          ${yearPh ? `AND e.year = ${yearPh}` : ""}
+          ${eventPh ? `AND e.athletics_event = ${eventPh}` : ""}
+          ${nationalityPh ? `AND e.nationality = ${nationalityPh}` : ""}
+          ${areaPh ? `AND c.area = ${areaPh}` : ""}
+          ${ageMaxPh ? `AND e.birth_year IS NOT NULL AND (e.year - e.birth_year) <= ${ageMaxPh}` : ""}
+      ) w
+      WHERE rn = 1
     )
     SELECT r.event_name, r.athletics_event, r.gender, r.date, r.year, r.round, r.race_level, r.tier,
       w.athlete_id AS top_athlete_id, w.display_name AS top_athlete, w.nationality AS top_nationality, w.mark_display AS top_mark
@@ -1704,7 +1765,7 @@ export async function getTopRaces(
     ${winnerFiltered ? "JOIN" : "LEFT JOIN"} winners w USING (event_name, athletics_event, gender, race_key, round)
     ORDER BY ${order}
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
-  `, { event, gender, ...(year !== "all" ? { year } : {}), ...(tier ? { tier } : {}), ...(nationality ? { nationality } : {}), ...(area ? { area } : {}), ...(ageMax ? { ageMax } : {}) });
+  `, params);
 }
 
 export async function getTopRacesCount(
@@ -1717,9 +1778,18 @@ export async function getTopRacesCount(
   const { tier, nationality, area, ageCategory } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   if (!nationality && !area && !ageMax) {
-    const rows = await runQuery<{ n: number }>(`
-      SELECT COUNT(*) AS n FROM (${racesCte(event, gender, year, indoor, tier)})
-    `, { event, gender, ...(year !== "all" ? { year } : {}), ...(tier ? { tier } : {}) });
+    const params: unknown[] = [gender];
+    let idx = 2;
+    const genderPh = "$1";
+    let yearPh: string | null = null;
+    let eventPh: string | null = null;
+    let tierPh: string | undefined;
+    if (year !== "all") { params.push(year); yearPh = `$${idx++}`; }
+    if (event !== "all") { params.push(event); eventPh = `$${idx++}`; }
+    if (tier) { params.push(tier); tierPh = `$${idx++}`; }
+    const rows = await pgQuery<{ n: number }>(`
+      SELECT COUNT(*) AS n FROM (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh)}) zz
+    `, params);
     return rows[0]?.n ?? 0;
   }
   // winner-filtered: count via the same join getTopRaces uses, uncapped.
@@ -1728,9 +1798,9 @@ export async function getTopRacesCount(
 }
 
 export async function getRaceYears(): Promise<number[]> {
-  const rows = await runQuery<{ year: number }>(`
+  const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year
-    FROM \`athletics-database.registry.race_level\`
+    FROM race_level
     WHERE year IS NOT NULL
     ORDER BY year DESC
   `);
