@@ -41,9 +41,14 @@ export async function GET(req: NextRequest) {
     SELECT athlete_id, (ARRAY_AGG(athlete_display_name))[1] AS display_name,
       (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality
     FROM events
-    -- accent-insensitive on both sides ("hanzekovic" finds "Hanžeković")
+    -- accent-insensitive on both sides ("hanzekovic" finds "Hanžeković").
+    -- immutable_unaccent (not the plain unaccent() builtin, which can't be
+    -- marked IMMUTABLE) so this matches events_athlete_name_trgm_idx --
+    -- without it this was a full sequential scan on every keystroke
+    -- (confirmed live: ~4s just for this half of the search, a leading
+    -- wildcard LIKE can never use a plain B-tree index).
     WHERE athlete_id IS NOT NULL
-      AND LOWER(unaccent(athlete_display_name)) LIKE $1
+      AND LOWER(immutable_unaccent(athlete_display_name)) LIKE $1
     GROUP BY athlete_id
     -- best athletes first: career points, then number of results
     ORDER BY COALESCE(SUM(competition_score), 0) DESC, COUNT(*) DESC
@@ -60,7 +65,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Meets/competitions (BigQuery, name search). Group by the same
+  // Meets/competitions (Postgres, name search; events_event_name_trgm_idx
+  // covers the leading-wildcard LIKE below). Group by the same
   // normalized display_series_name used by the meet page itself (handles
   // ordinal prefixes AND the IAAF -> World Athletics rebrand AND
   // host-city suffixes) so the series shows up as ONE result instead of
