@@ -1,5 +1,5 @@
 import { unstable_cache } from "next/cache";
-import { runQuery } from "./bigquery";
+import { pgQuery } from "./pg";
 import { AGE_CATEGORIES } from "./queries";
 
 // Individual ranking (all disciplines, our points), after the
@@ -40,18 +40,6 @@ export type RankingParams = {
   pageSize: number;
 };
 
-const T = "`athletics-database.athletics_all.events_enriched`";
-
-function windows(view: RankingView) {
-  // @d = latest result date; @d14 = two weeks before
-  if (view === "rolling") {
-    return {
-      now: "date > DATE_SUB(@d, INTERVAL 365 DAY) AND date <= @d",
-      prev: "date > DATE_SUB(@d14, INTERVAL 365 DAY) AND date <= @d14",
-    };
-  }
-  return { now: "year = @year", prev: "year = @year AND date <= @d14" };
-}
 
 // /rankings reads searchParams for every filter, which makes Next.js treat
 // the whole route as dynamic and skip its own `export const revalidate` --
@@ -64,52 +52,94 @@ export const getIndividualRanking = unstable_cache(
   { revalidate: 3600 }
 );
 
-async function fetchIndividualRanking(p: RankingParams) {
-  const w = windows(p.view);
+// Ported to Postgres against the `events` mirror table (see
+// athletics-database/serving/schema.sql) -- BigQuery's ~1-2s per-query
+// floor applied here too even though this already filtered on
+// events_enriched's clustering columns (gender, year); it's the single
+// heaviest query on the site (podium + climbers + paginated table, 3
+// separate calls per page load). Postgres doesn't have BigQuery's
+// ARRAY_AGG(... LIMIT 1)/IGNORE NULLS/SAFE_CAST/DATE_SUB -- translated to
+// ARRAY_AGG(...) FILTER (WHERE ...) + array indexing, a regex-guarded cast,
+// and interval arithmetic respectively.
+function fetchIndividualRankingPg(p: RankingParams) {
   const ageMax = p.age ? AGE_CATEGORIES[p.age] : undefined;
   const ageSql = ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : "";
   const byMark = p.sortBy === "mark" && !!p.event;
-  // best_v: lower is better for every event (field marks negated)
   const order = byMark ? "best_v ASC, points DESC" : p.view === "wins" ? "wins DESC, points DESC" : "points DESC";
   const offset = (p.page - 1) * p.pageSize;
+  const rolling = p.view === "rolling";
+
+  // raw_v: the mark's own magnitude (always positive for a real
+  // performance) -- used only to tell a real mark from DNS/NM/DNF (which
+  // have no numeric mark at all). best_v: signed for sorting (field marks
+  // negated, since further/higher is better but ascending sort assumes
+  // lower is better).
+  const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
+  const rawV = `CASE WHEN athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') THEN ${safeMark} ELSE mark_seconds END`;
+  const bestV = `CASE WHEN athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') THEN -(${safeMark}) ELSE mark_seconds END`;
+
+  // $2 (year) is only ever referenced in the season-view branches below --
+  // rolling's windows are date-arithmetic off `latest.d` instead. Postgres
+  // infers a prepared statement's parameter count from the highest $N
+  // actually present in the SQL text, so always binding a year value here
+  // even when rolling never references $2 threw "bind message supplies 2
+  // parameters, but prepared statement requires 1" (caught live). Only
+  // push it onto `params` when the SQL will actually contain a $2.
+  const params: unknown[] = [p.gender];
+  let i = 1;
+  const yearParam = rolling ? "" : `$${++i}`;
+  if (!rolling) params.push(p.year);
+
+  const nowWin = rolling
+    ? `date > latest.d - INTERVAL '365 days' AND date <= latest.d`
+    : `year = ${yearParam}`;
+  const prevWin = rolling
+    ? `date > (latest.d - INTERVAL '14 days') - INTERVAL '365 days' AND date <= latest.d - INTERVAL '14 days'`
+    : `year = ${yearParam} AND date <= latest.d - INTERVAL '14 days'`;
+
+  const filters: string[] = [];
+  if (p.event) { filters.push(`AND athletics_event = $${++i}`); params.push(p.event); }
+
+  let natFilter = "";
+  if (p.nationalityCodes?.length) { natFilter = `AND r.nationality = ANY($${++i})`; params.push(p.nationalityCodes); }
+  else if (p.nationality) { natFilter = `AND r.nationality = $${++i}`; params.push(p.nationality); }
+  const areaFilter = p.area ? `AND r.nationality IN (SELECT code FROM countries WHERE area = $${++i})` : "";
+  if (p.area) params.push(p.area);
 
   const sql = `
-    WITH latest AS (SELECT MAX(date) AS d FROM ${T} WHERE date <= CURRENT_DATE()),
+    WITH latest AS (SELECT MAX(date) AS d FROM events WHERE date <= CURRENT_DATE),
     base AS (
       SELECT athlete_id, athlete_display_name, nationality, birth_year, date, year,
         competition_score, place, athletics_event, athletics_discipline, wind_legal, mark_display, mark, mark_seconds
-      FROM ${T}
-      WHERE gender = @gender AND athlete_id IS NOT NULL ${ageSql}
+      FROM events
+      WHERE gender = $1 AND athlete_id IS NOT NULL ${ageSql}
         ${byMark ? "" : "AND competition_score IS NOT NULL"}
-        ${p.event ? "AND athletics_event = @event" : ""}
+        ${filters.join(" ")}
     ),
     now_agg AS (
       SELECT athlete_id,
-        ANY_VALUE(athlete_display_name) AS display_name,
-        ARRAY_AGG(nationality IGNORE NULLS ORDER BY date DESC LIMIT 1)[SAFE_OFFSET(0)] AS nationality,
-        ARRAY_AGG(birth_year IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS birth_year,
-        ROUND(SUM(competition_score), 0) AS points,
-        COUNTIF(place = 1) AS wins,
-        ARRAY_AGG(STRUCT(athletics_event, competition_score) ORDER BY competition_score DESC LIMIT 1)[OFFSET(0)].athletics_event AS main_event,
-        -- only real marks (DNS / NM / DNF have no value and would sort first)
-        ARRAY_AGG(IF(IFNULL(wind_legal, TRUE)
-            AND IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), SAFE_CAST(mark AS FLOAT64), mark_seconds) > 0,
-            mark_display, NULL) IGNORE NULLS
-          ORDER BY IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds) LIMIT 1)[SAFE_OFFSET(0)] AS best_mark,
-        MIN(IF(IFNULL(wind_legal, TRUE), IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds), NULL)) AS best_v
+        (ARRAY_AGG(athlete_display_name))[1] AS display_name,
+        (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
+        (ARRAY_AGG(birth_year) FILTER (WHERE birth_year IS NOT NULL))[1] AS birth_year,
+        ROUND(SUM(competition_score)::numeric, 0) AS points,
+        COUNT(*) FILTER (WHERE place = 1) AS wins,
+        (ARRAY_AGG(athletics_event ORDER BY competition_score DESC))[1] AS main_event,
+        (ARRAY_AGG(mark_display ORDER BY ${bestV} ASC)
+          FILTER (WHERE COALESCE(wind_legal, TRUE) AND ${rawV} > 0))[1] AS best_mark,
+        MIN(CASE WHEN COALESCE(wind_legal, TRUE) THEN ${bestV} END) AS best_v
       FROM base, latest
-      WHERE ${w.now.replaceAll("@d14", "DATE_SUB(latest.d, INTERVAL 14 DAY)").replaceAll("@d", "latest.d")}
+      WHERE ${nowWin}
       GROUP BY athlete_id
     ),
     prev_agg AS (
-      SELECT athlete_id, SUM(competition_score) AS points, COUNTIF(place = 1) AS wins,
-        MIN(IF(IFNULL(wind_legal, TRUE), IF(athletics_discipline IN ('Jumps', 'Throws', 'Combined Events'), -SAFE_CAST(mark AS FLOAT64), mark_seconds), NULL)) AS best_v
+      SELECT athlete_id, SUM(competition_score) AS points, COUNT(*) FILTER (WHERE place = 1) AS wins,
+        MIN(CASE WHEN COALESCE(wind_legal, TRUE) THEN ${bestV} END) AS best_v
       FROM base, latest
-      WHERE ${w.prev.replaceAll("@d14", "DATE_SUB(latest.d, INTERVAL 14 DAY)").replaceAll("@d", "latest.d")}
+      WHERE ${prevWin}
       GROUP BY athlete_id
     ),
     ranked AS (
-      SELECT n.*, RANK() OVER (ORDER BY ${order.replaceAll("wins", "n.wins").replaceAll("points", "n.points").replaceAll("best_v", "n.best_v")}) AS rank
+      SELECT n.*, RANK() OVER (ORDER BY ${order}) AS rank
       FROM now_agg n
       ${byMark ? "WHERE n.best_v IS NOT NULL" : ""}
     ),
@@ -120,21 +150,17 @@ async function fetchIndividualRanking(p: RankingParams) {
     joined AS (
       SELECT r.*, pr.prev_rank
       FROM ranked r LEFT JOIN prev_ranked pr USING (athlete_id)
-      WHERE TRUE
-      ${p.nationalityCodes?.length ? "AND r.nationality IN UNNEST(@codes)" : p.nationality ? "AND r.nationality = @nationality" : ""}
-      ${p.area ? "AND r.nationality IN (SELECT code FROM \`athletics-database.tablasauxiliares.countries\` WHERE area = @area)" : ""}
+      WHERE TRUE ${natFilter} ${areaFilter}
     )
     SELECT *, COUNT(*) OVER () AS total FROM joined
     ORDER BY rank
     LIMIT ${p.pageSize} OFFSET ${offset}
   `;
-  const rows = await runQuery<IndividualRankingRow & { total: number }>(sql, {
-    gender: p.gender,
-    year: p.year,
-    ...(p.nationalityCodes?.length ? { codes: p.nationalityCodes } : p.nationality ? { nationality: p.nationality } : {}),
-    ...(p.event ? { event: p.event } : {}),
-    ...(p.area ? { area: p.area } : {}),
-  });
+  return pgQuery<IndividualRankingRow & { total: number }>(sql, params);
+}
+
+async function fetchIndividualRanking(p: RankingParams) {
+  const rows = await fetchIndividualRankingPg(p);
   return { rows, total: rows[0]?.total ?? 0 };
 }
 
@@ -156,29 +182,29 @@ export const getRankingNationalities = unstable_cache(
 );
 
 async function fetchRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[] }[]> {
-  return runQuery(`
+  return pgQuery(
+    `
     WITH codes AS (
-      SELECT nationality AS code, COUNT(*) AS n FROM ${T}
-      WHERE gender = @gender AND nationality IS NOT NULL AND TRIM(nationality) != '' AND competition_score IS NOT NULL
+      SELECT nationality AS code, COUNT(*) AS n FROM events
+      WHERE gender = $1 AND nationality IS NOT NULL AND TRIM(nationality) != '' AND competition_score IS NOT NULL
       GROUP BY 1
-    ),
-    names AS (
-      SELECT code, name FROM \`athletics-database.tablasauxiliares.countries\`
     )
-    SELECT IFNULL(n.name, c.code) AS name,
-      ARRAY_AGG(c.code ORDER BY c.n DESC LIMIT 1)[OFFSET(0)] AS code,
+    SELECT COALESCE(n.name, c.code) AS name,
+      (ARRAY_AGG(c.code ORDER BY c.n DESC))[1] AS code,
       ARRAY_AGG(c.code ORDER BY c.n DESC) AS codes
-    FROM codes c LEFT JOIN names n USING (code)
-    WHERE IFNULL(n.name, '') NOT IN ('Unknown', 'Asia', 'Oceania', 'Africa', 'Europe', 'Americas')
+    FROM codes c LEFT JOIN countries n USING (code)
+    WHERE COALESCE(n.name, '') NOT IN ('Unknown', 'Asia', 'Oceania', 'Africa', 'Europe', 'Americas')
     GROUP BY 1
     ORDER BY name
-  `, { gender });
+  `,
+    [gender]
+  );
 }
 
 export const getRankingYears = unstable_cache(
   async (): Promise<number[]> => {
-    const rows = await runQuery<{ year: number }>(`
-      SELECT DISTINCT year FROM ${T} WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
+    const rows = await pgQuery<{ year: number }>(`
+      SELECT DISTINCT year FROM events WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
     `);
     return rows.map((r) => r.year);
   },
