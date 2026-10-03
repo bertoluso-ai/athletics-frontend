@@ -265,7 +265,60 @@ export type NationRankingRow = {
   n_counted: number;
 };
 
+// Fast path against nation_ranking_cache (see schema.sql's comment and
+// serving/refresh_ranking_cache.py) -- same fix as getIndividualRanking's
+// fetchIndividualRankingCached: the `area` filter used to still pay the
+// full per-athlete-then-per-country aggregation over all of `events`
+// every time, applied only at the very end. Covers the common case (no
+// age/event filter, current season or rolling); age/event fall back to
+// the live query below since they narrow the aggregation itself, not
+// just the final list.
+async function fetchNationRankingCached(p: {
+  view: NationView;
+  gender: CountryGender;
+  year: number;
+  area?: string;
+}): Promise<NationRankingRow[]> {
+  const scope = p.view === "rolling" ? "rolling" : "season";
+  const byWins = p.view === "wins";
+  const rankCol = byWins ? "rank_wins" : "rank_points";
+  const prevRankCol = byWins ? "prev_rank_wins" : "prev_rank_points";
+
+  const params: unknown[] = [scope, p.gender];
+  let idx = 2;
+  const yearFilter = scope === "season" ? `AND year = $${++idx}` : "AND year IS NULL";
+  if (scope === "season") params.push(p.year);
+  let areaFilter = "";
+  if (p.area) { areaFilter = `AND code IN (SELECT code FROM countries WHERE area = $${++idx})`; params.push(p.area); }
+
+  return pgQuery<NationRankingRow>(
+    `
+    SELECT code, name, points, wins, n_counted,
+      ${rankCol} AS rank, ${prevRankCol} AS prev_rank
+    FROM nation_ranking_cache
+    WHERE scope = $1 AND gender = $2 ${yearFilter} ${areaFilter}
+    ORDER BY ${rankCol}
+  `,
+    params
+  );
+}
+
 async function _getNationRanking(p: {
+  view: NationView;
+  gender: CountryGender;
+  year: number;
+  age?: string;
+  event?: string;
+  area?: string; // World Athletics area; ranks stay world ranks
+}): Promise<NationRankingRow[]> {
+  const currentYear = new Date().getFullYear();
+  const cacheEligible =
+    p.view !== "discipline" && !p.age && !p.event && (p.view === "rolling" || p.year === currentYear);
+  if (cacheEligible) return fetchNationRankingCached(p);
+  return _getNationRankingLive(p);
+}
+
+async function _getNationRankingLive(p: {
   view: NationView;
   gender: CountryGender;
   year: number;
