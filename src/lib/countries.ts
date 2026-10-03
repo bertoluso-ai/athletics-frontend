@@ -126,6 +126,13 @@ async function _getCountryDetail(code: string, year: number, f: CountryFilters, 
     LIMIT ${limit}`;
   const params = [year, code, f.gender];
 
+  // LIMIT 500 here -- the squad section only ever renders
+  // squad.slice(0, 500) (ViewAllList caps there). Without this, a big
+  // country like USA returned every athlete with so much as one scored
+  // result that year (18,042 rows, ~3.7MB for a single season) -- past
+  // Next's unstable_cache 2MB-per-item ceiling, so getCountryDetail
+  // silently never cached at all (confirmed live: "items over 2MB can
+  // not be cached", recomputing from scratch on every single request).
   const [athletes, lastWins, topResults, seasons, owMedals] = await Promise.all([
     pgQuery<CountryAthleteRow>(
       `
@@ -142,6 +149,7 @@ async function _getCountryDetail(code: string, year: number, f: CountryFilters, 
         ROW_NUMBER() OVER (ORDER BY points DESC) <= ${COUNTED_ATHLETES} AS counts
       FROM athletes
       ORDER BY points DESC
+      LIMIT 500
     `,
       params
     ),

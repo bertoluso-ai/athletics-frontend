@@ -8,7 +8,7 @@ import LinkSelect from "@/components/LinkSelect";
 import { GenericAthlete } from "@/components/Avatar";
 import { flagUrlWide } from "@/lib/flags";
 import { eventLabel, TIER_LABELS, EVENT_GROUPS } from "@/lib/events";
-import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import { getAthletePhotosBatch, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import {
   COUNTED_ATHLETES,
@@ -61,10 +61,10 @@ async function PhotoWall({
   code: string;
   athleteSlugs: Map<string, string>;
 }) {
-  const photos: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
-  for (let i = 0; i < wall.length; i += 3) {
-    photos.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
-  }
+  // One batched cache read for all of `wall`, throttled Wikipedia calls
+  // only for genuine misses -- see getAthletePhotosBatch's comment.
+  const photoMap = await getAthletePhotosBatch(wall.map((a) => ({ name: a.display_name, birthYear: a.birth_year })));
+  const photos = wall.map((a) => photoMap.get(`${a.display_name}|${a.birth_year ?? 0}`) ?? null);
   return (
     <>
       <section className="grid grid-cols-4 sm:grid-cols-6 gap-2">

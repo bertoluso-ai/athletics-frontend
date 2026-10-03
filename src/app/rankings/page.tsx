@@ -15,7 +15,7 @@ import { flagUrlWide } from "@/lib/flags";
 import { AREAS } from "@/lib/country-data";
 import { EVENT_GROUPS } from "@/lib/events";
 import { eventLabel } from "@/lib/events";
-import { getAthletePhotoInfo, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
+import { getAthletePhotoInfo, getAthletePhotosBatch, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import {
   getIndividualRanking,
   getRankingNationalities,
@@ -409,10 +409,12 @@ async function PodiumAndClimbers({
   page: number;
 }) {
   const photoFor = [...podium, ...climbers];
-  // At most 7 (3 podium + 4 climbers), firing them all at once is a small
-  // enough burst against Wikipedia/Wikidata to not need throttling.
-  const photos = await Promise.all(photoFor.map((r) => getAthletePhotoInfo(r.display_name, r.birth_year)));
-  const photoOf = new Map(photoFor.map((r, i) => [r.athlete_id, photos[i]]));
+  // One batched cache read for all of photoFor (at most 7: 3 podium + 4
+  // climbers) instead of 7 separate round trips -- see
+  // getAthletePhotosBatch's comment for why this mattered even though
+  // these 7 used to fire in parallel already.
+  const photoMap = await getAthletePhotosBatch(photoFor.map((r) => ({ name: r.display_name, birthYear: r.birth_year })));
+  const photoOf = new Map(photoFor.map((r) => [r.athlete_id, photoMap.get(`${r.display_name}|${r.birth_year ?? 0}`) ?? null]));
   return (
     <>
       <PodiumAndClimbersView podium={podium} climbers={climbers} photoOf={photoOf} view={view} gender={gender} athleteSlugs={athleteSlugs} page={page} />

@@ -531,6 +531,16 @@ export default async function AthletePage({
           <section id="results" className="lg:col-start-1 lg:col-span-2 lg:row-start-2 scroll-mt-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Results</h2>
             <ResultsList
+              // ResultsList's sort/winsOnly state is seeded from
+              // initialSort/initialWinsOnly via useState, which only
+              // applies on the component's FIRST mount -- clicking "Wins"
+              // from the athlete page itself is a same-component client
+              // navigation (Link, not a full reload), so without a key
+              // tied to the params that should reset it, React keeps the
+              // existing mounted instance and its stale internal state
+              // instead of picking up the new initial values. Confirmed
+              // live: clicking Wins did nothing when already on the page.
+              key={`${event}-${year}-${sortParam ?? ""}-${winsParam ?? ""}`}
               results={results}
               event={event}
               gender={info.gender ?? ""}
