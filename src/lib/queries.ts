@@ -1070,23 +1070,31 @@ export type MarkRow = {
 async function _getEventAllTimeBest(
   event: string, gender: string, limit = 10, ageCategory?: string, indoor = false, nationality?: string, area?: string
 ): Promise<MarkRow[]> {
-  // The common case (no age/indoor/nationality/area filter -- the page's
-  // default load) reads straight from discipline_leaderboard, precomputed
-  // once a day for exactly this (see matchAthletesIncremental/registry/
-  // 24_materialize_discipline_leaderboard.sql) -- NOT the live per-
-  // discipline window-scan below, which aggregates every athlete who's
-  // ever competed in the discipline just to rank the top N. Measured
-  // live: ~670ms for "100 Metres, Men" alone via the live path.
-  if (!ageCategory && !indoor && !nationality && !area) {
+  // discipline_leaderboard has no age/indoor split (it's the plain
+  // outdoor/all-ages best per athlete), so those two filters still need
+  // the live per-discipline window-scan below. But nationality/area are
+  // just a WHERE on top of an already-small per-discipline row set (one
+  // discipline+gender's worth of rows, not the full `events` table) --
+  // confirmed live at ~26ms filtered by nationality, same ballpark as the
+  // unfiltered fast path (~1-5ms) and nowhere near the live path's
+  // ~670ms. Used to fall through to the live query for ANY nationality/
+  // area filter, paying that cost for no reason.
+  if (!ageCategory && !indoor) {
+    const params: unknown[] = [event, gender];
+    let idx = 3;
+    let natSql = "";
+    let areaSql = "";
+    if (nationality) { natSql = `AND nationality = $${idx++}`; params.push(nationality); }
+    if (area) { areaSql = `AND nationality IN (SELECT code FROM countries WHERE area = $${idx++})`; params.push(area); }
     return pgQuery<MarkRow>(
       `
       SELECT athlete_id, display_name, nationality, mark_display, record
       FROM discipline_leaderboard
-      WHERE athletics_event_base = $1 AND gender = $2
+      WHERE athletics_event_base = $1 AND gender = $2 ${natSql} ${areaSql}
       ORDER BY rnk ASC
       LIMIT ${limit}
     `,
-      [event, gender]
+      params
     );
   }
 
