@@ -1122,7 +1122,7 @@ async function _getEventAllTimeBest(
     LIMIT ${limit}
   `, params);
 }
-export const getEventAllTimeBest = unstable_cache(_getEventAllTimeBest, ["getEventAllTimeBest"], DAY_CACHE);
+export const getEventAllTimeBest = unstable_cache(_getEventAllTimeBest, ["getEventAllTimeBest-v2"], DAY_CACHE);
 
 export type AreaBestRow = MarkRow & { area: string; area_name: string };
 
@@ -1153,7 +1153,7 @@ async function _getEventBestByArea(event: string, gender: string, indoor = false
     ORDER BY ${outerOrderExpr}
   `, [event, gender]);
 }
-export const getEventBestByArea = unstable_cache(_getEventBestByArea, ["getEventBestByArea"], DAY_CACHE);
+export const getEventBestByArea = unstable_cache(_getEventBestByArea, ["getEventBestByArea-v2"], DAY_CACHE);
 
 // Best mark ever, one per country -- capped, sorted fastest first (a
 // compact "national records" leaderboard, not the full country list).
@@ -1180,7 +1180,7 @@ async function _getEventBestByCountry(event: string, gender: string, indoor = fa
     LIMIT ${limit}
   `, [event, gender]);
 }
-export const getEventBestByCountry = unstable_cache(_getEventBestByCountry, ["getEventBestByCountry"], DAY_CACHE);
+export const getEventBestByCountry = unstable_cache(_getEventBestByCountry, ["getEventBestByCountry-v2"], DAY_CACHE);
 
 export type RecordTenureRow = {
   athlete_id: string;
@@ -1243,7 +1243,7 @@ async function _getEventRecordTenure(event: string, gender: string, limit = 12):
     LIMIT ${limit}
   `, [event, gender]);
 }
-export const getEventRecordTenure = unstable_cache(_getEventRecordTenure, ["getEventRecordTenure"], DAY_CACHE);
+export const getEventRecordTenure = unstable_cache(_getEventRecordTenure, ["getEventRecordTenure-v2"], DAY_CACHE);
 
 async function _getEventAvailableYears(event: string, gender: string): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(`
@@ -1717,7 +1717,7 @@ async function _getEventYearlyProgression(
   for (const r of rows) r.slug = slugs.get(r.athlete_id ?? "") ?? null;
   return rows;
 }
-export const getEventYearlyProgression = unstable_cache(_getEventYearlyProgression, ["getEventYearlyProgression"], DAY_CACHE);
+export const getEventYearlyProgression = unstable_cache(_getEventYearlyProgression, ["getEventYearlyProgression-v2"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Top races of a year by quality (field-strength, see registry/16_compute_race_level.sql)
