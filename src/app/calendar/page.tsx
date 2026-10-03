@@ -131,7 +131,12 @@ export default async function CalendarPage({
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => {
               const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
-              const nameLink = r.kind === "past" ? `/meets/${encodeURIComponent(r.name)}?year=${year}` : null;
+              const nameLink =
+                r.kind === "past"
+                  ? `/meets/${encodeURIComponent(r.name)}?year=${year}`
+                  : r.past_event_name
+                  ? `/meets/${encodeURIComponent(r.past_event_name)}`
+                  : null;
               const topPerformance =
                 r.kind === "past" && r.top_athlete ? (
                   <>

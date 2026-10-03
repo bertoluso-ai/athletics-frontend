@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { runQuery } from "./bigquery";
 import { memoCache } from "./memoCache";
+import { normalizeSeries } from "./queries";
 
 // Season calendar: competitions already held (from results, with their
 // headline performance) plus the ones still to come (from the scraped World
@@ -26,6 +27,11 @@ export type CalendarRow = {
   level: number | null; // past only: field strength of this edition, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
   // upcoming only
   disciplines: string | null;
+  // upcoming only: the most recent past edition's event_name, when one
+  // can be matched by name -- lets the row link somewhere real even
+  // though this edition has no results yet (see getUpcomingCompetitions
+  // in queries.ts, same pattern).
+  past_event_name: string | null;
 };
 
 // getCalendar's "all-time rank" CTE ranks every past winner against the
@@ -139,21 +145,40 @@ async function fetchCalendar(
         -- make a national championship look elite again, which is the
         -- complaint that caused this rework in the first place.
         competition_level AS level,
-        CAST(NULL AS STRING) AS disciplines
+        CAST(NULL AS STRING) AS disciplines,
+        CAST(NULL AS STRING) AS past_event_name
       FROM editions
       WHERE tier IN UNNEST(@tiers)
     ),
+    -- Same fuzzy name-match as getUpcomingCompetitions (home page): an
+    -- upcoming competition has no results yet, so Calendar can't link it
+    -- anywhere real -- confirmed as the reported bug, since the home
+    -- page's "Next events" strip already does this and its cards ARE
+    -- clickable. Linking to the most recent PAST edition's meet page
+    -- (when one can be matched by normalized series name) gives the same
+    -- "at least see last time" click-through instead of a dead row.
+    up_matches AS (
+      SELECT up.row_key, e.event_name,
+        ROW_NUMBER() OVER (PARTITION BY up.row_key ORDER BY e.date DESC) AS rn
+      FROM \`athletics-database.tablasauxiliares.upcoming_competitions\` up
+      JOIN \`athletics-database.athletics_all.events_enriched\` e
+        ON ${normalizeSeries("e.event_name")} = ${normalizeSeries("up.name")}
+      WHERE e.date IS NOT NULL
+        AND EXTRACT(YEAR FROM up.date_start) = @year
+    ),
     upcoming AS (
-      SELECT 'upcoming' AS kind, CAST(date_start AS STRING), CAST(date_end AS STRING),
-        name, REGEXP_EXTRACT(venue, r',\\s*([^,(]+?)\\s*\\(') AS city, country, category AS tier,
+      SELECT 'upcoming' AS kind, CAST(up.date_start AS STRING), CAST(up.date_end AS STRING),
+        up.name, REGEXP_EXTRACT(up.venue, r',\\s*([^,(]+?)\\s*\\(') AS city, up.country, up.category AS tier,
         CAST(NULL AS INT64) AS n_events,
         CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING),
         CAST(NULL AS FLOAT64) AS level,
-        disciplines
-      FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
-      WHERE EXTRACT(YEAR FROM date_start) = @year
-        AND date_start > (SELECT IFNULL(MAX(date), DATE '1900-01-01') FROM \`athletics-database.athletics_all.events_enriched\`)
-        AND category IN UNNEST(@tiers) ${monthFilter("date_start")}
+        up.disciplines,
+        m.event_name AS past_event_name
+      FROM \`athletics-database.tablasauxiliares.upcoming_competitions\` up
+      LEFT JOIN (SELECT row_key, event_name FROM up_matches WHERE rn = 1) m USING (row_key)
+      WHERE EXTRACT(YEAR FROM up.date_start) = @year
+        AND up.date_start > (SELECT IFNULL(MAX(date), DATE '1900-01-01') FROM \`athletics-database.athletics_all.events_enriched\`)
+        AND up.category IN UNNEST(@tiers) ${monthFilter("up.date_start")}
     )
     SELECT * FROM past
     UNION ALL
