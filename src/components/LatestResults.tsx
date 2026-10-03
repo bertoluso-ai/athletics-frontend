@@ -57,8 +57,6 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, tier]);
 
-  const currentMonth = new Date().getMonth() + 1;
-
   return (
     <section>
       <div className="mb-3">
@@ -225,10 +223,10 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
         )}
         {!loading && groups.length > 0 && (
           <Link
-            href={`/calendar?month=${currentMonth}&tier=ALL&sort=date&dir=desc`}
+            href="/races?sort=recent"
             className="text-xs text-center text-neutral-500 hover:text-orange-400 py-1"
           >
-            View all → Calendar
+            View all → Races
           </Link>
         )}
       </div>
