@@ -1,5 +1,4 @@
 import { getLatestRaces, getUpcomingCompetitions, getEventYearlyProgression } from "@/lib/queries";
-import Header from "@/components/Header";
 import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
 import RacesStatsWidget from "@/components/RacesStatsWidget";
@@ -20,7 +19,6 @@ export default async function Home() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
 
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Latest Results</h1>

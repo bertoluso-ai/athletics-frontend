@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import { GenericAthlete } from "@/components/Avatar";
 import LinkSelect from "@/components/LinkSelect";
@@ -84,7 +83,6 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Rankings</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">

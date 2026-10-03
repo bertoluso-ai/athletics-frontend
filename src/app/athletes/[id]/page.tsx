@@ -1,7 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import ResultsList from "@/components/ResultsList";
 import WindBadge from "@/components/WindBadge";
@@ -161,7 +160,6 @@ export default async function AthletePage({
   // underneath (personal bests). On phones: one column in reading order.
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
           {info.nationality && (

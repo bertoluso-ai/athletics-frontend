@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Suspense } from "react";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
 import ViewAllList from "@/components/ViewAllList";
@@ -209,7 +208,6 @@ export default async function CountryPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <Link href={`/countries?${qs(year, f)}`} className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Countries

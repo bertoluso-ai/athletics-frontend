@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import { GenericAthlete } from "@/components/Avatar";
 import H2HPicker from "@/components/H2HPicker";
@@ -264,7 +263,6 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">{children}</main>
     </div>
   );

@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Header from "@/components/Header";
 import YearSelect from "@/components/YearSelect";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getCompetitionResults, getCompetitionYears, getAthleteSlugs } from "@/lib/queries";
@@ -49,7 +48,6 @@ export default async function CompetitionDetailPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <Link href="/competitions" className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Competitions

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import Header from "@/components/Header";
 import { TIER_LABELS } from "@/lib/events";
 import { getRegistryCompetition, RULE_LABELS } from "@/lib/registry";
 
@@ -54,7 +53,6 @@ export default async function RegistryCompetitionPage({ params }: { params: Prom
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <Link href="/competitions" className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Competitions

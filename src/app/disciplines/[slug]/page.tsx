@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
 import LinkSelect from "@/components/LinkSelect";
@@ -252,7 +251,6 @@ export default async function DisciplinePage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         {/* Everything -- title, category pills, filters, podium, table,
             chart -- lives in the grid's left column, same as Rankings/Home,

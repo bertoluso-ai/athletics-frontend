@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import { flagUrlWide } from "@/lib/flags";
 import {
@@ -51,7 +50,6 @@ export default async function CountriesPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <Header />
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-1">Countries</h1>
         <p className="text-sm text-neutral-500 mb-4">
