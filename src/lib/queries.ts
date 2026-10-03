@@ -1753,11 +1753,12 @@ export type TopRaceFilters = { tier?: string; nationality?: string; area?: strin
 // Full reference list (not scoped to one discipline's current nationalities
 // like getAvailableNationalities above) -- Races filters across every
 // discipline at once, so there's no single event to scope the list to.
-export async function getAllNationalities(): Promise<NationalityOption[]> {
+async function _getAllNationalities(): Promise<NationalityOption[]> {
   return pgQuery<NationalityOption>(`
     SELECT code, name, area FROM countries ORDER BY name
   `);
 }
+export const getAllNationalities = unstable_cache(_getAllNationalities, ["getAllNationalities"], DAY_CACHE);
 
 // Some historical sources (sports123, mainly pre-2012 marathon majors)
 // have no `date` at all, only `year` -- registry/16_compute_race_level.sql
@@ -1794,7 +1795,7 @@ function racesCte(eventPh: string | null, genderPh: string, yearPh: string | nul
 // When any of those three is set, the winners join switches from LEFT to
 // INNER (races whose winner doesn't match the filter are excluded outright,
 // not shown with a blank "—" winner).
-export async function getTopRaces(
+async function _getTopRaces(
   event: string,
   gender: string,
   year: number | "all",
@@ -1852,8 +1853,9 @@ export async function getTopRaces(
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `, params);
 }
+export const getTopRaces = unstable_cache(_getTopRaces, ["getTopRaces"], DAY_CACHE);
 
-export async function getTopRacesCount(
+async function _getTopRacesCount(
   event: string,
   gender: string,
   year: number | "all",
@@ -1881,8 +1883,9 @@ export async function getTopRacesCount(
   const rows = await getTopRaces(event, gender, year, "quality", 100000, indoor, 1, filters);
   return rows.length;
 }
+export const getTopRacesCount = unstable_cache(_getTopRacesCount, ["getTopRacesCount"], DAY_CACHE);
 
-export async function getRaceYears(): Promise<number[]> {
+async function _getRaceYears(): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year
     FROM race_level
@@ -1891,6 +1894,7 @@ export async function getRaceYears(): Promise<number[]> {
   `);
   return rows.map((r) => r.year);
 }
+export const getRaceYears = unstable_cache(_getRaceYears, ["getRaceYears"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Olympic / World Championships record of an athlete, for the bio box:
