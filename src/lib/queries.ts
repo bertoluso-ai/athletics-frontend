@@ -865,7 +865,7 @@ export async function getEventYearRankingCount(
   return rows[0]?.n ?? 0;
 }
 
-export type NationalityOption = { code: string; name: string };
+export type NationalityOption = { code: string; name: string; area: string | null };
 
 async function _getAvailableNationalities(event: string, gender: string, year: number | "all"): Promise<NationalityOption[]> {
   return pgQuery<NationalityOption>(`
@@ -875,15 +875,15 @@ async function _getAvailableNationalities(event: string, gender: string, year: n
       WHERE ${year !== "all" ? `year = ${year} AND` : ""} athletics_event_base = $1 AND gender = $2 AND nationality IS NOT NULL
     ),
     names AS (
-      SELECT code, name FROM countries
+      SELECT code, name, area FROM countries
     )
-    SELECT c.code, COALESCE(n.name, c.code) AS name
+    SELECT c.code, COALESCE(n.name, c.code) AS name, n.area
     FROM codes c
     LEFT JOIN names n USING (code)
     ORDER BY name
   `, [event, gender]);
 }
-export const getAvailableNationalities = unstable_cache(_getAvailableNationalities, ["getAvailableNationalities"], DAY_CACHE);
+export const getAvailableNationalities = unstable_cache(_getAvailableNationalities, ["getAvailableNationalities-v2"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Relay year ranking -- team-by-nationality, not athlete-by-athlete.
@@ -1747,7 +1747,7 @@ export type TopRaceFilters = { tier?: string; nationality?: string; area?: strin
 // discipline at once, so there's no single event to scope the list to.
 export async function getAllNationalities(): Promise<NationalityOption[]> {
   return pgQuery<NationalityOption>(`
-    SELECT code, name FROM countries ORDER BY name
+    SELECT code, name, area FROM countries ORDER BY name
   `);
 }
 

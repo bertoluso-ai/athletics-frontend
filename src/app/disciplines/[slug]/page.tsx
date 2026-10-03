@@ -11,7 +11,7 @@ import {
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
   getEventYearlyProgression, getEventBestByArea, getEventBestByCountry, getEventRecordTenure,
   getAthleteSlugs, athleteHref, getAvailableNationalities,
-  type MarkRow, type RelayMarkRow,
+  type MarkRow, type RelayMarkRow, type NationalityOption,
 } from "@/lib/queries";
 import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
 import { eventSlug, eventFromSlug } from "@/lib/slugs";
@@ -166,6 +166,9 @@ export default async function DisciplinePage({
     (sp.indoor ? sp.indoor === "true" : INDOOR_DEFAULT_EVENTS.includes(event));
   const nationality = sp.nationality || undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  // Narrow the nation dropdown to the selected area -- same fix as
+  // Rankings: picking "Europe" shouldn't still offer Afghanistan.
+  const nationalityOptions = (list: NationalityOption[]) => (area ? list.filter((n) => n.area === area) : list);
 
   // Flat list across every group (no category selector): same "All
   // disciplines" single-dropdown convention as Rankings. When Indoor is
@@ -246,7 +249,7 @@ export default async function DisciplinePage({
   const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
   const limitHref = (l: number) => buildHref({ limit: l });
   const countryHref = (code?: string) => buildHref({ nationality: code ?? null });
-  const areaHref = (code?: string) => buildHref({ area: code ?? null });
+  const areaHref = (code?: string) => buildHref({ area: code ?? null, nationality: null });
   const yearHref = (y: string) => buildHref({ year: y });
 
   return (
@@ -313,7 +316,7 @@ export default async function DisciplinePage({
                     className={selectClass}
                     options={[
                       { value: "", label: "All nations", href: countryHref(undefined) },
-                      ...nationalities.map((n) => ({ value: n.code, label: n.name, href: countryHref(n.code) })),
+                      ...nationalityOptions(nationalities).map((n) => ({ value: n.code, label: n.name, href: countryHref(n.code) })),
                     ]}
                   />
                 )}

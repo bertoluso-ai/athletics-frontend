@@ -63,6 +63,9 @@ export default async function RacesPage({
   const indoor = sp.indoor === "true";
   const page = Math.max(1, Number(sp.page) || 1);
   const filters = { tier, area, nationality, ageCategory: age };
+  // Narrow the nation dropdown to the selected area -- same fix as
+  // Rankings/Disciplines: picking "Europe" shouldn't still offer Afghanistan.
+  const nationalityOptions = area ? nationalities.filter((n) => n.area === area) : nationalities;
 
   const [rows, total] = await Promise.all([
     getTopRaces(eventParam, gender, year, sortBy, PAGE_SIZE, indoor, page, filters),
@@ -155,8 +158,8 @@ export default async function RacesPage({
               value={area ?? ""}
               className={selectClass}
               options={[
-                { value: "", label: "All areas", href: href({ area: null, page: 1 }) },
-                ...Object.entries(AREAS).map(([code, name]) => ({ value: code, label: name, href: href({ area: code, page: 1 }) })),
+                { value: "", label: "All areas", href: href({ area: null, nationality: null, page: 1 }) },
+                ...Object.entries(AREAS).map(([code, name]) => ({ value: code, label: name, href: href({ area: code, nationality: null, page: 1 }) })),
               ]}
             />
             <LinkSelect
@@ -164,7 +167,7 @@ export default async function RacesPage({
               className={selectClass}
               options={[
                 { value: "", label: "All nations", href: href({ nationality: null, page: 1 }) },
-                ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code, page: 1 }) })),
+                ...nationalityOptions.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code, page: 1 }) })),
               ]}
             />
             <LinkSelect

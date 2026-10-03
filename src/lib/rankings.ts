@@ -176,12 +176,12 @@ export function hasMovement(view: RankingView, year: number, currentYear: number
 // BigQuery's side but the page awaited this (and getRankingYears) one after
 // another before even starting the main ranking query.
 export const getRankingNationalities = unstable_cache(
-  async (gender: string): Promise<{ code: string; name: string; codes: string[] }[]> => fetchRankingNationalities(gender),
-  ["ranking-nationalities-v1"],
+  async (gender: string): Promise<{ code: string; name: string; codes: string[]; area: string | null }[]> => fetchRankingNationalities(gender),
+  ["ranking-nationalities-v2"],
   { revalidate: 3600 }
 );
 
-async function fetchRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[] }[]> {
+async function fetchRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[]; area: string | null }[]> {
   return pgQuery(
     `
     WITH codes AS (
@@ -191,7 +191,8 @@ async function fetchRankingNationalities(gender: string): Promise<{ code: string
     )
     SELECT COALESCE(n.name, c.code) AS name,
       (ARRAY_AGG(c.code ORDER BY c.n DESC))[1] AS code,
-      ARRAY_AGG(c.code ORDER BY c.n DESC) AS codes
+      ARRAY_AGG(c.code ORDER BY c.n DESC) AS codes,
+      (ARRAY_AGG(n.area) FILTER (WHERE n.area IS NOT NULL))[1] AS area
     FROM codes c LEFT JOIN countries n USING (code)
     WHERE COALESCE(n.name, '') NOT IN ('Unknown', 'Asia', 'Oceania', 'Africa', 'Europe', 'Americas')
     GROUP BY 1

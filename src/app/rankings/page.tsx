@@ -196,6 +196,10 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
   const sortBy: "points" | "mark" = discipline && sp.sort === "mark" ? "mark" : "points";
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  // Narrow the nation dropdown to the selected area -- picking "Europe"
+  // and then still being offered every country in the world (Afghanistan
+  // included) made the two filters look unrelated instead of a refinement.
+  const nationalityOptions = area ? nationalities.filter((n) => n.area === area) : nationalities;
   const params = { view, gender, year, nationality, nationalityCodes, age, event, sortBy, area } as const;
   const [{ rows, total }, top] = await Promise.all([
     getIndividualRanking({ ...params, page, pageSize: PAGE_SIZE }),
@@ -266,8 +270,8 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             value={area ?? ""}
             className={selectClass}
             options={[
-              { value: "", label: "All areas", href: href({ area: "" }) },
-              ...Object.entries(AREAS).map(([k, v]) => ({ value: k, label: v, href: href({ area: k }) })),
+              { value: "", label: "All areas", href: href({ area: "", nationality: "" }) },
+              ...Object.entries(AREAS).map(([k, v]) => ({ value: k, label: v, href: href({ area: k, nationality: "" }) })),
             ]}
           />
           <LinkSelect
@@ -275,7 +279,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             className={selectClass}
             options={[
               { value: "", label: "All nations", href: href({ nationality: "" }) },
-              ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
+              ...nationalityOptions.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
             ]}
           />
           <LinkSelect
