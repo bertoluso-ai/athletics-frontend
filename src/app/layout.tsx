@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AthleticsDB",
+  title: "AthleticsInfoRanking",
   description: "Historical athletics statistics",
 };
 

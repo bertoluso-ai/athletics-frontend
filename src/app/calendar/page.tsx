@@ -157,9 +157,23 @@ export default async function CalendarPage({
                 );
 
               return (
-                <div key={i} className={r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}>
+                <div key={i} className={`relative ${r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}`}>
+                  {/* Full-row click target: only the competition name itself used
+                      to be a link, so the rest of the row (date, performance,
+                      tier) did nothing when clicked -- easy to miss on a
+                      phone where the name already fills most of the line,
+                      obvious on desktop's wider columns. pointer-events-none
+                      on the content + this absolute overlay underneath makes
+                      the whole row navigate, while re-enabling pointer-events
+                      on the nested athlete link keeps that one independently
+                      clickable (it sits above this in z-order). */}
+                  {nameLink && <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />}
                   {/* phones: a proper card, one line each, not a squeezed grid */}
-                  <div className="sm:hidden flex flex-col gap-1 px-3 py-3 text-sm">
+                  <div
+                    className={`sm:hidden flex flex-col gap-1 px-3 py-3 text-sm ${
+                      nameLink ? "relative z-10 pointer-events-none [&_a]:pointer-events-auto" : ""
+                    }`}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
                       <TierBadge tier={r.tier} />
@@ -179,7 +193,11 @@ export default async function CalendarPage({
                   </div>
 
                   {/* desktop: the 4-column table row */}
-                  <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm">
+                  <div
+                    className={`hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm ${
+                      nameLink ? "relative z-10 pointer-events-none [&_a]:pointer-events-auto" : ""
+                    }`}
+                  >
                     <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
                     <span className="min-w-0 flex items-center gap-2">
                       <Flag code={r.country} />
