@@ -52,6 +52,50 @@ export const getIndividualRanking = unstable_cache(
   { revalidate: 3600 }
 );
 
+// Fast path against individual_ranking_cache (see
+// athletics-database/serving/schema.sql's comment on that table, and
+// matchAthletesIncremental/refresh_ranking_cache.py which builds it
+// nightly) -- the common case (no age/event filter, current season or
+// rolling) reads a ~100K-row precomputed+indexed table instead of
+// aggregating+ranking the full ~5M-row `events` table on every request.
+// Confirmed live: nationality/area filtering used to pay that full cost
+// regardless of the filter (it only narrows the result at the very end,
+// since a filtered row must still show its real world rank) -- this is
+// the fix for that. Age/event-filtered requests fall back to the live
+// query below (rarer combination, and age/event narrow `base` itself so
+// they're not paying the *unfiltered* full-table cost anyway).
+function fetchIndividualRankingCached(p: RankingParams) {
+  const scope = p.view === "rolling" ? "rolling" : "season";
+  const byWins = p.view === "wins";
+  const rankCol = byWins ? "rank_wins" : "rank_points";
+  const prevRankCol = byWins ? "prev_rank_wins" : "prev_rank_points";
+  const offset = (p.page - 1) * p.pageSize;
+
+  const params: unknown[] = [scope, p.gender];
+  let i = 2;
+  const yearFilter = scope === "season" ? `AND year = $${++i}` : "AND year IS NULL";
+  if (scope === "season") params.push(p.year);
+
+  let natFilter = "";
+  if (p.nationalityCodes?.length) { natFilter = `AND nationality = ANY($${++i})`; params.push(p.nationalityCodes); }
+  else if (p.nationality) { natFilter = `AND nationality = $${++i}`; params.push(p.nationality); }
+  const areaFilter = p.area ? `AND nationality IN (SELECT code FROM countries WHERE area = $${++i})` : "";
+  if (p.area) params.push(p.area);
+
+  const sql = `
+    SELECT athlete_id, display_name, nationality, birth_year,
+      points, wins, main_event, best_mark,
+      ${rankCol} AS rank, ${prevRankCol} AS prev_rank,
+      COUNT(*) OVER () AS total
+    FROM individual_ranking_cache
+    WHERE scope = $1 AND gender = $2 ${yearFilter} ${natFilter} ${areaFilter}
+      AND ${rankCol} IS NOT NULL
+    ORDER BY ${rankCol}
+    LIMIT ${p.pageSize} OFFSET ${offset}
+  `;
+  return pgQuery<IndividualRankingRow & { total: number }>(sql, params);
+}
+
 // Ported to Postgres against the `events` mirror table (see
 // athletics-database/serving/schema.sql) -- BigQuery's ~1-2s per-query
 // floor applied here too even though this already filtered on
@@ -160,7 +204,10 @@ function fetchIndividualRankingPg(p: RankingParams) {
 }
 
 async function fetchIndividualRanking(p: RankingParams) {
-  const rows = await fetchIndividualRankingPg(p);
+  const currentYear = new Date().getFullYear();
+  const cacheEligible =
+    !p.age && !p.event && (p.view === "rolling" || p.year === currentYear);
+  const rows = cacheEligible ? await fetchIndividualRankingCached(p) : await fetchIndividualRankingPg(p);
   return { rows, total: rows[0]?.total ?? 0 };
 }
 
