@@ -243,21 +243,21 @@ export async function getAthletePersonalBests(
     return pgQuery<PersonalBestRow>(
       `
       WITH my_pbs AS (
-        SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
-          ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY mark_seconds ASC) AS rk
+        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
+          ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY mark_seconds ASC) AS rk
         FROM events
         WHERE athlete_id = $1 AND mark_seconds IS NOT NULL ${windFilter} ${indoorFilter}
         UNION ALL
-        SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
-          ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY ${safeMark} DESC) AS rk
+        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
+          ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY ${safeMark} DESC) AS rk
         FROM events
         WHERE athlete_id = $1 AND mark_seconds IS NULL AND ${safeMark} IS NOT NULL ${windFilter} ${indoorFilter}
       )
-      SELECT p.athletics_event, p.gender, p.mark_display, p.event_name, p.year,
+      SELECT p.athletics_event_base AS athletics_event, p.gender, p.mark_display, p.event_name, p.year,
         p.wind, p.wind_legal, r.rnk AS all_time_rank
       FROM my_pbs p
       LEFT JOIN athlete_discipline_rank r
-        ON r.athletics_event = p.athletics_event AND r.gender = p.gender AND r.athlete_id = $1
+        ON r.athletics_event_base = p.athletics_event_base AND r.gender = p.gender AND r.athlete_id = $1
       WHERE p.rk = 1
       ORDER BY r.rnk ASC NULLS LAST
     `,
@@ -268,18 +268,18 @@ export async function getAthletePersonalBests(
   return pgQuery<PersonalBestRow>(
     `
     WITH my_pbs AS (
-      SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
-        ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY mark_seconds ASC) AS rk
+      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY mark_seconds ASC) AS rk
       FROM events
       WHERE athlete_id = $1 AND mark_seconds IS NOT NULL ${windFilter} ${indoorFilter}
       UNION ALL
-      SELECT athletics_event, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
-        ROW_NUMBER() OVER (PARTITION BY athletics_event ORDER BY ${safeMark} DESC) AS rk
+      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
+        ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY ${safeMark} DESC) AS rk
       FROM events
       WHERE athlete_id = $1 AND mark_seconds IS NULL AND ${safeMark} IS NOT NULL ${windFilter} ${indoorFilter}
     ),
     my_disciplines AS (
-      SELECT DISTINCT athletics_event, gender FROM my_pbs WHERE rk = 1
+      SELECT DISTINCT athletics_event_base, gender FROM my_pbs WHERE rk = 1
     ),
     global_best AS (
       -- mark (raw text) is populated on virtually every row regardless of
@@ -290,29 +290,29 @@ export async function getAthletePersonalBests(
       -- reliable track-only signal (same rule my_pbs above already uses),
       -- so a discipline only falls back to the field-style mark reading
       -- when NONE of its rows have mark_seconds at all.
-      SELECT e.athletics_event, e.gender, e.athlete_id,
+      SELECT e.athletics_event_base, e.gender, e.athlete_id,
         MIN(CASE WHEN e.mark_seconds IS NOT NULL THEN e.mark_seconds END) AS best_track,
         MAX(CASE WHEN e.mark_seconds IS NULL THEN (CASE WHEN e.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN e.mark::double precision ELSE NULL END) END) AS best_field
       FROM events e
-      JOIN my_disciplines d ON d.athletics_event = e.athletics_event AND d.gender = e.gender
+      JOIN my_disciplines d ON d.athletics_event_base = e.athletics_event_base AND d.gender = e.gender
       WHERE e.athlete_id IS NOT NULL
         AND (e.mark_seconds IS NOT NULL OR (CASE WHEN e.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN e.mark::double precision ELSE NULL END) IS NOT NULL)
         ${windFilter} ${indoorFilter}
-      GROUP BY e.athletics_event, e.gender, e.athlete_id
+      GROUP BY e.athletics_event_base, e.gender, e.athlete_id
     ),
     ranked AS (
-      SELECT athletics_event, gender, athlete_id,
+      SELECT athletics_event_base, gender, athlete_id,
         RANK() OVER (
-          PARTITION BY athletics_event, gender
+          PARTITION BY athletics_event_base, gender
           ORDER BY (CASE WHEN best_track IS NOT NULL THEN best_track ELSE -best_field END) ASC
         ) AS rnk
       FROM global_best
     )
-    SELECT p.athletics_event, p.gender, p.mark_display, p.event_name, p.year,
+    SELECT p.athletics_event_base AS athletics_event, p.gender, p.mark_display, p.event_name, p.year,
       p.wind, p.wind_legal, r.rnk AS all_time_rank
     FROM my_pbs p
     LEFT JOIN ranked r
-      ON r.athletics_event = p.athletics_event AND r.gender = p.gender AND r.athlete_id = $1
+      ON r.athletics_event_base = p.athletics_event_base AND r.gender = p.gender AND r.athlete_id = $1
     WHERE p.rk = 1
     ORDER BY r.rnk ASC NULLS LAST
   `,
@@ -1053,6 +1053,26 @@ export type MarkRow = {
 export async function getEventAllTimeBest(
   event: string, gender: string, limit = 10, ageCategory?: string, indoor = false, nationality?: string, area?: string
 ): Promise<MarkRow[]> {
+  // The common case (no age/indoor/nationality/area filter -- the page's
+  // default load) reads straight from discipline_leaderboard, precomputed
+  // once a day for exactly this (see matchAthletesIncremental/registry/
+  // 24_materialize_discipline_leaderboard.sql) -- NOT the live per-
+  // discipline window-scan below, which aggregates every athlete who's
+  // ever competed in the discipline just to rank the top N. Measured
+  // live: ~670ms for "100 Metres, Men" alone via the live path.
+  if (!ageCategory && !indoor && !nationality && !area) {
+    return pgQuery<MarkRow>(
+      `
+      SELECT athlete_id, display_name, nationality, mark_display, record
+      FROM discipline_leaderboard
+      WHERE athletics_event_base = $1 AND gender = $2
+      ORDER BY rnk ASC
+      LIMIT ${limit}
+    `,
+      [event, gender]
+    );
+  }
+
   const isField = isFieldEvent(event);
   const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
   const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";

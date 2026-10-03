@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import Header from "@/components/Header";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
@@ -17,6 +18,7 @@ import {
   getCountryYears,
   parseCountryFilters,
   tierForRank,
+  type CountryAthleteRow,
   type CountryFilters,
   type CountryResultRow,
 } from "@/lib/countries";
@@ -42,6 +44,90 @@ function qs(year: number, f: CountryFilters, extra: Record<string, string> = {})
 function formatDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
+}
+
+// Async Server Component, rendered inside a <Suspense> boundary on the
+// page -- streams in independently, so the rest of the page (header,
+// ranking, squad, results) never waits on Wikimedia. Still throttles its
+// own lookups 3-at-a-time internally ("Wikimedia throttles bursts").
+async function PhotoWall({
+  wall,
+  gender,
+  code,
+  athleteSlugs,
+}: {
+  wall: CountryAthleteRow[];
+  gender: string;
+  code: string;
+  athleteSlugs: Map<string, string>;
+}) {
+  const photos: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
+  for (let i = 0; i < wall.length; i += 3) {
+    photos.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
+  }
+  return (
+    <>
+      <section className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+        {wall.map((a, i) => (
+          <Link
+            key={a.athlete_id}
+            href={athleteHref(a.athlete_id, athleteSlugs)}
+            title={`${a.display_name} — ${a.points} pts${photos[i] ? `
+${photoCredit(photos[i]!)}` : ""}`}
+            className="group relative aspect-[3/4] rounded-md overflow-hidden bg-neutral-800 border border-neutral-800"
+          >
+            {photos[i] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={photos[i]!.url} alt={a.display_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+            ) : (
+              <GenericAthlete name={a.display_name} gender={gender} nationality={code} />
+            )}
+            <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pt-4 pb-1 text-[10px] leading-tight">
+              {a.display_name}
+            </span>
+          </Link>
+        ))}
+      </section>
+      <PhotoCreditsToast
+        items={wall.flatMap((a, i) => {
+          const ph = photos[i];
+          return ph ? [{ who: a.display_name, credit: photoCredit(ph), url: ph.sourceUrl }] : [];
+        })}
+      />
+    </>
+  );
+}
+
+// Same grid, generic avatars -- shown while PhotoWall's Wikimedia lookups
+// are still in flight.
+function PhotoWallFallback({
+  wall,
+  gender,
+  code,
+  athleteSlugs,
+}: {
+  wall: CountryAthleteRow[];
+  gender: string;
+  code: string;
+  athleteSlugs: Map<string, string>;
+}) {
+  return (
+    <section className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+      {wall.map((a) => (
+        <Link
+          key={a.athlete_id}
+          href={athleteHref(a.athlete_id, athleteSlugs)}
+          title={`${a.display_name} — ${a.points} pts`}
+          className="group relative aspect-[3/4] rounded-md overflow-hidden bg-neutral-800 border border-neutral-800"
+        >
+          <GenericAthlete name={a.display_name} gender={gender} nationality={code} />
+          <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pt-4 pb-1 text-[10px] leading-tight">
+            {a.display_name}
+          </span>
+        </Link>
+      ))}
+    </section>
+  );
 }
 
 function TierBadge({ tier }: { tier: string | null }) {
@@ -94,23 +180,16 @@ export default async function CountryPage({
   const scoring = athletes.filter((a) => a.counts);
   const wall = scoring.slice(0, 12);
 
-  // athleteSlugs (a Postgres query) and the photo wall (external Wikimedia
-  // lookups, throttled 3-at-a-time on purpose -- "Wikimedia throttles
-  // bursts") don't depend on each other, so they run together instead of
-  // one after the other.
-  const [athleteSlugs, photos] = await Promise.all([
-    getAthleteSlugs([
-      ...athletes.map((a) => a.athlete_id),
-      ...lastWins.map((r) => r.athlete_id),
-      ...topResults.map((r) => r.athlete_id),
-    ]),
-    (async () => {
-      const result: Awaited<ReturnType<typeof getAthletePhotoInfo>>[] = [];
-      for (let i = 0; i < wall.length; i += 3) {
-        result.push(...(await Promise.all(wall.slice(i, i + 3).map((a) => getAthletePhotoInfo(a.display_name, a.birth_year)))));
-      }
-      return result;
-    })(),
+  // Wikimedia lookups for the photo wall are the slowest thing on this
+  // page (confirmed live: ~3s, dominated by this -- throttled 3-at-a-time
+  // on purpose, "Wikimedia throttles bursts") and nothing else on the
+  // page needs them, so they're fetched by <PhotoWall> below instead,
+  // wrapped in its own Suspense boundary -- the rest of the page (header,
+  // ranking, squad, results) no longer waits on Wikimedia at all.
+  const athleteSlugs = await getAthleteSlugs([
+    ...athletes.map((a) => a.athlete_id),
+    ...lastWins.map((r) => r.athlete_id),
+    ...topResults.map((r) => r.athlete_id),
   ]);
 
   const squad = [...athletes].sort((a, b) => {
@@ -282,29 +361,12 @@ export default async function CountryPage({
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="flex flex-col gap-8 min-w-0">
-            {/* Photo wall of the scoring athletes */}
+            {/* Photo wall of the scoring athletes -- streams in on its own
+                (see PhotoWall below), never blocks the rest of the page */}
             {scoring.length > 0 && (
-              <section className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                {scoring.slice(0, 12).map((a, i) => (
-                  <Link
-                    key={a.athlete_id}
-                    href={athleteHref(a.athlete_id, athleteSlugs)}
-                    title={`${a.display_name} — ${a.points} pts${photos[i] ? `
-${photoCredit(photos[i]!)}` : ""}`}
-                    className="group relative aspect-[3/4] rounded-md overflow-hidden bg-neutral-800 border border-neutral-800"
-                  >
-                    {photos[i] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={photos[i]!.url} alt={a.display_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    ) : (
-                      <GenericAthlete name={a.display_name} gender={f.gender} nationality={code} />
-                    )}
-                    <span className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 to-transparent px-1.5 pt-4 pb-1 text-[10px] leading-tight">
-                      {a.display_name}
-                    </span>
-                  </Link>
-                ))}
-              </section>
+              <Suspense fallback={<PhotoWallFallback wall={wall} gender={f.gender} code={code} athleteSlugs={athleteSlugs} />}>
+                <PhotoWall wall={wall} gender={f.gender} code={code} athleteSlugs={athleteSlugs} />
+              </Suspense>
             )}
 
             {/* Latest wins / Top results in one table with a switcher; the
@@ -443,12 +505,6 @@ ${photoCredit(photos[i]!)}` : ""}`}
           </aside>
         </div>
       </main>
-      <PhotoCreditsToast
-        items={wall.flatMap((a, i) => {
-          const ph = photos[i];
-          return ph ? [{ who: a.display_name, credit: photoCredit(ph), url: ph.sourceUrl }] : [];
-        })}
-      />
     </div>
   );
 }

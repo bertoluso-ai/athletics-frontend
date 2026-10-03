@@ -54,10 +54,10 @@ export default async function AthletePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; event?: string; wind?: string; category?: string; indoor?: string }>;
+  searchParams: Promise<{ year?: string; event?: string; wind?: string; category?: string; indoor?: string; sort?: string }>;
 }) {
   const { id: idParam } = await params;
-  const { year: yearParam, event: eventParam, wind: windParam, category: categoryParam, indoor: indoorParam } = await searchParams;
+  const { year: yearParam, event: eventParam, wind: windParam, category: categoryParam, indoor: indoorParam, sort: sortParam } = await searchParams;
   const includeIllegalWind = windParam === "all";
   const indoor = indoorParam === "true";
 
@@ -363,20 +363,36 @@ export default async function AthletePage({
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
-                  { n: totalWins, label: "Wins" },
+                  // Jumps to the Results section with every discipline/year
+                  // shown and sorted by finishing place, so every win (Pos 1)
+                  // clusters at the top -- there's no separate "wins only"
+                  // list, this is the existing Results table pre-filtered
+                  // to the view that surfaces them fastest.
+                  { n: totalWins, label: "Wins", href: `/athletes/${hrefId}?event=all&year=all&sort=pos#results` },
                   { n: yearlyPoints.length, label: "Seasons" },
                   { n: bestSeasonRank ? `#${bestSeasonRank}` : "—", label: "Best season rank" },
                   { n: recordStats.wr, label: "World records", title: "Official events where the athlete holds the best outdoor, wind-legal mark in our data" },
                   { n: recordStats.nr, label: "National records", title: "Official events where the athlete holds the best mark of their country in our data" },
                   { n: recordStats.wl, label: "World leads", title: "Seasons x events in which the athlete had the year's best mark" },
-                ].map((k) => (
-                  <div key={k.label} className="flex items-center gap-2" title={k.title}>
-                    <span className="w-14 shrink-0 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
-                      {k.n}
-                    </span>
-                    <span className="text-neutral-300">{k.label}</span>
-                  </div>
-                ))}
+                ].map((k) => {
+                  const content = (
+                    <>
+                      <span className="w-14 shrink-0 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
+                        {k.n}
+                      </span>
+                      <span className="text-neutral-300">{k.label}</span>
+                    </>
+                  );
+                  return k.href ? (
+                    <Link key={k.label} href={k.href} title={k.title} className="flex items-center gap-2 hover:[&_span:last-child]:text-orange-400">
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={k.label} className="flex items-center gap-2" title={k.title}>
+                      {content}
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -514,7 +530,7 @@ export default async function AthletePage({
           </aside>
 
           {/* Results */}
-          <section className="lg:col-start-1 lg:col-span-2 lg:row-start-2">
+          <section id="results" className="lg:col-start-1 lg:col-span-2 lg:row-start-2 scroll-mt-4">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Results</h2>
             <ResultsList
               results={results}
@@ -528,6 +544,7 @@ export default async function AthletePage({
               }))}
               year={year}
               baseHref={`/athletes/${hrefId}`}
+              initialSort={sortParam === "pos" ? "pos" : undefined}
             />
           </section>
         </div>

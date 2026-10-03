@@ -7,10 +7,10 @@ import SearchBox from "./SearchBox";
 const NAV_LINKS = [
   { label: "Home", href: "/" },
   { label: "Calendar", href: "/calendar" },
-  { label: "Rankings", href: "/rankings" },
-  { label: "Disciplines", href: "/disciplines" },
-  { label: "Countries", href: "/countries" },
   { label: "Races", href: "/races" },
+  { label: "Rankings", href: "/rankings" },
+  { label: "Countries", href: "/countries" },
+  { label: "Disciplines", href: "/disciplines" },
 ];
 
 export default function Header() {

@@ -60,6 +60,7 @@ export default function ResultsList({
   filterEvents,
   year,
   baseHref,
+  initialSort,
 }: {
   results: AthleteYearResultRow[];
   event: string;
@@ -68,8 +69,12 @@ export default function ResultsList({
   filterEvents: EventOption[];
   year: YearValue;
   baseHref: string;
+  // "pos" -- used by the athlete page's "Wins" stat link, so results
+  // land sorted with every win (Pos 1) clustered at the top instead of
+  // needing a manual click on the Pos column header first.
+  initialSort?: SortBy;
 }) {
-  const [sortBy, setSortBy] = useState<SortBy>("date");
+  const [sortBy, setSortBy] = useState<SortBy>(initialSort ?? "date");
   const [sortDir, setSortDir] = useState<1 | -1 | null>(null);
   const isField = isFieldEvent(event);
   const isAll = event === "all";
