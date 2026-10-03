@@ -323,7 +323,7 @@ export default async function AthletePage({
           {/* Top results */}
           {bestResults.length > 0 && (
             <section className="lg:col-start-2 lg:row-start-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Top Results</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Best Results</h2>
               <div className="flex flex-col gap-1">
                 {bestResults.map((r, i) => {
                   const meetHref = (eventName: string, y: number) =>
