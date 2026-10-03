@@ -208,17 +208,20 @@ export default function ResultsList({
                 )}
               </div>
             </span>
-            <span className="sm:hidden text-right whitespace-nowrap">
-              {effectiveSortBy === "mark" ? (
-                <span className="flex items-center justify-end gap-1.5">
-                  <WindBadge wind={r.wind} windLegal={r.wind_legal} />
-                  <span className="font-mono text-sm text-neutral-200">{r.mark_display}</span>
-                </span>
-              ) : (
-                <span className="font-mono text-sm text-orange-400">
-                  {r.competition_score !== null ? r.competition_score : ""}
-                </span>
-              )}
+            {/* Mobile: always show both mark and points, not whichever the
+                current sort happens to be -- two rows that otherwise look
+                identical (same date/race/place, e.g. a heat and a final
+                merged into one by a source with no round data) are only
+                tellable apart by their mark, which used to be hidden
+                whenever sorted by points (the default). */}
+            <span className="sm:hidden text-right whitespace-nowrap flex flex-col items-end gap-0.5">
+              <span className="flex items-center gap-1.5">
+                <WindBadge wind={r.wind} windLegal={r.wind_legal} />
+                <span className="font-mono text-xs text-neutral-400">{r.mark_display}</span>
+              </span>
+              <span className="font-mono text-sm text-orange-400">
+                {r.competition_score !== null ? r.competition_score : ""}
+              </span>
             </span>
             <span className="hidden sm:flex items-center justify-end gap-1.5 whitespace-nowrap">
               <WindBadge wind={r.wind} windLegal={r.wind_legal} />
