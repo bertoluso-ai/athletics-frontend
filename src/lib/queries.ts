@@ -1,6 +1,22 @@
+import { unstable_cache } from "next/cache";
 import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
 import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
+
+// Disciplines/Rankings/Countries pages read searchParams, which makes
+// them fully dynamic in Next.js (no Full Route Cache, no ISR -- `export
+// const revalidate` on those pages does nothing, confirmed live via
+// response headers: Cache-Control: no-store, X-Vercel-Cache: MISS on
+// every single request, consistent ~2s page time regardless of query
+// speed or repetition). The underlying data changes once a day (the
+// scheduled BigQuery->Postgres pipeline), so there's no reason to pay
+// the full query cost on every visit -- unstable_cache wraps the
+// expensive, page-wide (not athlete-specific) query functions below so
+// Next's Data Cache serves repeat requests for the same parameters
+// straight from cache instead of hitting Postgres again, while the page
+// around it still renders dynamically. One hour, matching the pages'
+// original (ineffective) revalidate intent.
+const DAY_CACHE = { revalidate: 3600 };
 
 // Indoor vs outdoor isn't a naming difference (both use the exact same
 // athletics_event, e.g. "1500 Metres") -- it's a real, separate ranking
@@ -851,7 +867,7 @@ export async function getEventYearRankingCount(
 
 export type NationalityOption = { code: string; name: string };
 
-export async function getAvailableNationalities(event: string, gender: string, year: number | "all"): Promise<NationalityOption[]> {
+async function _getAvailableNationalities(event: string, gender: string, year: number | "all"): Promise<NationalityOption[]> {
   return pgQuery<NationalityOption>(`
     WITH codes AS (
       SELECT DISTINCT nationality AS code
@@ -867,6 +883,7 @@ export async function getAvailableNationalities(event: string, gender: string, y
     ORDER BY name
   `, [event, gender]);
 }
+export const getAvailableNationalities = unstable_cache(_getAvailableNationalities, ["getAvailableNationalities"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Relay year ranking -- team-by-nationality, not athlete-by-athlete.
@@ -1050,7 +1067,7 @@ export type MarkRow = {
   record: string | null;
 };
 
-export async function getEventAllTimeBest(
+async function _getEventAllTimeBest(
   event: string, gender: string, limit = 10, ageCategory?: string, indoor = false, nationality?: string, area?: string
 ): Promise<MarkRow[]> {
   // The common case (no age/indoor/nationality/area filter -- the page's
@@ -1105,13 +1122,14 @@ export async function getEventAllTimeBest(
     LIMIT ${limit}
   `, params);
 }
+export const getEventAllTimeBest = unstable_cache(_getEventAllTimeBest, ["getEventAllTimeBest"], DAY_CACHE);
 
 export type AreaBestRow = MarkRow & { area: string; area_name: string };
 
 // Best mark ever, one per World Athletics area (continent) -- same
 // tablasauxiliares.countries.area used by the Countries/Rankings area
 // filter, so this stays consistent with what "area" means elsewhere.
-export async function getEventBestByArea(event: string, gender: string, indoor = false): Promise<AreaBestRow[]> {
+async function _getEventBestByArea(event: string, gender: string, indoor = false): Promise<AreaBestRow[]> {
   const isField = isFieldEvent(event);
   const safeMarkE = `CASE WHEN e.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN e.mark::double precision ELSE NULL END`;
   const orderExpr = isField ? `${safeMarkE} DESC` : "e.mark_seconds ASC";
@@ -1135,10 +1153,11 @@ export async function getEventBestByArea(event: string, gender: string, indoor =
     ORDER BY ${outerOrderExpr}
   `, [event, gender]);
 }
+export const getEventBestByArea = unstable_cache(_getEventBestByArea, ["getEventBestByArea"], DAY_CACHE);
 
 // Best mark ever, one per country -- capped, sorted fastest first (a
 // compact "national records" leaderboard, not the full country list).
-export async function getEventBestByCountry(event: string, gender: string, indoor = false, limit = 15): Promise<MarkRow[]> {
+async function _getEventBestByCountry(event: string, gender: string, indoor = false, limit = 15): Promise<MarkRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? `${safeMarkEvents} DESC` : "mark_seconds ASC";
   const outerOrderExpr = isField ? "sort_val DESC" : "sort_val ASC";
@@ -1161,6 +1180,7 @@ export async function getEventBestByCountry(event: string, gender: string, indoo
     LIMIT ${limit}
   `, [event, gender]);
 }
+export const getEventBestByCountry = unstable_cache(_getEventBestByCountry, ["getEventBestByCountry"], DAY_CACHE);
 
 export type RecordTenureRow = {
   athlete_id: string;
@@ -1177,7 +1197,7 @@ export type RecordTenureRow = {
 // BEFORE each row decides whether that row is a genuine new record;
 // tenure runs from that date to whenever the next new record lands, or
 // to today for whoever holds it now.
-export async function getEventRecordTenure(event: string, gender: string, limit = 12): Promise<RecordTenureRow[]> {
+async function _getEventRecordTenure(event: string, gender: string, limit = 12): Promise<RecordTenureRow[]> {
   const isField = isFieldEvent(event);
   const orderExpr = isField ? "v DESC" : "v ASC";
   const better = isField ? "v > prior_best" : "v < prior_best";
@@ -1223,8 +1243,9 @@ export async function getEventRecordTenure(event: string, gender: string, limit 
     LIMIT ${limit}
   `, [event, gender]);
 }
+export const getEventRecordTenure = unstable_cache(_getEventRecordTenure, ["getEventRecordTenure"], DAY_CACHE);
 
-export async function getEventAvailableYears(event: string, gender: string): Promise<number[]> {
+async function _getEventAvailableYears(event: string, gender: string): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year FROM events
     WHERE athletics_event_base = $1 AND gender = $2 AND year IS NOT NULL
@@ -1232,6 +1253,7 @@ export async function getEventAvailableYears(event: string, gender: string): Pro
   `, [event, gender]);
   return rows.map((r) => r.year);
 }
+export const getEventAvailableYears = unstable_cache(_getEventAvailableYears, ["getEventAvailableYears"], DAY_CACHE);
 
 export async function getEventYearBestMarks(
   event: string,
@@ -1665,7 +1687,7 @@ export type YearProgressionPoint = {
   slug?: string | null;
 };
 
-export async function getEventYearlyProgression(
+async function _getEventYearlyProgression(
   event: string,
   gender: string,
   ageCategory?: string
@@ -1695,6 +1717,7 @@ export async function getEventYearlyProgression(
   for (const r of rows) r.slug = slugs.get(r.athlete_id ?? "") ?? null;
   return rows;
 }
+export const getEventYearlyProgression = unstable_cache(_getEventYearlyProgression, ["getEventYearlyProgression"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Top races of a year by quality (field-strength, see registry/16_compute_race_level.sql)

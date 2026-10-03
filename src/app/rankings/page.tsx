@@ -211,18 +211,13 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         .sort((a, b) => b.prev_rank! - b.rank - (a.prev_rank! - a.rank))
         .slice(0, 4)
     : [];
-  const photoFor = [...podium, ...climbers];
 
-  // athleteSlugs and the podium/climber photos depend on rows/top, but not
-  // on each other -- fire together instead of one after the other. The
-  // photo lookups themselves also used to go in sequential chunks of 3;
-  // at most 7 of them (3 podium + 4 climbers), firing them all at once is
-  // a small enough burst against Wikipedia/Wikidata to not need throttling.
-  const [athleteSlugs, photos] = await Promise.all([
-    getAthleteSlugs([...rows.map((r) => r.athlete_id), ...top.rows.map((r) => r.athlete_id)]),
-    Promise.all(photoFor.map((r) => getAthletePhotoInfo(r.display_name, r.birth_year))),
-  ]);
-  const photoOf = new Map(photoFor.map((r, i) => [r.athlete_id, photos[i]]));
+  // Wikimedia lookups for the podium/climber photos are not cached the
+  // way the ranking query itself is (unstable_cache above) -- confirmed
+  // live as the dominant remaining cost on this page. Nothing else here
+  // needs them, so <PodiumAndClimbers> fetches them in its own Suspense
+  // boundary below instead of blocking the table/pagination on Wikimedia.
+  const athleteSlugs = await getAthleteSlugs([...rows.map((r) => r.athlete_id), ...top.rows.map((r) => r.athlete_id)]);
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
@@ -298,55 +293,11 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         </div>
       </div>
 
-      {/* Podium: 2 - 1 - 3 */}
-      {podium.length === 3 && page === 1 && (
-        <section className="grid grid-cols-3 gap-3 sm:gap-5 items-end max-w-2xl mx-auto mb-8">
-          {[
-            { r: podium[1], pos: 2 },
-            { r: podium[0], pos: 1 },
-            { r: podium[2], pos: 3 },
-          ].map(({ r, pos }) => (
-            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} gender={gender} athleteSlugs={athleteSlugs} />
-          ))}
-        </section>
-      )}
-
-      {/* Biggest climbers */}
-      {climbers.length > 0 && page === 1 && (
-        <section className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Biggest climbers · last 2 weeks</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {climbers.map((r) => {
-              const ph = photoOf.get(r.athlete_id);
-              return (
-                <Link
-                  key={r.athlete_id}
-                  href={athleteHref(r.athlete_id, athleteSlugs)}
-                  className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800"
-                >
-                  <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0">
-                    {ph ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={ph.url} alt={r.display_name} className="absolute inset-0 w-full h-full object-cover" />
-                    ) : (
-                      <GenericAthlete name={r.display_name} gender={gender} nationality={r.nationality} />
-                    )}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm truncate">{r.display_name}</span>
-                    <span className="flex items-center gap-1.5 text-xs">
-                      <span className="text-green-400 font-semibold">▲{r.prev_rank! - r.rank}</span>
-                      <span className="text-neutral-500">
-                        #{r.prev_rank} → #{r.rank}
-                      </span>
-                    </span>
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
-      )}
+      {/* Podium + biggest climbers: streams in on its own (see
+          PodiumAndClimbers below), never blocks the table/pagination */}
+      <Suspense fallback={<PodiumAndClimbersView podium={podium} climbers={climbers} photoOf={EMPTY_PHOTOS} view={view} gender={gender} athleteSlugs={athleteSlugs} page={page} />}>
+        <PodiumAndClimbers podium={podium} climbers={climbers} view={view} gender={gender} athleteSlugs={athleteSlugs} page={page} />
+      </Suspense>
 
       {/* Table: discipline view = top 20 + View all, then the chart */}
       {discipline ? (
@@ -433,13 +384,120 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
         )}
         </>
       )}
+    </>
+  );
+}
 
+const EMPTY_PHOTOS = new Map<string, AthletePhoto | null>();
+
+// Async Server Component rendered inside a <Suspense> boundary -- streams
+// in independently of the table/pagination above, which don't need these
+// Wikimedia lookups at all.
+async function PodiumAndClimbers({
+  podium,
+  climbers,
+  view,
+  gender,
+  athleteSlugs,
+  page,
+}: {
+  podium: IndividualRankingRow[];
+  climbers: IndividualRankingRow[];
+  view: RankingView;
+  gender: string;
+  athleteSlugs: Map<string, string>;
+  page: number;
+}) {
+  const photoFor = [...podium, ...climbers];
+  // At most 7 (3 podium + 4 climbers), firing them all at once is a small
+  // enough burst against Wikipedia/Wikidata to not need throttling.
+  const photos = await Promise.all(photoFor.map((r) => getAthletePhotoInfo(r.display_name, r.birth_year)));
+  const photoOf = new Map(photoFor.map((r, i) => [r.athlete_id, photos[i]]));
+  return (
+    <>
+      <PodiumAndClimbersView podium={podium} climbers={climbers} photoOf={photoOf} view={view} gender={gender} athleteSlugs={athleteSlugs} page={page} />
       <PhotoCreditsToast
         items={photoFor.flatMap((r) => {
           const ph = photoOf.get(r.athlete_id);
           return ph ? [{ who: r.display_name, credit: photoCredit(ph), url: ph.sourceUrl }] : [];
         })}
       />
+    </>
+  );
+}
+
+// Shared between the real (photos loaded) and Suspense fallback (no
+// photos yet -- PodiumCard/climber cards already render GenericAthlete
+// when a photo is missing, so the fallback is just this called with an
+// empty photo map) renders.
+function PodiumAndClimbersView({
+  podium,
+  climbers,
+  photoOf,
+  view,
+  gender,
+  athleteSlugs,
+  page,
+}: {
+  podium: IndividualRankingRow[];
+  climbers: IndividualRankingRow[];
+  photoOf: Map<string, AthletePhoto | null>;
+  view: RankingView;
+  gender: string;
+  athleteSlugs: Map<string, string>;
+  page: number;
+}) {
+  return (
+    <>
+      {/* Podium: 2 - 1 - 3 */}
+      {podium.length === 3 && page === 1 && (
+        <section className="grid grid-cols-3 gap-3 sm:gap-5 items-end max-w-2xl mx-auto mb-8">
+          {[
+            { r: podium[1], pos: 2 },
+            { r: podium[0], pos: 1 },
+            { r: podium[2], pos: 3 },
+          ].map(({ r, pos }) => (
+            <PodiumCard key={r.athlete_id} r={r} pos={pos} photo={photoOf.get(r.athlete_id) ?? null} view={view} gender={gender} athleteSlugs={athleteSlugs} />
+          ))}
+        </section>
+      )}
+
+      {/* Biggest climbers */}
+      {climbers.length > 0 && page === 1 && (
+        <section className="mb-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Biggest climbers · last 2 weeks</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {climbers.map((r) => {
+              const ph = photoOf.get(r.athlete_id);
+              return (
+                <Link
+                  key={r.athlete_id}
+                  href={athleteHref(r.athlete_id, athleteSlugs)}
+                  className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800"
+                >
+                  <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0">
+                    {ph ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ph.url} alt={r.display_name} className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <GenericAthlete name={r.display_name} gender={gender} nationality={r.nationality} />
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm truncate">{r.display_name}</span>
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="text-green-400 font-semibold">▲{r.prev_rank! - r.rank}</span>
+                      <span className="text-neutral-500">
+                        #{r.prev_rank} → #{r.rank}
+                      </span>
+                    </span>
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </>
   );
 }

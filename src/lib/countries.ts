@@ -1,5 +1,15 @@
+import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
 import { AGE_CATEGORIES } from "./queries";
+
+// Countries/[code] and Rankings' nation view both read searchParams,
+// which makes Next.js treat them as fully dynamic (no Full Route Cache --
+// confirmed live via response headers: Cache-Control: no-store on every
+// request). The underlying data only changes once a day (the scheduled
+// pipeline), so the query functions below are wrapped in Next's Data
+// Cache instead -- repeat requests for the same parameters are served
+// without hitting Postgres again.
+const DAY_CACHE = { revalidate: 3600 };
 
 // Country ranking: a country's points for a season are the sum of the
 // season points of its 24 best athletes, per gender (men and women are two
@@ -52,7 +62,7 @@ export type CountryRankingRow = {
 // for a year needs every athlete's season total regardless of any
 // clustering, so the only real fix was precomputing it once a day instead
 // of on every page view (139MB/1.7s -> 10MB/0.8s, measured live).
-export async function getCountryRanking(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
+async function _getCountryRanking(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
   return pgQuery<CountryRankingRow>(
     `
     SELECT c.code, COALESCE(n.name, c.code) AS name,
@@ -66,6 +76,7 @@ export async function getCountryRanking(year: number, f: CountryFilters): Promis
     [year, f.gender, f.age ?? ""]
   );
 }
+export const getCountryRanking = unstable_cache(_getCountryRanking, ["getCountryRanking"], DAY_CACHE);
 
 export type CountryAthleteRow = {
   athlete_id: string;
@@ -93,7 +104,7 @@ export type CountryResultRow = {
 
 export type CountrySeasonRow = { year: number; points: number; rank: number };
 
-export async function getCountryDetail(code: string, year: number, f: CountryFilters, seasonEvent?: string) {
+async function _getCountryDetail(code: string, year: number, f: CountryFilters, seasonEvent?: string) {
   // registry.country_results (see matchAthletesIncremental/registry/
   // 20_materialize_country_points.sql) replaces events_enriched for all
   // four queries below -- clustered by (nationality, gender, year), the
@@ -154,6 +165,7 @@ export async function getCountryDetail(code: string, year: number, f: CountryFil
 
   return { athletes, lastWins, topResults, seasons, owMedals: owMedals[0] ?? { olympic: 0, worlds: 0 } };
 }
+export const getCountryDetail = unstable_cache(_getCountryDetail, ["getCountryDetail"], DAY_CACHE);
 
 // The country's points and rank for every season (same rule as the ranking).
 // seasonEvent: one discipline only -- not precomputed (too many discipline
@@ -206,17 +218,19 @@ async function getCountrySeasons(code: string, f: CountryFilters, seasonEvent?: 
   );
 }
 
-export async function getCountryName(code: string): Promise<string> {
+async function _getCountryName(code: string): Promise<string> {
   const rows = await pgQuery<{ name: string }>(`SELECT name FROM countries WHERE code = $1`, [code]);
   return rows[0]?.name ?? code;
 }
+export const getCountryName = unstable_cache(_getCountryName, ["getCountryName"], DAY_CACHE);
 
-export async function getCountryYears(): Promise<number[]> {
+async function _getCountryYears(): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(`
     SELECT DISTINCT year FROM country_season_points WHERE year IS NOT NULL ORDER BY year DESC
   `);
   return rows.map((r) => r.year);
 }
+export const getCountryYears = unstable_cache(_getCountryYears, ["getCountryYears"], DAY_CACHE);
 
 export function parseCountryFilters(sp: { gender?: string; age?: string }): CountryFilters {
   return {
@@ -243,7 +257,7 @@ export type NationRankingRow = {
   n_counted: number;
 };
 
-export async function getNationRanking(p: {
+async function _getNationRanking(p: {
   view: NationView;
   gender: CountryGender;
   year: number;
@@ -316,3 +330,4 @@ export async function getNationRanking(p: {
     params
   );
 }
+export const getNationRanking = unstable_cache(_getNationRanking, ["getNationRanking"], DAY_CACHE);
