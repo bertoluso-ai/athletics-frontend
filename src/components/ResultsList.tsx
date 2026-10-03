@@ -61,6 +61,7 @@ export default function ResultsList({
   year,
   baseHref,
   initialSort,
+  initialWinsOnly,
 }: {
   results: AthleteYearResultRow[];
   event: string;
@@ -73,9 +74,15 @@ export default function ResultsList({
   // land sorted with every win (Pos 1) clustered at the top instead of
   // needing a manual click on the Pos column header first.
   initialSort?: SortBy;
+  // Also from the "Wins" stat link -- an actual filter (place === 1),
+  // not just a sort. The sort-only version left every other result still
+  // in the list, just reordered, which doesn't read as "show me the
+  // wins" the way a real filter does.
+  initialWinsOnly?: boolean;
 }) {
   const [sortBy, setSortBy] = useState<SortBy>(initialSort ?? "date");
   const [sortDir, setSortDir] = useState<1 | -1 | null>(null);
+  const [winsOnly, setWinsOnly] = useState(initialWinsOnly ?? false);
   const isField = isFieldEvent(event);
   const isAll = event === "all";
   // Mark is sortable even with every discipline mixed together (seconds
@@ -104,7 +111,8 @@ export default function ResultsList({
   }
 
   const sorted = useMemo(() => {
-    return [...results].sort((a, b) => {
+    const base = winsOnly ? results.filter((r) => r.place === 1) : results;
+    return [...base].sort((a, b) => {
       const av = sortValue(a, effectiveSortBy);
       const bv = sortValue(b, effectiveSortBy);
       if (av === null || bv === null) {
@@ -113,13 +121,22 @@ export default function ResultsList({
       }
       return activeDir * (av - bv);
     });
-  }, [results, effectiveSortBy, activeDir]);
+  }, [results, effectiveSortBy, activeDir, winsOnly]);
 
   return (
     <div>
       {filterEvents.length > 0 && (
-        <div className="mb-2">
+        <div className="mb-2 flex items-center gap-2">
           <ResultsFilters events={filterEvents} event={event} year={year} baseHref={baseHref} />
+          {winsOnly && (
+            <button
+              onClick={() => setWinsOnly(false)}
+              className="shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded bg-orange-500 text-black font-semibold hover:bg-orange-400"
+              title="Showing wins only -- click to show every result"
+            >
+              🥇 Wins only ×
+            </button>
+          )}
         </div>
       )}
       <div className={`grid ${gridCols(year === "all")} gap-x-3 px-1 pb-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>

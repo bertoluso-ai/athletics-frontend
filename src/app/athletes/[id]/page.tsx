@@ -54,10 +54,10 @@ export default async function AthletePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ year?: string; event?: string; wind?: string; category?: string; indoor?: string; sort?: string }>;
+  searchParams: Promise<{ year?: string; event?: string; wind?: string; category?: string; indoor?: string; sort?: string; wins?: string }>;
 }) {
   const { id: idParam } = await params;
-  const { year: yearParam, event: eventParam, wind: windParam, category: categoryParam, indoor: indoorParam, sort: sortParam } = await searchParams;
+  const { year: yearParam, event: eventParam, wind: windParam, category: categoryParam, indoor: indoorParam, sort: sortParam, wins: winsParam } = await searchParams;
   const includeIllegalWind = windParam === "all";
   const indoor = indoorParam === "true";
 
@@ -363,12 +363,10 @@ export default async function AthletePage({
               <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
-                  // Jumps to the Results section with every discipline/year
-                  // shown and sorted by finishing place, so every win (Pos 1)
-                  // clusters at the top -- there's no separate "wins only"
-                  // list, this is the existing Results table pre-filtered
-                  // to the view that surfaces them fastest.
-                  { n: totalWins, label: "Wins", href: `/athletes/${hrefId}?event=all&year=all&sort=pos#results` },
+                  // Jumps to the Results section, every discipline/year,
+                  // filtered to place === 1 only (ResultsList's winsOnly
+                  // toggle) and sorted by finishing place.
+                  { n: totalWins, label: "Wins", href: `/athletes/${hrefId}?event=all&year=all&sort=pos&wins=1#results` },
                   { n: yearlyPoints.length, label: "Seasons" },
                   { n: bestSeasonRank ? `#${bestSeasonRank}` : "—", label: "Best season rank" },
                   { n: recordStats.wr, label: "World records", title: "Official events where the athlete holds the best outdoor, wind-legal mark in our data" },
@@ -545,6 +543,7 @@ export default async function AthletePage({
               year={year}
               baseHref={`/athletes/${hrefId}`}
               initialSort={sortParam === "pos" ? "pos" : undefined}
+              initialWinsOnly={winsParam === "1"}
             />
           </section>
         </div>
