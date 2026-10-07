@@ -31,6 +31,22 @@ const DAY_CACHE = { revalidate: 3600 };
 // signal either way.
 const INDOOR_EXPR = `(track_key = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
 
+// Dataset-wide dedup convention (DB pipeline: matchAthletesIncremental/
+// registry/11_flag_shadow_races.sql, 12_flag_numbered_finals.sql,
+// 13_flag_merged_heats.sql, 18_flag_exact_duplicate_rounds.sql): a row that
+// is a weaker parallel section, a redundant merged-heat duplicate, or a
+// straight scrape duplicate of a real result is kept but flagged
+// is_shadow_result = TRUE (with competition_score set NULL) rather than
+// deleted, so it stays recoverable. The meet pages already hide these
+// (MeetResultsSections filters `!r.is_shadow_result`); every athlete-facing
+// query must do the same or the same race appears twice on the profile
+// (confirmed live: Armand Duplantis -- the 2026 European Athletics and World
+// Indoor Championships were each listed as both "Final" and "Final 1").
+// NULL means "never ambiguous", so only TRUE is hidden. `alias` is the
+// table alias the caller uses ("" when the query selects from a bare
+// `events`).
+const NOT_SHADOW = (alias = "") => `COALESCE(${alias}is_shadow_result, FALSE) = FALSE`;
+
 // Postgres port of BigQuery's SAFE_CAST(mark AS FLOAT64) against the
 // `events` mirror's `mark` column -- Postgres errors on a bad cast where
 // BigQuery's SAFE_CAST just returns NULL, so every numeric-field-mark
@@ -204,7 +220,7 @@ export async function getAthleteEvents(athleteId: string): Promise<AthleteEventO
     SELECT athletics_event, COUNT(*) AS n_results,
       ARRAY_AGG(DISTINCT year ORDER BY year DESC) AS years
     FROM events
-    WHERE athlete_id = $1 AND athletics_event IS NOT NULL AND year IS NOT NULL
+    WHERE athlete_id = $1 AND athletics_event IS NOT NULL AND year IS NOT NULL AND ${NOT_SHADOW()}
     GROUP BY athletics_event
     ORDER BY n_results DESC, athletics_event ASC
   `,
@@ -419,7 +435,7 @@ export async function getAthleteResultsForYear(
       ON rl.event_name = e.event_name AND rl.athletics_event = e.athletics_event
      AND rl.gender = e.gender AND rl.date = e.date
      AND (rl.round = e.round OR (rl.round IS NULL AND e.round IS NULL))
-    WHERE e.athlete_id = $1 ${eventFilter} ${yearFilter}
+    WHERE e.athlete_id = $1 ${eventFilter} ${yearFilter} AND ${NOT_SHADOW("e.")}
     ORDER BY e.competition_score DESC NULLS LAST, e.date DESC
   `,
     params
@@ -1970,7 +1986,7 @@ export async function getAthleteChampionships(athleteId: string): Promise<Champi
         CASE WHEN event_name ~* 'olympic games' THEN 'olympics' ELSE 'worlds' END AS kind,
         year, event_name, athletics_event, place, round
       FROM events
-      WHERE athlete_id = $1 AND division_key_resolved = 'OW'
+      WHERE athlete_id = $1 AND division_key_resolved = 'OW' AND ${NOT_SHADOW()}
         AND event_name !~* 'ultimate'
       UNION ALL
       -- senior national championships: "<Nationality> Championships", tier B,
@@ -1978,7 +1994,7 @@ export async function getAthleteChampionships(athleteId: string): Promise<Champi
       -- area championships
       SELECT 'nationals', e.year, e.event_name, e.athletics_event, e.place, e.round
       FROM events e, me
-      WHERE e.athlete_id = $1 AND e.division_key_resolved = 'B'
+      WHERE e.athlete_id = $1 AND e.division_key_resolved = 'B' AND ${NOT_SHADOW("e.")}
         AND e.country = me.nat
         AND e.event_name ~* 'championships'
         AND e.event_name !~* 'world|europe|asia|africa|continental|olympic|commonwealth|ncaa|college|universit|u18|u20|u23|junior|youth|indoor|masters|area|balkan|nordic|ibero|pan am|oceania|south american|nacac'
