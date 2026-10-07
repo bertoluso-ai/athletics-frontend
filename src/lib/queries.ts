@@ -542,7 +542,7 @@ async function fetchWindow(
   const rows = await pgQuery<ResultRow>(`
     WITH candidates AS (
       SELECT
-        event_name, athletics_event, gender, round,
+        event_name, athletics_event, athletics_discipline, gender, round,
         date::text AS date,
         division_key_resolved AS competition_level,
         ROUND(competition_score::numeric) AS level,
@@ -574,13 +574,22 @@ async function fetchWindow(
         -- different races got merged.
         CASE WHEN is_relay THEN place ELSE RANK() OVER (
           PARTITION BY event_name, athletics_event, gender, date, round, wind
-          -- Combined events (Decathlon/Heptathlon) score by points, higher
-          -- better, and never populate mark_seconds -- without them here
-          -- every participant ties on a NULL sort value and RANK() puts
-          -- them all at 1, so the whole field passes the "top 3" filter
-          -- below instead of just the real podium.
-          ORDER BY CASE WHEN
-            athletics_event IN ('Long Jump','High Jump','Triple Jump','Pole Vault','Shot Put','Discus Throw','Javelin Throw','Hammer Throw','Decathlon','Heptathlon')
+          -- Field events and combined events score by magnitude/points,
+          -- higher is better, and never populate mark_seconds (throws/jumps
+          -- store the distance/height in the "mark" column, multi-events store
+          -- total points); rank them by -mark_num so they come out high-to-low.
+          -- This used to key off a hardcoded list of event names, which
+          -- broke the moment a source spelled the discipline with an age/
+          -- implement suffix ("Shot Put (5kg)", "Decathlon U20", "Discus
+          -- Throw (1.500kg)", ...) -- the name missed the list, fell through
+          -- to a NULL mark_seconds, and every participant then tied on the
+          -- same NULL sort value so RANK() pinned them all at 1 and the whole
+          -- field passed the "top 3" filter below. Keying off the normalised
+          -- athletics_discipline covers every spelling; the mark_seconds IS
+          -- NULL arm catches any remaining row (e.g. "Unknown" discipline)
+          -- that still lacks a time.
+          ORDER BY CASE
+            WHEN athletics_discipline IN ('Throws','Jumps','Combined Events') OR mark_seconds IS NULL
             THEN -mark_num ELSE mark_seconds END ASC
         ) END AS real_place
       FROM candidates
