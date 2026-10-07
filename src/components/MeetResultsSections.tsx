@@ -124,31 +124,36 @@ function splitResolved(rows: MeetResultRow[], isField: boolean): { rows: MeetRes
 // filter upstream, so without this split they'd show up as one fake
 // ranking with the same place assigned to several different athletes.
 //
-// Some sources (confirmed on worldathletics) go further and split a
-// discipline into two parallel sections that are BOTH labelled just
-// "Final" -- e.g. a faster international heat and a slower national one,
-// run back-to-back with their own separate wind reading each. Round text
-// alone can't tell those apart, but wind can: a single real race only
-// ever has one wind reading, so two different non-null wind values under
-// the same round means two different races got merged. Splitting on wind
-// too (when present) catches that case without guessing at true places.
+// Some sources (confirmed on worldathletics) go further and run two
+// parallel sections that are BOTH labelled just "Final". Those are told
+// apart by splitByMarkTier's real signal (two rows sharing a place with
+// different marks) below -- NOT by wind. A single final legitimately
+// carries a per-athlete wind reading (each athlete's own best attempt), so
+// grouping by wind split one real race into pieces: the Ukrainian U18
+// triple jump final read 0.0/0.0/+1.5/0.0 across its own places 1-4 and was
+// shown as two separate "finals". Hence grouping only by round here.
 export function groupResults(rows: MeetResultRow[]): Group[] {
-  const windGroups = new Map<string, { athletics_event: string; gender: string; round: string | null; wind: string | null; rows: MeetResultRow[] }>();
+  const groups = new Map<string, { athletics_event: string; gender: string; round: string | null; rows: MeetResultRow[] }>();
   for (const r of rows) {
-    const key = `${r.athletics_event}|${r.gender}|${r.round ?? ""}|${r.wind ?? ""}`;
-    let g = windGroups.get(key);
+    const key = `${r.athletics_event}|${r.gender}|${r.round ?? ""}`;
+    let g = groups.get(key);
     if (!g) {
-      g = { athletics_event: r.athletics_event, gender: r.gender, round: r.round, wind: r.wind, rows: [] };
-      windGroups.set(key, g);
+      g = { athletics_event: r.athletics_event, gender: r.gender, round: r.round, rows: [] };
+      groups.set(key, g);
     }
     g.rows.push(r);
   }
 
   const result: Group[] = [];
-  for (const g of windGroups.values()) {
+  for (const g of groups.values()) {
+    // Wind is per-athlete, so only surface it when every row in the
+    // section agrees -- a uniform reading still reads as information, a
+    // mixed one would just be a lie (so show nothing then).
+    const winds = new Set(g.rows.map((r) => r.wind).filter((w): w is string => !!w));
+    const wind = winds.size === 1 ? [...winds][0] : null;
     if (isRelayEvent(g.athletics_event)) {
       const level = g.rows.find((r) => r.race_level != null)?.race_level ?? null;
-      result.push({ ...g, section: 0, level });
+      result.push({ ...g, wind, section: 0, level });
       continue;
     }
     const isField = isFieldEvent(g.athletics_event);
@@ -168,7 +173,7 @@ export function groupResults(rows: MeetResultRow[]): Group[] {
       // non-null one found (a split section's rows are a subset of the
       // same underlying race in that key, so they all agree anyway).
       const level = sectionRows.find((r) => r.race_level != null)?.race_level ?? null;
-      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind: g.wind, section: i, rows: sorted, label, level });
+      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind, section: i, rows: sorted, label, level });
     });
   }
   return result;

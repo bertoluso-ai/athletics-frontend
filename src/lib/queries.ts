@@ -536,9 +536,18 @@ async function fetchWindow(
   // that run many parallel non-eliminating heats (all labelled some variant
   // of "Final") each produce their own place 1/2/3, which would otherwise
   // flood a single race with dozens of "podium" rows. For individual events
-  // we ignore the source place and rank by the actual mark ourselves,
-  // capped to the real top 3. Relays keep the source place (it already
-  // identifies one row per team leg correctly).
+  // we ignore the source place entirely and rank by the actual mark
+  // ourselves, capped to the real top 3. Relays keep the source place (it
+  // already identifies one row per team leg correctly).
+  //
+  // The source place is also frequently MISSING for the non-winners (some
+  // meets/road races only record who won) -- confirmed on the Croatian U18
+  // 5km race walk, which stores place=1 for the winner and NULL for 2nd and
+  // 3rd, so requiring `place IS NOT NULL` silently dropped two of the three
+  // finishers. Rows with no place simply get their rank from their mark;
+  // DNF rows are still excluded by the mark filter below (nothing to rank
+  // on). Relays with a NULL place fall out naturally (their real_place is
+  // the NULL source place, so the 1-3 filter drops them).
   const rows = await pgQuery<ResultRow>(`
     WITH candidates AS (
       SELECT
@@ -551,8 +560,7 @@ async function fetchWindow(
         mark_seconds, ${safeMark} AS mark_num,
         LOWER(athletics_event) LIKE '%relay%' AS is_relay
       FROM events
-      WHERE place IS NOT NULL
-        AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
+      WHERE (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
         AND LOWER(COALESCE(round,'')) NOT LIKE '%combined%'
         ${from ? `AND date >= ${fromPh}` : "AND date >= CURRENT_DATE - INTERVAL '7 days'"}
         ${to ? `AND date <= ${toPh}` : ""}
@@ -563,17 +571,19 @@ async function fetchWindow(
     ),
     ranked AS (
       SELECT *,
-        -- Partitioned by round too: some meets split a discipline into
+        -- Partitioned by round: some meets split a discipline into
         -- parallel sections ("Final 1"/"Final 2", by pace/seed), each with
         -- its own real place 1/2/3 -- without this they'd get ranked
-        -- against each other as if it were one race. Also by wind: some
-        -- sources (confirmed on worldathletics) run two parallel sections
-        -- BOTH labelled just "Final" with no other distinguishing text --
-        -- but a single real race only ever has one wind reading, so two
-        -- different non-null wind values under the same round means two
-        -- different races got merged.
+        -- against each other as if it were one race. NOT by wind: a single
+        -- real race carries a per-athlete wind reading (each athlete's own
+        -- best attempt), so two different winds under one round do NOT
+        -- imply two separate races -- confirmed on the Ukrainian U18 triple
+        -- jump final, whose places 1-4 read 0.0/0.0/+1.5/0.0 and used to be
+        -- split into two "races". Genuine parallel sections are rare, and
+        -- ranking their rows together (best 3 overall) is still the right
+        -- podium to show.
         CASE WHEN is_relay THEN place ELSE RANK() OVER (
-          PARTITION BY event_name, athletics_event, gender, date, round, wind
+          PARTITION BY event_name, athletics_event, gender, date, round
           -- Field events and combined events score by magnitude/points,
           -- higher is better, and never populate mark_seconds (throws/jumps
           -- store the distance/height in the "mark" column, multi-events store
@@ -590,7 +600,15 @@ async function fetchWindow(
           -- that still lacks a time.
           ORDER BY CASE
             WHEN athletics_discipline IN ('Throws','Jumps','Combined Events') OR mark_seconds IS NULL
-            THEN -mark_num ELSE mark_seconds END ASC
+            THEN -mark_num ELSE mark_seconds END ASC,
+            -- Break a dead heat with the source's own place: when two rows
+            -- carry the exact same mark the source has already decided which
+            -- is ahead (e.g. the Ukrainian U18 women's triple jump had
+            -- 11.74 for both 3rd and 4th). Without this, RANK() ties them at
+            -- the same real_place and BOTH pass the 1-3 filter, widening the
+            -- podium to four entries. NULL place (unplaced finishers) sorts
+            -- last, so it never outranks a placed row of the same mark.
+            place ASC NULLS LAST
         ) END AS real_place
       FROM candidates
     )
@@ -610,7 +628,10 @@ async function fetchWindow(
   const podiumsByRace = new Map<string, Map<string, PodiumEntry>>();
 
   for (const r of rows) {
-    const key = `${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}|${r.round ?? ""}|${r.wind ?? ""}`;
+    // Keyed WITHOUT wind: one real race can carry a per-athlete wind, so
+    // including wind here would split a single final into several races on
+    // the feed (matches the RANK partition above).
+    const key = `${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}|${r.round ?? ""}`;
     let race = races.get(key);
     if (!race) {
       race = {

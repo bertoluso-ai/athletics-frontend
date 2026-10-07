@@ -122,6 +122,10 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                       discipline: race.athletics_event,
                       gender: race.gender,
                     }).toString()}`;
+                    // Wind is per-athlete (each athlete's own best attempt),
+                    // so only surface it when the whole podium agrees.
+                    const raceWinds = new Set(race.top3.map((e) => e.wind).filter((w): w is string => !!w));
+                    const raceWind = raceWinds.size === 1 ? [...raceWinds][0] : null;
                     return (
                     <div key={race.key}>
                       <div className="px-4 pt-1.5 pb-0.5 flex flex-wrap items-baseline gap-x-2 bg-neutral-900/70">
@@ -132,8 +136,8 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                           {race.gender === "Men" ? "Men" : race.gender === "Women" ? "Women" : race.gender}
                         </span>
                         {race.round && <span className="text-xs text-neutral-500">· {race.round}</span>}
-                        {race.top3.find((e) => e.wind)?.wind && (
-                          <span className="text-xs font-mono text-neutral-500">Wind: {race.top3.find((e) => e.wind)!.wind}</span>
+                        {raceWind && (
+                          <span className="text-xs font-mono text-neutral-500">Wind: {raceWind}</span>
                         )}
                         <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>
                       </div>

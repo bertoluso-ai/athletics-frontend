@@ -155,7 +155,17 @@ export const FIELD_EVENTS = [
 const HIGHER_IS_BETTER_NON_FIELD = ["Decathlon", "Heptathlon", "Pentathlon"];
 
 export function isFieldEvent(event: string): boolean {
-  return (FIELD_EVENTS as readonly string[]).includes(event) || HIGHER_IS_BETTER_NON_FIELD.includes(event);
+  if ((FIELD_EVENTS as readonly string[]).includes(event)) return true;
+  if (HIGHER_IS_BETTER_NON_FIELD.includes(event)) return true;
+  // Not an exact catalog name -- likely an age/implement/round variant of
+  // one ("Shot Put (5kg)", "Javelin Throw (700g)", "Discus Throw (1.500kg)",
+  // "Decathlon Boys", "Heptathlon U18"). Falling back to the same keyword
+  // guess eventCategory uses keeps those "higher is better / metres or
+  // points", instead of the old exact-match test which treated them as a
+  // time and sorted them worst-to-best (a 12.58m shot put above a 16.79m
+  // one, a 5512pt decathlon above a 6888pt one).
+  const category = eventCategory(event);
+  return category === "Field" || category === "Combined";
 }
 
 export function isRelayEvent(event: string): boolean {
