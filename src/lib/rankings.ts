@@ -224,11 +224,32 @@ export function hasMovement(view: RankingView, year: number, currentYear: number
 // another before even starting the main ranking query.
 export const getRankingNationalities = unstable_cache(
   async (gender: string): Promise<{ code: string; name: string; codes: string[]; area: string | null }[]> => fetchRankingNationalities(gender),
-  ["ranking-nationalities-v2"],
+  ["ranking-nationalities-v3"],
   { revalidate: 3600 }
 );
 
 async function fetchRankingNationalities(gender: string): Promise<{ code: string; name: string; codes: string[]; area: string | null }[]> {
+  // Precomputed table (schema.sql ranking_nationalities, built nightly from
+  // the just-refreshed `events` by athletics-database/serving/
+  // refresh_ranking_cache.py). This used to GROUP BY over the whole ~4.9M-row
+  // `events` table on every cache miss -- it now reads the exact same shape
+  // back from a ~400-row table. The live query below is the fallback both
+  // while the table is still empty (before the first nightly refresh after
+  // this ships) AND if it doesn't exist yet -- the read is wrapped in
+  // try/catch, so a missing table degrades to the live query instead of
+  // 500-ing the whole /rankings page (pgQuery doesn't swallow errors, and a
+  // SELECT from a non-existent relation throws "relation does not exist").
+  let cached: { code: string; name: string; codes: string[]; area: string | null }[] = [];
+  try {
+    cached = await pgQuery<{ code: string; name: string; codes: string[]; area: string | null }>(
+      `SELECT code, name, codes, area FROM ranking_nationalities WHERE gender = $1 ORDER BY name`,
+      [gender]
+    );
+  } catch {
+    // Precomputed table not there yet -- fall through to the live query.
+  }
+  if (cached.length) return cached;
+
   return pgQuery(
     `
     WITH codes AS (
@@ -251,11 +272,24 @@ async function fetchRankingNationalities(gender: string): Promise<{ code: string
 
 export const getRankingYears = unstable_cache(
   async (): Promise<number[]> => {
+    // Precomputed (schema.sql ranking_years, built nightly by
+    // refresh_ranking_cache.py). The live SELECT DISTINCT over `events` is
+    // the fallback only while the table is still empty (before the first
+    // nightly refresh after this ships).
+    let cached: { year: number }[] = [];
+    try {
+      cached = await pgQuery<{ year: number }>(`SELECT year FROM ranking_years ORDER BY year DESC`);
+    } catch {
+      // Precomputed table not there yet (created by refresh_ranking_cache.py
+      // on the first nightly run after this ships) -- same try/catch rationale
+      // as fetchRankingNationalities above.
+    }
+    if (cached.length) return cached.map((r) => r.year);
     const rows = await pgQuery<{ year: number }>(`
       SELECT DISTINCT year FROM events WHERE competition_score IS NOT NULL AND year IS NOT NULL ORDER BY year DESC
     `);
     return rows.map((r) => r.year);
   },
-  ["ranking-years-v1"],
+  ["ranking-years-v2"],
   { revalidate: 3600 }
 );

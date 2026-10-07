@@ -485,7 +485,7 @@ export type LatestResultGroup = {
   total_races: number; // how many races this competition actually has in the window
 };
 
-export async function getLatestRaces(
+async function _getLatestRaces(
   maxSlots = 10,
   filters: { event?: string; tier?: string; from?: string; to?: string } = {}
 ): Promise<LatestResultGroup[]> {
@@ -504,6 +504,23 @@ export async function getLatestRaces(
   }
   return result;
 }
+
+// The only heavy home-page query that wasn't cached (see the DAY_CACHE note
+// at the top). The home page itself is ISR-cached, but /api/latest-results --
+// the dynamic route the LatestResults discipline/category dropdowns hit --
+// re-ran this on every filter change, and it can issue up to four sequential
+// window queries (7/14/30/90 days) before it finds >=5 competitions.
+// unstable_cache keys on (maxSlots, filters), so each distinct filter
+// combination is computed once and then served from Next's Data Cache.
+// Five minutes, not the hourly DAY_CACHE: the "latest" feed is the one thing
+// on the site that should track new results closely, and 5 min of staleness
+// is well inside how often the pipeline actually writes new rows (the two
+// exports run every 2 h).
+export const getLatestRaces = unstable_cache(
+  _getLatestRaces,
+  ["latest-races-v1"],
+  { revalidate: 300 }
+);
 
 function isoDaysAgo(days: number) {
   const d = new Date();
