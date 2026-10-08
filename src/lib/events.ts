@@ -105,15 +105,42 @@ export const EVENT_GROUPS = [
     // fusionaba todas bajo "Cross Country", el ranking y el all-time-best
     // mezclaban distancias distintas. Ahora cada categoria tiene su propia
     // athletics_event_base y hay que ofrecerla aqui para poder consultarla.
+    //
+    // El corte LARGO/CORTO va aparte (2026-10-08). World Athletics publica
+    // TODAS las carreras de un mismo campeonato nacional bajo un unico
+    // "Men's/Women's Cross Country" con los puestos reiniciando en cada una:
+    // en el campeonato polaco 2024 convivian dos carreras senior de distinta
+    // distancia (5:53-8:49 y 18:44-25:32) bajo la misma athletics_event_base,
+    // asi que el all-time-best de "Cross Country" salia con un 4:01.00 de una
+    // carrera de ~2 km. Desde entonces el pipeline reparte esas carreras:
+    // "Cross Country" es la carrera larga (la del ganador mas lento) y
+    // "Cross Country Short" las demas (ver matchAthletesIncremental/
+    // split_cross_country_races.sql). Las que YA venian etiquetadas por WA
+    // por separado ("Cross Country Short Race" = short course de los Mundiales
+    // de 1998-2006 y Europeos, "Cross Country Long Race", "Short Cross",
+    // "Cross Country 4000m") estaban exportadas a serving pero eran
+    // inalcanzables: sin entrada aqui, eventFromSlug() devolvia null y
+    // /disciplines/<slug> daba 404 (no aparecian en el selector).
     events: {
-      Men: ["Cross Country", "Cross Country U23", "Cross Country U20", "Cross Country U18"],
-      Women: ["Cross Country", "Cross Country U23", "Cross Country U20", "Cross Country U18"],
+      Men: [
+        "Cross Country", "Cross Country Short", "Cross Country U23", "Cross Country U20", "Cross Country U18",
+        "Cross Country Short Race", "Cross Country Long Race", "Short Cross", "Cross Country 4000m",
+      ],
+      Women: [
+        "Cross Country", "Cross Country Short", "Cross Country U23", "Cross Country U20", "Cross Country U18",
+        "Cross Country Short Race", "Cross Country Long Race", "Short Cross", "Cross Country 4000m",
+      ],
     },
     names: {
       "Cross Country": "Cross Country",
+      "Cross Country Short": "Cross Country Short",
       "Cross Country U23": "Cross Country U23",
       "Cross Country U20": "Cross Country U20",
       "Cross Country U18": "Cross Country U18",
+      "Cross Country Short Race": "Cross Country Short Race",
+      "Cross Country Long Race": "Cross Country Long Race",
+      "Short Cross": "Short Cross",
+      "Cross Country 4000m": "Cross Country 4000m",
     } as Record<string, string>,
   },
   {
