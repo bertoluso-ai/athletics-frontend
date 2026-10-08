@@ -30,24 +30,34 @@ export const EVENT_GROUPS = [
   },
   {
     key: "walk", label: "Race Walk",
+    // Una sola grafia por distancia. World Athletics publica la misma prueba
+    // con dos nombres (pista en metros: "10000 Metres Race Walk"; ruta en
+    // kilometros: "10 Kilometres Race Walk") y el scraper los guardaba como
+    // eventos distintos, asi que un mismo atleta salia con DOS personal
+    // bests para la misma actuacion (reportado por el usuario: "10km Walk
+    // 42.41" y "10.000m Walk 42:41.21" en el perfil). Ahora
+    // match_incremental.sql los unifica en una athletics_event_base comun
+    // (criterio de WA: < 10 km en metros, >= 10 km en kilometros), asi que
+    // aqui solo puede quedar una entrada por distancia -- las grafias
+    // absorbidas ("5 Kilometres Race Walk", "10000 Metres Race Walk") ya no
+    // existen como base y listarlas solo ofrecia una disciplina vacia.
     events: {
       Men: [
-        "3000 Metres Race Walk", "5 Kilometres Race Walk", "5000 Metres Race Walk",
-        "10 Kilometres Race Walk", "10000 Metres Race Walk", "Half Marathon Race Walk",
+        "3000 Metres Race Walk", "5000 Metres Race Walk", "10 Kilometres Race Walk",
         "20 Kilometres Race Walk", "35 Kilometres Race Walk", "50 Kilometres Race Walk",
+        "Half Marathon Race Walk",
       ],
       Women: [
-        "3000 Metres Race Walk", "5 Kilometres Race Walk", "5000 Metres Race Walk",
-        "10 Kilometres Race Walk", "10000 Metres Race Walk", "Half Marathon Race Walk",
+        "3000 Metres Race Walk", "5000 Metres Race Walk", "10 Kilometres Race Walk",
         "20 Kilometres Race Walk", "35 Kilometres Race Walk", "50 Kilometres Race Walk",
+        "Half Marathon Race Walk",
       ],
     },
     names: {
-      "3000 Metres Race Walk": "3000m Walk", "5 Kilometres Race Walk": "5km Walk",
-      "5000 Metres Race Walk": "5000m Walk", "10 Kilometres Race Walk": "10km Walk",
-      "10000 Metres Race Walk": "10,000m Walk", "Half Marathon Race Walk": "Half Marathon Walk",
-      "20 Kilometres Race Walk": "20km Walk", "35 Kilometres Race Walk": "35km Walk",
-      "50 Kilometres Race Walk": "50km Walk",
+      "3000 Metres Race Walk": "3000m Walk", "5000 Metres Race Walk": "5000m Walk",
+      "10 Kilometres Race Walk": "10km Walk", "20 Kilometres Race Walk": "20km Walk",
+      "35 Kilometres Race Walk": "35km Walk", "50 Kilometres Race Walk": "50km Walk",
+      "Half Marathon Race Walk": "Half Marathon Walk",
     } as Record<string, string>,
   },
   {
@@ -87,12 +97,23 @@ export const EVENT_GROUPS = [
     // que las paginas de disciplinas ya agrupan sus resultados juntos --
     // mantenerla aqui aparte solo confundia (dos opciones que mostraban
     // el mismo "todas las edades" pero con listas distintas).
+    //
+    // Las categorias de edad SI van por separado (corregido el 2026-10-08):
+    // el cross U20/U23/U18 corre recorridos mas cortos que el senior (mediana
+    // de 1343s / 1517s / 1333s frente a 1898s, medido en events_enriched), asi
+    // que antes, cuando el REGEXP les quitaba el sufijo de edad y las
+    // fusionaba todas bajo "Cross Country", el ranking y el all-time-best
+    // mezclaban distancias distintas. Ahora cada categoria tiene su propia
+    // athletics_event_base y hay que ofrecerla aqui para poder consultarla.
     events: {
-      Men: ["Cross Country"],
-      Women: ["Cross Country"],
+      Men: ["Cross Country", "Cross Country U23", "Cross Country U20", "Cross Country U18"],
+      Women: ["Cross Country", "Cross Country U23", "Cross Country U20", "Cross Country U18"],
     },
     names: {
       "Cross Country": "Cross Country",
+      "Cross Country U23": "Cross Country U23",
+      "Cross Country U20": "Cross Country U20",
+      "Cross Country U18": "Cross Country U18",
     } as Record<string, string>,
   },
   {
