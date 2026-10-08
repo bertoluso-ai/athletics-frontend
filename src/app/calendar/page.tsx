@@ -121,7 +121,9 @@ export default async function CalendarPage({
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Calendar</h1>
 
-        <form action="/calendar" className="flex flex-wrap items-end gap-2 mb-4">
+        <form action="/calendar" className="flex flex-col gap-2 mb-4">
+          {/* row 1: when; row 2: what/where (Level, Discipline, Area, Nation) */}
+          <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Year</label>
             <select name="year" defaultValue={year} disabled={ranged} className={`${selectClass} disabled:opacity-40`}>
@@ -150,6 +152,8 @@ export default async function CalendarPage({
             <label className="text-xs text-neutral-400">To</label>
             <input type="date" name="to" defaultValue={to} className={selectClass} />
           </div>
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Level</label>
             <MultiSelectDropdown
@@ -201,6 +205,7 @@ export default async function CalendarPage({
               clear
             </Link>
           )}
+          </div>
         </form>
         {ranged && (
           <p className="text-xs text-neutral-500 -mt-2 mb-3">
