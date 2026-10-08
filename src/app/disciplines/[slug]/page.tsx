@@ -7,17 +7,23 @@ import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import { GenericAthlete } from "@/components/Avatar";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import {
-  getEventAllTimeBest, getEventYearBestMarks, getEventAvailableYears,
+  getEventAllTimeBest, getEventYearBestMarks,
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
-  getEventYearlyProgression, getEventBestByArea, getEventBestByCountry, getEventRecordTenure,
-  getAthleteSlugs, athleteHref, getAvailableNationalities,
-  type MarkRow, type RelayMarkRow, type NationalityOption,
+  getDisciplineSideData, getRelaySideData,
+  getAthleteSlugs, athleteHref,
+  type MarkRow, type RelayMarkRow, type NationalityOption, type DisciplineSideData,
 } from "@/lib/queries";
 import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
 import { eventSlug, eventFromSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
+
+// Relays get their own nation-level side data (getRelaySideData) instead
+// of the athlete-level one, so the athlete-shaped fields are left empty.
+const EMPTY_SIDE_DATA: DisciplineSideData = {
+  byArea: [], byCountry: [], availableYears: [], nationalities: [], progression: [], tenure: [],
+};
 
 // Disciplines: same look as Rankings (pill row of categories, gender
 // toggle, discipline select) but content is historical marks, not a
@@ -180,27 +186,29 @@ export default async function DisciplinePage({
     (ev) => !indoor || (eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && !isRelayEvent(ev))
   );
 
-  // All 8 queries are independent (none consumes another's result), so
-  // they all fire in one Promise.all -- this used to be two sequential
-  // Promise.all batches (the byArea/byCountry/tenure one only started
-  // after the first batch fully resolved), which doubled the page's
-  // wall-clock latency for nothing: confirmed live, /disciplines/100-metres
-  // was taking ~3.7s with the two-batch version for no reason other than
-  // the artificial serialization.
-  const [allTime, years, yearBest, progression, nationalities, byArea, byCountry, tenure] = await Promise.all([
+  // The table queries and the right-column/chart queries are all
+  // independent, so they fire in one Promise.all. The right column
+  // (byArea/byCountry/tenure), the nation dropdown, the year selector's
+  // options and the "Best Mark by Year" progression all read the same
+  // discipline+gender slice of `events`, so they're folded into a single
+  // cached statement (getDisciplineSideData) that scans that slice once
+  // instead of six times -- confirmed live, those six overlapping scans
+  // were most of /disciplines/100-metres' ~3.5s cold latency.
+  const [allTime, yearBest, side, relaySide] = await Promise.all([
     isRelay ? getEventAllTimeBestRelay(event, gender, limit) : getEventAllTimeBest(event, gender, limit, ageCategory || undefined, indoor, nationality, area),
-    getEventAvailableYears(event, gender),
     yearParam == null
       ? Promise.resolve(null)
       : isRelay
       ? getEventYearBestMarksRelay(event, gender, yearParam, limit)
       : getEventYearBestMarks(event, gender, yearParam, limit, ageCategory || undefined, indoor, nationality, area),
-    isRelay ? Promise.resolve([]) : getEventYearlyProgression(event, gender, ageCategory || undefined),
-    isRelay ? Promise.resolve([]) : getAvailableNationalities(event, gender, "all"),
-    isRelay ? Promise.resolve([]) : getEventBestByArea(event, gender, indoor),
-    isRelay ? Promise.resolve([]) : getEventBestByCountry(event, gender, indoor, 10),
-    isRelay ? Promise.resolve([]) : getEventRecordTenure(event, gender, 10),
+    isRelay
+      ? Promise.resolve(EMPTY_SIDE_DATA)
+      : getDisciplineSideData(event, gender, indoor, ageCategory || undefined, 10, 10),
+    isRelay ? getRelaySideData(event, gender, 10, 10) : Promise.resolve(null),
   ]);
+  const { nationalities, byArea, byCountry, tenure } = side;
+  const years = relaySide ? relaySide.availableYears : side.availableYears;
+  const progression = relaySide ? relaySide.progression : side.progression;
 
   const tableRows = yearParam == null ? allTime : yearBest!;
   const athleteSlugs = isRelay
@@ -217,7 +225,8 @@ export default async function DisciplinePage({
     (b, d) => (!b || (fieldEvent ? d.mark_value > b.mark_value : d.mark_value < b.mark_value) ? d : b),
     null
   );
-  const bestPhoto = bestEver?.athlete ? await getAthletePhotoInfo(bestEver.athlete) : null;
+  // Relay progression points carry a country name in `athlete` -- no photo lookup for those.
+  const bestPhoto = !isRelay && bestEver?.athlete ? await getAthletePhotoInfo(bestEver.athlete) : null;
 
   const baseHref = (over: { gender?: string; event?: string }) => {
     const q = new URLSearchParams();
@@ -363,6 +372,53 @@ export default async function DisciplinePage({
             )}
           </div>
 
+          {relaySide && (
+            <aside className="flex flex-col gap-6 min-w-0 w-full">
+              <SideList title="Best by Continent" help="The fastest national team time ever from each World Athletics area">
+                {relaySide.byArea.map((m) => (
+                  <Link key={m.area} href={`/countries/${m.nationality}`} className="flex items-center justify-between px-1 py-1.5 hover:text-orange-400 gap-2">
+                    <span className="text-sm min-w-0">
+                      <span className="block text-neutral-500 text-[10px] uppercase tracking-wide truncate">{m.area_name}</span>
+                      <span className="flex items-center gap-1 truncate">
+                        <Flag code={m.nationality} />
+                        <span className="truncate">{m.name}</span>
+                      </span>
+                    </span>
+                    <span className="font-mono text-sm text-orange-400 shrink-0">{m.mark_display}</span>
+                  </Link>
+                ))}
+                {relaySide.byArea.length === 0 && <div className="px-1 py-2 text-sm text-neutral-500">No data.</div>}
+              </SideList>
+
+              <SideList title="Best by Country" help="Each nation's best team time ever (the national record), fastest first">
+                {relaySide.byCountry.map((m, i) => (
+                  <Link key={m.nationality} href={`/countries/${m.nationality}`} className="flex items-center justify-between px-1 py-1 hover:text-orange-400 gap-2">
+                    <span className="flex items-center gap-1.5 text-sm min-w-0">
+                      <span className="text-neutral-500 font-mono text-xs w-3.5 shrink-0">{i + 1}</span>
+                      <Flag code={m.nationality} />
+                      <span className="truncate">{m.name}</span>
+                    </span>
+                    <span className="font-mono text-sm text-orange-400 shrink-0">{m.mark_display}</span>
+                  </Link>
+                ))}
+                {relaySide.byCountry.length === 0 && <div className="px-1 py-2 text-sm text-neutral-500">No data.</div>}
+              </SideList>
+
+              <SideList title="Longest-Held Record" help="Years each nation's team spent holding the all-time best time, summed across every stretch held">
+                {relaySide.tenure.map((t, i) => (
+                  <Link key={t.nationality} href={`/countries/${t.nationality}`} className="flex items-center justify-between px-1 py-1 hover:text-orange-400 gap-2">
+                    <span className="flex items-center gap-1.5 text-sm min-w-0">
+                      <span className="text-neutral-500 font-mono text-xs w-3.5 shrink-0">{i + 1}</span>
+                      <Flag code={t.nationality} />
+                      <span className="truncate">{t.name}</span>
+                    </span>
+                    <span className="font-mono text-sm text-orange-400 shrink-0">{t.years_held}y</span>
+                  </Link>
+                ))}
+                {relaySide.tenure.length === 0 && <div className="px-1 py-2 text-sm text-neutral-500">No data.</div>}
+              </SideList>
+            </aside>
+          )}
           {!isRelay && (
             <aside className="flex flex-col gap-6 min-w-0 w-full">
               <SideList title="Best by Continent" help="The fastest/farthest mark ever from each World Athletics area">

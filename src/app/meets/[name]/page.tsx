@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
-import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getAthleteSlugs } from "@/lib/queries";
+import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getMeetYearsFromEvents, getMeetResultsFromEvents, getMeetEventMatrix, getMeetEventMatrixFromEvents, getAthleteSlugs } from "@/lib/queries";
 import MeetEventStats from "@/components/MeetEventStats";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
@@ -30,21 +30,86 @@ export default async function MeetPage({
   const eventName = decodeURIComponent(name);
   const { year: yearParam, discipline: disciplineParam, gender: genderParam, category: categoryParam } = await searchParams;
 
-  // Resolved once and shared with both calls below instead of each
-  // re-resolving it (that used to be two identical round trips) -- and,
-  // when the URL already names a year, the years list and that year's
-  // results no longer depend on each other, so they run in parallel
-  // instead of one blocking the other.
+  // series_key is resolved once and shared with every query below instead
+  // of each re-resolving it (that used to be two identical round trips).
   const seriesKey = await getMeetSeriesKey(eventName);
   const requestedYear = yearParam ? Number(yearParam) : null;
-  const [years, resultsForRequestedYear] = await Promise.all([
-    getMeetAvailableYears(eventName, seriesKey),
-    requestedYear ? getMeetResults(eventName, requestedYear, seriesKey) : Promise.resolve(null),
-  ]);
+
+  const materializedYears = await getMeetAvailableYears(eventName, seriesKey);
+
+  // A meet whose series_key resolved but that has no rows in the
+  // materialized meet_results at all is a combined-events
+  // (decathlon/heptathlon) meet: 19_materialize_meet_results.sql drops
+  // every combined round (`round NOT LIKE '%combined%'`), so
+  // getMeetAvailableYears comes back empty and this page used to 404 even
+  // though the meet -- and its sub-event marks, shown on each competing
+  // athlete's profile -- plainly exists. Fall back to reading `events`
+  // directly so the page opens and shows those same sub-event results.
+  const combinedEventsOnly = seriesKey != null && materializedYears.length === 0;
+
+  const years = combinedEventsOnly ? await getMeetYearsFromEvents(eventName) : materializedYears;
   if (years.length === 0) notFound();
 
   const year = requestedYear ?? years[0];
-  const results = resultsForRequestedYear ?? (await getMeetResults(eventName, year, seriesKey));
+
+  // The cheap (athletics_event, gender) matrix for this meet/year drives
+  // every filter control below and decides which single discipline this
+  // page actually loads -- see getMeetEventMatrix for why the options are
+  // built from it rather than from the results themselves.
+  const matrix = combinedEventsOnly
+    ? await getMeetEventMatrixFromEvents(eventName, year)
+    : await getMeetEventMatrix(eventName, year, seriesKey);
+  const gendersByDiscipline = new Map<string, Set<string>>();
+  for (const row of matrix) {
+    const set = gendersByDiscipline.get(row.athletics_event) ?? new Set<string>();
+    set.add(row.gender);
+    gendersByDiscipline.set(row.athletics_event, set);
+  }
+  const allDisciplines = [...gendersByDiscipline.keys()].sort((a, b) => a.localeCompare(b));
+  if (allDisciplines.length === 0) notFound();
+
+  // Category pills (Sprints, Long Distance, ...): only groups this meet
+  // actually has results for, instead of the full fixed catalog.
+  const categoryOptions = EVENT_GROUPS.filter((g) =>
+    [...g.events.Men, ...g.events.Women].some((ev) => gendersByDiscipline.has(ev))
+  ).map((g) => ({ key: g.key, label: g.label }));
+  const category = categoryParam && categoryOptions.some((c) => c.key === categoryParam) ? categoryParam : "";
+  const categoryGroup = category ? EVENT_GROUPS.find((g) => g.key === category)! : null;
+  const categoryDisciplines: Set<string> | null = categoryGroup
+    ? new Set([...categoryGroup.events.Men, ...categoryGroup.events.Women])
+    : null;
+
+  // This page shows ONE discipline at a time (defaulting to the first,
+  // alphabetically) instead of every discipline of the meet at once -- that
+  // used to render an 8,499-row meet as a single 16MB page. The rest are
+  // reached through the discipline dropdown. A discipline stays selectable
+  // only if it has results for the selected gender and category, so a stale
+  // or hand-edited URL (e.g. 100 Metres Hurdles + Men, which has no rows)
+  // resolves to the nearest combination that does exist, rather than
+  // rendering an empty page while still offering the empty combination.
+  const hasGender = (d: string) => !genderParam || (gendersByDiscipline.get(d)?.has(genderParam) ?? false);
+  const inCategory = (d: string) => !categoryDisciplines || categoryDisciplines.has(d);
+  const discipline =
+    disciplineParam && gendersByDiscipline.has(disciplineParam) && hasGender(disciplineParam) && inCategory(disciplineParam)
+      ? disciplineParam
+      : allDisciplines.find((d) => inCategory(d) && hasGender(d)) ??
+        allDisciplines.find((d) => inCategory(d)) ??
+        allDisciplines.find((d) => hasGender(d)) ??
+        allDisciplines[0];
+
+  // Gender buttons: only the genders this discipline has results for --
+  // the other half of never offering a combination that yields nothing.
+  const disciplineGenders = [...(gendersByDiscipline.get(discipline) ?? [])].sort((a, b) =>
+    a === "Men" ? -1 : b === "Men" ? 1 : a.localeCompare(b)
+  );
+  const gender = genderParam && disciplineGenders.includes(genderParam) ? genderParam : "";
+
+  // Only this discipline's (+ gender's) rows are fetched, so they're the
+  // only ones grouped and rendered -- the filter is pushed into SQL, not
+  // applied to a fully-fetched meet afterwards.
+  const results = combinedEventsOnly
+    ? await getMeetResultsFromEvents(eventName, year, { discipline, gender: gender || undefined })
+    : await getMeetResults(eventName, year, seriesKey, { discipline, gender: gender || undefined });
   const athleteSlugs = await getAthleteSlugs(results.map((r) => r.athlete_id).filter((id): id is string => !!id));
   const allGroups = groupResults(results).sort(
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
@@ -62,35 +127,22 @@ export default async function MeetPage({
     .filter((t): t is string => !!t)
     .sort((a, b) => tierPriority(a) - tierPriority(b))[0];
 
-  const disciplineOptions = Array.from(new Set(allGroups.map((g) => g.athletics_event)))
-    .sort((a, b) => a.localeCompare(b))
-    .map((e) => ({ value: e, label: eventLabel(e) }));
-  const genderOptions = Array.from(new Set(allGroups.map((g) => g.gender)));
-  // Only offer category pills (Sprints, Long Distance, ...) this meet
-  // actually has results for, instead of the full fixed catalog.
-  const disciplineSet = new Set(disciplineOptions.map((d) => d.value));
-  const categoryOptions = EVENT_GROUPS.filter((g) =>
-    [...g.events.Men, ...g.events.Women].some((ev) => disciplineSet.has(ev))
-  ).map((g) => ({ key: g.key, label: g.label }));
+  // Discipline dropdown: only disciplines that have results for the
+  // selected gender, so switching to "Men" doesn't leave e.g. 100 Metres
+  // Hurdles (a Women-only field) in the list.
+  const disciplineOptions = allDisciplines
+    .filter((d) => !gender || (gendersByDiscipline.get(d)?.has(gender) ?? false))
+    .map((d) => ({ value: d, label: eventLabel(d) }));
 
-  const category = categoryParam && categoryOptions.some((c) => c.key === categoryParam) ? categoryParam : "";
-  const categoryGroup = category ? EVENT_GROUPS.find((g) => g.key === category)! : null;
-  const categoryDisciplines: Set<string> | null = categoryGroup
-    ? new Set([...categoryGroup.events.Men, ...categoryGroup.events.Women])
-    : null;
-  const discipline = disciplineParam && disciplineOptions.some((d) => d.value === disciplineParam) ? disciplineParam : "";
-  const gender = genderParam && genderOptions.includes(genderParam) ? genderParam : "";
-  const groups = allGroups.filter(
-    (g) =>
-      (!discipline || g.athletics_event === discipline) &&
-      (!gender || g.gender === gender) &&
-      (!categoryDisciplines || categoryDisciplines.has(g.athletics_event))
-  );
   // Discipline dropdown narrows to the selected category too, so it
   // doesn't offer picking e.g. Long Jump while "Sprints" is active.
-  const visibleDisciplineOptions = categoryDisciplines
-    ? disciplineOptions.filter((d) => categoryDisciplines.has(d.value))
-    : disciplineOptions;
+  const visibleDisciplineOptions =
+    categoryDisciplines && categoryDisciplines.has(discipline)
+      ? disciplineOptions.filter((d) => categoryDisciplines.has(d.value))
+      : disciplineOptions;
+  // Results were already narrowed to one discipline (+ gender) in SQL, so
+  // the groups to render are just the grouped result set.
+  const groups = allGroups;
 
   // The header date: a multi-day meet's disciplines run on different days
   // (e.g. Asian Games 2026 -- 100m on day 3, Marathon on day 4), so once a
@@ -144,7 +196,7 @@ export default async function MeetPage({
             disciplines={visibleDisciplineOptions}
             categories={categoryOptions}
             category={category}
-            genders={genderOptions}
+            genders={disciplineGenders}
             discipline={discipline}
             gender={gender}
             year={year}

@@ -13,6 +13,12 @@ export const revalidate = 3600;
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// A full year is several thousand competitions: rendering them all produced a
+// ~27 MB / ~27s page (measured). The list is paged like /races -- the whole
+// year is still fetched (and memo-cached) in one query, but only this page's
+// rows are serialized/rendered.
+const PAGE_SIZE = 100;
+
 function fmtRange(a: string | null, b: string | null) {
   if (!a) return "—"; // source gives only the year
   const d = (s: string) => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
@@ -40,6 +46,7 @@ export default async function CalendarPage({
     month?: string | string[];
     sort?: string;
     dir?: string;
+    page?: string;
   }>;
 }) {
   const sp = await searchParams;
@@ -59,16 +66,22 @@ export default async function CalendarPage({
   const sort = sp.sort === "name" || sp.sort === "tier" ? sp.sort : "date";
   const dir = sp.dir === "desc" ? "desc" : "asc";
   const rows = await getCalendar(year, selectedTiers, selectedMonths, sort, dir);
+  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+  const page = Math.min(Math.max(1, Number(sp.page) || 1), pages);
+  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const today = new Date().toISOString().slice(0, 10);
-  const athleteSlugs = await getAthleteSlugs(rows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
+  const athleteSlugs = await getAthleteSlugs(pageRows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
 
-  const href = (over: { year?: number; tier?: string[]; month?: number[]; sort?: string; dir?: string }) => {
+  const href = (over: { year?: number; tier?: string[]; month?: number[]; sort?: string; dir?: string; page?: number }) => {
     const q = new URLSearchParams();
     q.set("year", String(over.year ?? year));
     (over.tier ?? selectedTiers).forEach((t) => q.append("tier", t));
     (over.month ?? selectedMonths).forEach((m) => q.append("month", String(m)));
     q.set("sort", over.sort ?? sort);
     q.set("dir", over.dir ?? dir);
+    // Only emit page when it's not the first one, so filter/sort links (which
+    // never pass it) keep resetting to page 1 and URLs stay clean.
+    if (over.page && over.page > 1) q.set("page", String(over.page));
     return `/calendar?${q.toString()}`;
   };
   const sortHref = (col: "date" | "name" | "tier") => href({ sort: col, dir: sort === col && dir === "asc" ? "desc" : "asc" });
@@ -129,11 +142,22 @@ export default async function CalendarPage({
             </Link>
           </div>
           <div className="divide-y divide-neutral-800">
-            {rows.map((r, i) => {
+            {pageRows.map((r, i) => {
               const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
+              // Deep-link to the exact discipline+gender of the advertised
+              // "top performance", so /meets opens on that section (e.g. the
+              // Marathon winner Edwin) instead of defaulting to its first
+              // alphabetical discipline (the 10km Walk, whose winner is a
+              // different athlete entirely -- the reported bug: the calendar
+              // row advertised the Marathon winner but the meet page showed
+              // the 10km Walk winner).
               const nameLink =
                 r.kind === "past"
-                  ? `/meets/${encodeURIComponent(r.name)}?year=${year}`
+                  ? `/meets/${encodeURIComponent(r.name)}?${new URLSearchParams({
+                      year: String(year),
+                      ...(r.top_event ? { discipline: r.top_event } : {}),
+                      ...(r.top_gender ? { gender: r.top_gender } : {}),
+                    }).toString()}`
                   : r.past_event_name
                   ? `/meets/${encodeURIComponent(r.past_event_name)}`
                   : null;
@@ -223,9 +247,27 @@ export default async function CalendarPage({
                 </div>
               );
             })}
-            {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No competitions for this selection.</div>}
+            {pageRows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No competitions for this selection.</div>}
           </div>
         </div>
+
+        {pages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-4 text-sm">
+            {page > 1 && (
+              <Link href={href({ page: page - 1 })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+                ← Prev
+              </Link>
+            )}
+            <span className="text-neutral-500">
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, rows.length)} of {rows.length}
+            </span>
+            {page < pages && (
+              <Link href={href({ page: page + 1 })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+                Next →
+              </Link>
+            )}
+          </div>
+        )}
       </main>
     </div>
   );

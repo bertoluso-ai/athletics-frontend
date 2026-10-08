@@ -24,6 +24,11 @@ export type CalendarRow = {
   top_nationality: string | null;
   top_event: string | null;
   top_mark: string | null;
+  // past only: gender of the top performance's discipline, so the row can
+  // deep-link to /meets with the exact discipline+gender that was advertised
+  // (otherwise the meet page falls back to its first alphabetical discipline,
+  // e.g. the 10km Walk while the row advertised the Marathon winner).
+  top_gender: string | null;
   level: number | null; // past only: field strength of this edition, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
   // upcoming only
   disciplines: string | null;
@@ -107,7 +112,7 @@ async function fetchCalendar(
       WHERE v IS NOT NULL AND v != 0
     ),
     winners AS (
-      SELECT e.event_name, e.year, e.athlete_id, e.athlete_display_name, e.nationality, e.athletics_event, e.mark_display,
+      SELECT e.event_name, e.year, e.athlete_id, e.athlete_display_name, e.nationality, e.athletics_event, e.gender, e.mark_display,
         r.all_time_rank
       FROM \`athletics-database.athletics_all.events_enriched\` e
       JOIN ranks r USING (event_row_key)
@@ -119,7 +124,7 @@ async function fetchCalendar(
     ),
     tops AS (
       SELECT event_name, year,
-        ARRAY_AGG(STRUCT(athlete_id, athlete_display_name, nationality, athletics_event, mark_display)
+        ARRAY_AGG(STRUCT(athlete_id, athlete_display_name, nationality, athletics_event, mark_display, gender)
           ORDER BY all_time_rank LIMIT 1)[SAFE_OFFSET(0)] AS top
       FROM winners
       GROUP BY event_name, year
@@ -135,6 +140,7 @@ async function fetchCalendar(
         event_name AS name, city, country, tier, n_events,
         top.athlete_id AS top_athlete_id, top.athlete_display_name AS top_athlete,
         top.nationality AS top_nationality, top.athletics_event AS top_event, top.mark_display AS top_mark,
+        top.gender AS top_gender,
         -- The raw 0-100 score, not its percentile: race_level/competition_level
         -- is now tier-anchored (70% the race's own competition tier, 30% a
         -- mark-quality modifier -- see registry/16_compute_race_level.sql), so
@@ -171,6 +177,7 @@ async function fetchCalendar(
         up.name, REGEXP_EXTRACT(up.venue, r',\\s*([^,(]+?)\\s*\\(') AS city, up.country, up.category AS tier,
         CAST(NULL AS INT64) AS n_events,
         CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING), CAST(NULL AS STRING),
+        CAST(NULL AS STRING) AS top_gender,
         CAST(NULL AS FLOAT64) AS level,
         up.disciplines,
         m.event_name AS past_event_name

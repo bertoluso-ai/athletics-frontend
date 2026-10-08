@@ -41,8 +41,9 @@ export default function MeetFilters({
     <div className="flex flex-col gap-2">
       {categories.length > 1 && (
         <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 -mx-3 px-3 sm:mx-0 sm:px-0">
-          {/* "All" clears every filter -- the way back to the whole meet when
-              arriving from a link that pre-selects one discipline */}
+          {/* "All categories" clears the category + gender filters, dropping
+              back to the meet's default (first) discipline -- the way back
+              when arriving from a link that pre-selects one discipline */}
           <button
             onClick={() => go("", "", "")}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
@@ -70,7 +71,6 @@ export default function MeetFilters({
       )}
       <div className="flex items-center gap-2 flex-wrap">
         <select value={discipline} onChange={(e) => go(e.target.value, gender, category)} className={selectClass}>
-          <option value="">All disciplines</option>
           {disciplines.map((d) => (
             <option key={d.value} value={d.value}>{d.label}</option>
           ))}
