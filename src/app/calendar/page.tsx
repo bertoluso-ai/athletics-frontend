@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
+import CalendarAutoForm from "@/components/CalendarAutoForm";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
 import { getCalendar, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
@@ -97,6 +98,7 @@ export default async function CalendarPage({
       if (to) q.set("to", to);
     } else {
       q.set("year", String(year));
+      if (selectedMonths.length === 0) q.set("month", ""); // all year, not the current-month default
       selectedMonths.forEach((m) => q.append("month", String(m)));
     }
     tierValues.forEach((t) => q.append("tier", t));
@@ -121,41 +123,34 @@ export default async function CalendarPage({
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Calendar</h1>
 
-        <form action="/calendar" className="flex flex-col gap-2 mb-4">
-          {/* row 1: when; row 2: what/where (Level, Discipline, Area, Nation) */}
-          <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Year</label>
-            <select name="year" defaultValue={year} disabled={ranged} className={`${selectClass} disabled:opacity-40`}>
+        {/* No titles and no Filter button, same as Races: every control applies on
+            change (see CalendarAutoForm). Row 1 = when, row 2 = what/where. */}
+        <CalendarAutoForm key={JSON.stringify(sp)} action="/calendar" className="flex flex-col gap-2 mb-4">
+          {/* "" = all year; without it an empty Month falls back to the current month */}
+          <input type="hidden" name="month" value="" />
+          <input type="hidden" name="sort" value={sort} />
+          <input type="hidden" name="dir" value={dir} />
+          <div className="flex flex-wrap items-center gap-2">
+            <select name="year" defaultValue={year} disabled={ranged} aria-label="Year" className={`${selectClass} disabled:opacity-40`}>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
               ))}
             </select>
+            <div className={ranged ? "opacity-40 pointer-events-none" : ""}>
+              <MultiSelectDropdown
+                name="month"
+                className="min-w-[8rem]"
+                placeholder="All year"
+                defaultSelected={selectedMonths.map(String)}
+                options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+              />
+            </div>
+            <input type="date" name="from" defaultValue={from} aria-label="From date" title="From date" className={selectClass} />
+            <input type="date" name="to" defaultValue={to} aria-label="To date" title="To date" className={selectClass} />
           </div>
-          <div className={`flex flex-col gap-1 ${ranged ? "opacity-40 pointer-events-none" : ""}`}>
-            <label className="text-xs text-neutral-400">Month</label>
-            <MultiSelectDropdown
-              name="month"
-              className="min-w-[8rem]"
-              placeholder="All year"
-              defaultSelected={selectedMonths.map(String)}
-              options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">From</label>
-            <input type="date" name="from" defaultValue={from} className={selectClass} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">To</label>
-            <input type="date" name="to" defaultValue={to} className={selectClass} />
-          </div>
-          </div>
-          <div className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Level</label>
+          <div className="flex flex-wrap items-center gap-2">
             <MultiSelectDropdown
               name="tier"
               className="min-w-[8rem]"
@@ -163,10 +158,7 @@ export default async function CalendarPage({
               defaultSelected={tierValues}
               options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
             />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Discipline</label>
-            <select name="discipline" defaultValue={discipline ?? ""} className={selectClass}>
+            <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={selectClass}>
               <option value="">All disciplines</option>
               {ALL_EVENTS.map((ev) => (
                 <option key={ev} value={ev}>
@@ -174,10 +166,7 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Area</label>
-            <select name="area" defaultValue={area ?? ""} className={selectClass}>
+            <select name="area" defaultValue={area ?? ""} aria-label="Area" className={selectClass}>
               <option value="">All areas</option>
               {Object.entries(AREAS).map(([code, name]) => (
                 <option key={code} value={code}>
@@ -185,10 +174,7 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-neutral-400">Nation</label>
-            <select name="nationality" defaultValue={nation ?? ""} className={selectClass}>
+            <select name="nationality" defaultValue={nation ?? ""} aria-label="Nation" className={selectClass}>
               <option value="">All nations</option>
               {nationOptions.map((n) => (
                 <option key={n.code} value={n.code}>
@@ -196,17 +182,13 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
+            {(hasExtraFilters || tierValues.length > 0) && (
+              <Link href="/calendar" className="text-xs text-neutral-500 hover:text-neutral-300">
+                clear
+              </Link>
+            )}
           </div>
-          <input type="hidden" name="sort" value={sort} />
-          <input type="hidden" name="dir" value={dir} />
-          <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
-          {(hasExtraFilters || tierValues.length > 0) && (
-            <Link href="/calendar" className="text-xs text-neutral-500 hover:text-neutral-300 py-1.5">
-              clear
-            </Link>
-          )}
-          </div>
-        </form>
+        </CalendarAutoForm>
         {ranged && (
           <p className="text-xs text-neutral-500 -mt-2 mb-3">
             Showing {from ?? "…"} → {to ?? "…"} (the date range replaces year and month).

@@ -36,6 +36,18 @@ export default function MultiSelectDropdown({
 
   const toggle = (v: string) => setSelected((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
 
+  // Tell a surrounding auto-submitting form that the selection changed (the
+  // hidden inputs below don't fire `change` themselves). Runs after render so
+  // the form reads the updated hidden inputs; skipped on mount.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    ref.current?.dispatchEvent(new Event("change", { bubbles: true }));
+  }, [selected]);
+
   const label =
     selected.length === 0
       ? placeholder
