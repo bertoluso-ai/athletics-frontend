@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
@@ -13,7 +13,7 @@ import {
   getAthleteSlugs, athleteHref,
   type MarkRow, type RelayMarkRow, type NationalityOption, type DisciplineSideData,
 } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
 import { eventSlug, eventFromSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
@@ -142,7 +142,14 @@ export default async function DisciplinePage({
 }) {
   const { slug } = await params;
   const event = eventFromSlug(slug);
-  if (!event) notFound();
+  if (!event) {
+    const legacy = Object.keys(LEGACY_EVENT_ALIASES).find((name) => eventSlug(name) === slug);
+    if (legacy) {
+      const sp = await searchParams;
+      redirect(`/disciplines/${eventSlug(LEGACY_EVENT_ALIASES[legacy])}${sp.gender ? `?gender=${encodeURIComponent(sp.gender)}` : ""}`);
+    }
+    notFound();
+  }
 
   const group = findGroup(event);
   const sp = await searchParams;

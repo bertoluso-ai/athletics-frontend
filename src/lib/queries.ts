@@ -598,6 +598,10 @@ async function fetchWindow(
         ${from ? `AND date >= ${fromPh}` : "AND date >= CURRENT_DATE - INTERVAL '7 days'"}
         ${to ? `AND date <= ${toPh}` : ""}
         AND athlete_display_name IS NOT NULL
+        -- shadow rows = duplicate copies of a result shown elsewhere (or a
+        -- weaker parallel section): without this the same athlete could
+        -- appear twice on a podium (registry/25_flag_duplicate_performances.sql).
+        AND ${NOT_SHADOW()}
         AND (mark_seconds IS NOT NULL OR ${safeMark} IS NOT NULL)
         ${event ? `AND athletics_event = ${eventPh}` : ""}
         ${tier ? `AND division_key_resolved = ${tierPh}` : ""}

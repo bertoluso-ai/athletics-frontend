@@ -121,26 +121,30 @@ export const EVENT_GROUPS = [
     // "Cross Country 4000m") estaban exportadas a serving pero eran
     // inalcanzables: sin entrada aqui, eventFromSlug() devolvia null y
     // /disciplines/<slug> daba 404 (no aparecian en el selector).
+    //
+    // Reagrupado por DISTANCIA (2026-10-08, matchAthletesIncremental/
+    // regroup_cross_country.sql): esas etiquetas de WA significaban lo mismo
+    // que otras, asi que ahora cada carrera va al grupo que le toca por el
+    // tiempo de su ganador -- Cross Country (largo, ~20-40 min), Short (~4 km,
+    // 9:30-17 min), Sprint (~2 km de los nacionales, 4-8:40 min) -- mas las
+    // categorias de edad. Las URLs viejas redirigen (LEGACY_EVENT_ALIASES).
     events: {
       Men: [
-        "Cross Country", "Cross Country Short", "Cross Country U23", "Cross Country U20", "Cross Country U18",
-        "Cross Country Short Race", "Cross Country Long Race", "Short Cross", "Cross Country 4000m",
+        "Cross Country", "Cross Country Short", "Cross Country Sprint",
+        "Cross Country U23", "Cross Country U20", "Cross Country U18",
       ],
       Women: [
-        "Cross Country", "Cross Country Short", "Cross Country U23", "Cross Country U20", "Cross Country U18",
-        "Cross Country Short Race", "Cross Country Long Race", "Short Cross", "Cross Country 4000m",
+        "Cross Country", "Cross Country Short", "Cross Country Sprint",
+        "Cross Country U23", "Cross Country U20", "Cross Country U18",
       ],
     },
     names: {
       "Cross Country": "Cross Country",
-      "Cross Country Short": "Cross Country Short",
+      "Cross Country Short": "Cross Country Short (~4 km)",
+      "Cross Country Sprint": "Cross Country Sprint (~2 km)",
       "Cross Country U23": "Cross Country U23",
       "Cross Country U20": "Cross Country U20",
       "Cross Country U18": "Cross Country U18",
-      "Cross Country Short Race": "Cross Country Short Race",
-      "Cross Country Long Race": "Cross Country Long Race",
-      "Short Cross": "Short Cross",
-      "Cross Country 4000m": "Cross Country 4000m",
     } as Record<string, string>,
   },
   {
@@ -154,6 +158,16 @@ export const EVENT_GROUPS = [
     } as Record<string, string>,
   },
 ] as const;
+
+// Disciplines that no longer exist on their own because they were folded
+// into another (regroup_cross_country.sql): old /disciplines/<slug> links
+// redirect to the group they now belong to instead of 404ing.
+export const LEGACY_EVENT_ALIASES: Record<string, string> = {
+  "Cross Country Long Race": "Cross Country",
+  "Cross Country Short Race": "Cross Country Short",
+  "Short Cross": "Cross Country Short",
+  "Cross Country 4000m": "Cross Country Short",
+};
 
 export function eventLabel(ev: string): string {
   for (const g of EVENT_GROUPS) {
