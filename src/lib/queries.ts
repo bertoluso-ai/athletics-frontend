@@ -1559,7 +1559,7 @@ export const normalizeSeries = (expr: string) => `
 const APOSTROPHE_VARIANTS = "\u2019\u2018\u02bc`\u00b4";
 const APOSTROPHE_ASCII = "'''''";
 
-export async function getMeetSeriesKey(eventName: string): Promise<string | null> {
+async function _getMeetSeriesKey(eventName: string): Promise<string | null> {
   const rows = await pgQuery<{ series_key: string }>(
     `SELECT series_key FROM meet_series_key WHERE event_name = $1 LIMIT 1`,
     [eventName]
@@ -1588,7 +1588,7 @@ export async function getMeetSeriesKey(eventName: string): Promise<string | null
 // seriesKey can be passed in (the meet page resolves it once up front and
 // shares it with getMeetResults below, instead of each resolving it
 // separately -- that used to be two identical round trips per page load).
-export async function getMeetAvailableYears(eventName: string, seriesKey?: string | null): Promise<number[]> {
+async function _getMeetAvailableYears(eventName: string, seriesKey?: string | null): Promise<number[]> {
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
   if (!key) return [];
   const rows = await pgQuery<{ year: number }>(
@@ -1619,7 +1619,7 @@ export type MeetResultsFilter = { discipline?: string; gender?: string };
 // the whole meet, however many result rows it has.
 export type MeetEventCount = { athletics_event: string; gender: string; n: number };
 
-export async function getMeetEventMatrix(
+async function _getMeetEventMatrix(
   eventName: string, year: number, seriesKey?: string | null
 ): Promise<MeetEventCount[]> {
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
@@ -1636,7 +1636,7 @@ export async function getMeetEventMatrix(
 // which reads `events` instead of meet_results -- same athlete_display_name
 // NOT NULL filter getMeetResultsFromEvents applies, so the two agree on
 // which (discipline, gender) pairs exist.
-export async function getMeetEventMatrixFromEvents(eventName: string, year: number): Promise<MeetEventCount[]> {
+async function _getMeetEventMatrixFromEvents(eventName: string, year: number): Promise<MeetEventCount[]> {
   return pgQuery<MeetEventCount>(
     `SELECT athletics_event, gender, COUNT(*)::int AS n
      FROM events
@@ -1684,7 +1684,7 @@ export type MeetResultRow = {
 // "Final 2" -- each with its own real place 1/2/3. Both match '%final%' so
 // they used to get merged into one fake ranking. `round` is selected here
 // so the page can group by it and render each section on its own instead.
-export async function getMeetResults(
+async function _getMeetResults(
   eventName: string, year: number, seriesKey?: string | null, filter?: MeetResultsFilter
 ): Promise<MeetResultRow[]> {
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
@@ -1740,7 +1740,7 @@ export async function getMeetResults(
 // events_name_idx is (event_name, date). Mirrors getMeetResults' row shape
 // -- and the same athlete_display_name NOT NULL filter the materialization
 // applies -- so the page and MeetResultsSections render it identically.
-export async function getMeetYearsFromEvents(eventName: string): Promise<number[]> {
+async function _getMeetYearsFromEvents(eventName: string): Promise<number[]> {
   const rows = await pgQuery<{ year: number }>(
     `SELECT DISTINCT year FROM events WHERE event_name = $1 AND year IS NOT NULL ORDER BY year DESC`,
     [eventName]
@@ -1748,7 +1748,7 @@ export async function getMeetYearsFromEvents(eventName: string): Promise<number[
   return rows.map((r) => r.year);
 }
 
-export async function getMeetResultsFromEvents(
+async function _getMeetResultsFromEvents(
   eventName: string, year: number, filter?: MeetResultsFilter
 ): Promise<MeetResultRow[]> {
   const params: unknown[] = [eventName, year];
@@ -1778,6 +1778,19 @@ export async function getMeetResultsFromEvents(
     params
   );
 }
+
+// Meet page: every query is keyed only by (event_name/series_key, year,
+// filter) and the data changes once a day, but the route reads
+// searchParams so it is fully dynamic -- without these the page ran 5
+// uncached sequential round trips on every request (measured: ~2.1s even
+// on a repeat hit of /meets/Prefontaine%20Classic).
+export const getMeetSeriesKey = unstable_cache(_getMeetSeriesKey, ["getMeetSeriesKey-v1"], DAY_CACHE);
+export const getMeetAvailableYears = unstable_cache(_getMeetAvailableYears, ["getMeetAvailableYears-v1"], DAY_CACHE);
+export const getMeetEventMatrix = unstable_cache(_getMeetEventMatrix, ["getMeetEventMatrix-v1"], DAY_CACHE);
+export const getMeetEventMatrixFromEvents = unstable_cache(_getMeetEventMatrixFromEvents, ["getMeetEventMatrixFromEvents-v1"], DAY_CACHE);
+export const getMeetResults = unstable_cache(_getMeetResults, ["getMeetResults-v1"], DAY_CACHE);
+export const getMeetYearsFromEvents = unstable_cache(_getMeetYearsFromEvents, ["getMeetYearsFromEvents-v1"], DAY_CACHE);
+export const getMeetResultsFromEvents = unstable_cache(_getMeetResultsFromEvents, ["getMeetResultsFromEvents-v1"], DAY_CACHE);
 
 // ---------------------------------------------------------------------
 // Competitions browser -- lists RAW event_name values (not grouped by

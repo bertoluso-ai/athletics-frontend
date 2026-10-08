@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
@@ -211,7 +212,8 @@ export default async function MeetPage({
           </div>
           {statsEvent && statsGender && (
             <div>
-              <MeetEventStats
+              <Suspense fallback={<div className="h-64 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse" />}>
+                <MeetEventStats
                 eventName={eventName}
                 event={statsEvent}
                 gender={statsGender}
@@ -222,6 +224,7 @@ export default async function MeetPage({
                   return `/meets/${encodeURIComponent(eventName)}?${q.toString()}`;
                 }}
               />
+              </Suspense>
             </div>
           )}
         </div>

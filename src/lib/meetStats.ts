@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
 import { getMeetSeriesKey } from "./queries";
 import { isRelayEvent } from "./events";
@@ -35,7 +36,7 @@ export type MeetMark = {
   all_time_rank: number | null; // world all-time performance rank (same indoor/outdoor kind)
 };
 
-export async function getMeetEventStats(eventName: string, event: string, gender: string) {
+async function _getMeetEventStats(eventName: string, event: string, gender: string) {
   const relay = isRelayEvent(event);
   const seriesKey = await getMeetSeriesKey(eventName);
   // $1 = series_key (or the raw event_name itself if it has no series --
@@ -169,3 +170,9 @@ export async function getMeetEventStats(eventName: string, event: string, gender
 
   return { relay, winners, topAthletes, topCountries, meetRecord: records[0] ?? null, records, allTimeHere, wrs };
 }
+
+// Cached: the "world" CTEs above rank EVERY mark ever in the discipline
+// (all-time rank + WR progression), identical for every meet page of that
+// event/gender, and used to run uncached on every view -- the dominant
+// cost of /meets/[name] (~2s even on a repeat hit).
+export const getMeetEventStats = unstable_cache(_getMeetEventStats, ["getMeetEventStats-v1"], { revalidate: 3600 });
