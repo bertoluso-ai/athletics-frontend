@@ -178,4 +178,4 @@ async function _getMeetEventStats(eventName: string, event: string, gender: stri
 // (all-time rank + WR progression), identical for every meet page of that
 // event/gender, and used to run uncached on every view -- the dominant
 // cost of /meets/[name] (~2s even on a repeat hit).
-export const getMeetEventStats = unstable_cache(_getMeetEventStats, ["getMeetEventStats-v1"], { revalidate: 3600 });
+export const getMeetEventStats = unstable_cache(_getMeetEventStats, ["getMeetEventStats-v2"], { revalidate: 3600 });
