@@ -2274,7 +2274,7 @@ async function _getTopRaces(
   event: string,
   gender: string,
   year: number | "all",
-  sortBy: "quality" | "recent" = "quality",
+  sortBy: "quality" | "recent" | "tier" = "recent",
   pageSize = 10,
   indoor = false,
   page = 1,
@@ -2283,7 +2283,10 @@ async function _getTopRaces(
   const { tier, nationality, area, ageCategory } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const winnerFiltered = !!(nationality || area || ageMax);
-  const order = sortBy === "recent" ? "race_key DESC, race_level DESC" : "race_level DESC, race_key DESC";
+  const order =
+    sortBy === "recent" ? "race_key DESC, race_level DESC"
+    : sortBy === "tier" ? "array_position(ARRAY['OW','DF','GW','GL','A','B','C','D','E','F'], tier) ASC NULLS LAST, race_key DESC, race_level DESC"
+    : "race_level DESC, race_key DESC";
 
   const params: unknown[] = [gender];
   let idx = 2;

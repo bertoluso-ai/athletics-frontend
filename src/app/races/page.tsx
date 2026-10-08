@@ -59,7 +59,8 @@ export default async function RacesPage({
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const nationality = sp.nationality && nationalities.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
-  const sortBy = sp.sort === "recent" ? "recent" : "quality";
+  // Default: most recent first (asked 2026-10-08); quality and category are opt-in sorts.
+  const sortBy = sp.sort === "quality" ? "quality" : sp.sort === "tier" ? "tier" : "recent";
   const indoor = sp.indoor === "true";
   const page = Math.max(1, Number(sp.page) || 1);
   const filters = { tier, area, nationality, ageCategory: age };
@@ -203,15 +204,22 @@ export default async function RacesPage({
             </Link>
             <span className="hidden sm:inline">Competition</span>
             <span className="hidden sm:inline">Top performance</span>
-            {/* "Quality" spans the Level + Quality columns together (col-span-2)
-                and sits flush right over both, instead of a separate "Level"
-                label plus "Quality" squeezed into just the last column. */}
-            <Link
-              href={href({ sort: "quality", page: 1 })}
-              className={`col-span-1 sm:col-span-2 text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}
-            >
-              Quality{sortBy === "quality" ? " ▼" : ""}
-            </Link>
+            {/* Level (competition category, OW first) and Quality each sort on
+                their own. On phones both share the right-hand track. */}
+            <span className="flex sm:contents justify-end gap-3">
+              <Link
+                href={href({ sort: "tier", page: 1 })}
+                className={`sm:text-left hover:text-neutral-200 ${sortBy === "tier" ? "text-orange-400" : ""}`}
+              >
+                Level{sortBy === "tier" ? " ▲" : ""}
+              </Link>
+              <Link
+                href={href({ sort: "quality", page: 1 })}
+                className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}
+              >
+                Quality{sortBy === "quality" ? " ▼" : ""}
+              </Link>
+            </span>
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r, i) => (
