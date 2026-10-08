@@ -15,7 +15,10 @@ import { isRelayEvent } from "./events";
 const T = "events";
 
 const safeCast = (col: string) => `CASE WHEN ${col} ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN ${col}::double precision ELSE NULL END`;
-const V = `CASE WHEN athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') THEN -(${safeCast("mark")}) ELSE mark_seconds END`;
+// Hour races are scored by distance (mark = metres, mark_seconds NULL): same
+// 'higher is better' handling as jumps/throws, or they get no value at all
+// and the meet history panel comes out empty.
+const V = `CASE WHEN athletics_discipline IN ('Jumps', 'Throws', 'Combined Events') OR LOWER(athletics_event) LIKE '%hour%' THEN -(${safeCast("mark")}) ELSE mark_seconds END`;
 const INDOOR = `(COALESCE(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
 const FINAL = `(round IS NULL OR round = '' OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semi%' AND LOWER(round) NOT LIKE '%quarter%'))`;
 

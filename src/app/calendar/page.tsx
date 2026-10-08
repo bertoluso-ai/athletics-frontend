@@ -1,23 +1,22 @@
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
-import { eventLabel, TIER_LABELS } from "@/lib/events";
-import { getCalendar, getCalendarYears, TIER_ORDER } from "@/lib/calendar";
-import { getAthleteSlugs, athleteHref } from "@/lib/queries";
+import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
+import { getCalendar, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
+import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
+import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
 
 // Season calendar (after the ProCyclingStats calendar): every competition
 // of the year at or above a tier, held ones with their headline
-// performance, upcoming ones with what's on the programme.
+// performance, upcoming ones with what's on the programme. Filterable by
+// discipline, host area/nation and an exact date range.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// A full year is several thousand competitions: rendering them all produced a
-// ~27 MB / ~27s page (measured). The list is paged like /races -- the whole
-// year is still fetched (and memo-cached) in one query, but only this page's
-// rows are serialized/rendered.
 const PAGE_SIZE = 100;
+const ALL_EVENTS: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women] as string[])));
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 function fmtRange(a: string | null, b: string | null) {
   if (!a) return "—"; // source gives only the year
@@ -37,6 +36,8 @@ function TierBadge({ tier }: { tier: string | null }) {
   );
 }
 
+const QUALITY_HELP = "Competition quality: strength of the fields it actually gathered (see Races)";
+
 export default async function CalendarPage({
   searchParams,
 }: {
@@ -44,48 +45,76 @@ export default async function CalendarPage({
     year?: string;
     tier?: string | string[];
     month?: string | string[];
+    discipline?: string;
+    area?: string;
+    nationality?: string;
+    from?: string;
+    to?: string;
     sort?: string;
     dir?: string;
     page?: string;
   }>;
 }) {
   const sp = await searchParams;
-  const years = await getCalendarYears();
+  const [years, nations] = await Promise.all([getCalendarYears(), getAllNationalities()]);
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
   const tierValues = Array.isArray(sp.tier) ? sp.tier : sp.tier ? sp.tier.split(",") : [];
   const selectedTiers: string[] =
     tierValues.length === 0 ? [...TIER_ORDER] : tierValues.filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
+  const from = sp.from && ISO_DATE.test(sp.from) ? sp.from : undefined;
+  const to = sp.to && ISO_DATE.test(sp.to) ? sp.to : undefined;
+  const ranged = !!(from || to);
   const monthValues = Array.isArray(sp.month) ? sp.month : sp.month ? sp.month.split(",") : [];
   // No month in the URL at all, viewing the current year: default to the
-  // current month instead of "All year" (which, sorted by date ascending,
-  // visually looked like it defaulted to January).
+  // current month instead of "All year". A date range replaces both.
   const thisMonth = new Date().getMonth() + 1;
-  const selectedMonths: number[] =
-    sp.month === undefined && year === thisYear ? [thisMonth] : monthValues.map(Number).filter((m) => m >= 1 && m <= 12);
-  const sort = sp.sort === "name" || sp.sort === "tier" ? sp.sort : "date";
+  const selectedMonths: number[] = ranged
+    ? []
+    : sp.month === undefined && year === thisYear
+    ? [thisMonth]
+    : monthValues.map(Number).filter((m) => m >= 1 && m <= 12);
+  const discipline = sp.discipline && ALL_EVENTS.includes(sp.discipline) ? sp.discipline : undefined;
+  const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  const nationOptions = area ? nations.filter((n) => n.area === area) : nations;
+  const nation = sp.nationality && nationOptions.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
+  const sort: CalendarSort = sp.sort === "name" || sp.sort === "tier" || sp.sort === "quality" ? sp.sort : "date";
   const dir = sp.dir === "desc" ? "desc" : "asc";
-  const rows = await getCalendar(year, selectedTiers, selectedMonths, sort, dir);
-  const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
-  const page = Math.min(Math.max(1, Number(sp.page) || 1), pages);
-  const pageRows = rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const today = new Date().toISOString().slice(0, 10);
-  const athleteSlugs = await getAthleteSlugs(pageRows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
+  const page = Math.max(1, Number(sp.page) || 1);
 
-  const href = (over: { year?: number; tier?: string[]; month?: number[]; sort?: string; dir?: string; page?: number }) => {
+  const { rows, total } = await getCalendar({
+    year, months: selectedMonths, tiers: selectedTiers, discipline, area, nation, from, to,
+    sort, dir, page, pageSize: PAGE_SIZE,
+  });
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const today = new Date().toISOString().slice(0, 10);
+  const athleteSlugs = await getAthleteSlugs(rows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
+
+  const href = (over: { sort?: CalendarSort; dir?: string; page?: number }) => {
     const q = new URLSearchParams();
-    q.set("year", String(over.year ?? year));
-    (over.tier ?? selectedTiers).forEach((t) => q.append("tier", t));
-    (over.month ?? selectedMonths).forEach((m) => q.append("month", String(m)));
+    if (ranged) {
+      if (from) q.set("from", from);
+      if (to) q.set("to", to);
+    } else {
+      q.set("year", String(year));
+      selectedMonths.forEach((m) => q.append("month", String(m)));
+    }
+    tierValues.forEach((t) => q.append("tier", t));
+    if (discipline) q.set("discipline", discipline);
+    if (area) q.set("area", area);
+    if (nation) q.set("nationality", nation);
     q.set("sort", over.sort ?? sort);
     q.set("dir", over.dir ?? dir);
-    // Only emit page when it's not the first one, so filter/sort links (which
-    // never pass it) keep resetting to page 1 and URLs stay clean.
     if (over.page && over.page > 1) q.set("page", String(over.page));
     return `/calendar?${q.toString()}`;
   };
-  const sortHref = (col: "date" | "name" | "tier") => href({ sort: col, dir: sort === col && dir === "asc" ? "desc" : "asc" });
-  const sortArrow = (col: string) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
+  // first click on Quality sorts best-first; the others start ascending
+  const sortHref = (col: CalendarSort) =>
+    href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : col === "quality" ? "desc" : "asc" });
+  const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
+  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const hasExtraFilters = !!(discipline || area || nation || ranged);
+  const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3.5rem_3rem]";
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -95,7 +124,7 @@ export default async function CalendarPage({
         <form action="/calendar" className="flex flex-wrap items-end gap-2 mb-4">
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Year</label>
-            <select name="year" defaultValue={year} className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700">
+            <select name="year" defaultValue={year} disabled={ranged} className={`${selectClass} disabled:opacity-40`}>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
@@ -103,7 +132,7 @@ export default async function CalendarPage({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className={`flex flex-col gap-1 ${ranged ? "opacity-40 pointer-events-none" : ""}`}>
             <label className="text-xs text-neutral-400">Month</label>
             <MultiSelectDropdown
               name="month"
@@ -112,6 +141,14 @@ export default async function CalendarPage({
               defaultSelected={selectedMonths.map(String)}
               options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
             />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">From</label>
+            <input type="date" name="from" defaultValue={from} className={selectClass} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">To</label>
+            <input type="date" name="to" defaultValue={to} className={selectClass} />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-xs text-neutral-400">Level</label>
@@ -123,44 +160,93 @@ export default async function CalendarPage({
               options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
             />
           </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Discipline</label>
+            <select name="discipline" defaultValue={discipline ?? ""} className={selectClass}>
+              <option value="">All disciplines</option>
+              {ALL_EVENTS.map((ev) => (
+                <option key={ev} value={ev}>
+                  {eventLabel(ev)}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Area</label>
+            <select name="area" defaultValue={area ?? ""} className={selectClass}>
+              <option value="">All areas</option>
+              {Object.entries(AREAS).map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-neutral-400">Nation</label>
+            <select name="nationality" defaultValue={nation ?? ""} className={selectClass}>
+              <option value="">All nations</option>
+              {nationOptions.map((n) => (
+                <option key={n.code} value={n.code}>
+                  {n.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
           <button className="text-xs px-3 py-1.5 rounded bg-orange-500 text-black font-semibold">Filter</button>
+          {(hasExtraFilters || tierValues.length > 0) && (
+            <Link href="/calendar" className="text-xs text-neutral-500 hover:text-neutral-300 py-1.5">
+              clear
+            </Link>
+          )}
         </form>
+        {ranged && (
+          <p className="text-xs text-neutral-500 -mt-2 mb-3">
+            Showing {from ?? "…"} → {to ?? "…"} (the date range replaces year and month).
+          </p>
+        )}
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className="hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
+          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
             <Link href={sortHref("date")} className="hover:text-neutral-200">
               Date{sortArrow("date")}
             </Link>
             <Link href={sortHref("name")} className="hover:text-neutral-200">
               Competition{sortArrow("name")}
             </Link>
-            <span>Top performance</span>
+            <span>{discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
+            <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right hover:text-neutral-200">
+              Quality{sortArrow("quality")}
+            </Link>
             <Link href={sortHref("tier")} className="text-right hover:text-neutral-200">
               Level{sortArrow("tier")}
             </Link>
           </div>
           <div className="divide-y divide-neutral-800">
-            {pageRows.map((r, i) => {
+            {rows.map((r, i) => {
               const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
-              // Deep-link to the exact discipline+gender of the advertised
-              // "top performance", so /meets opens on that section (e.g. the
-              // Marathon winner Edwin) instead of defaulting to its first
-              // alphabetical discipline (the 10km Walk, whose winner is a
-              // different athlete entirely -- the reported bug: the calendar
-              // row advertised the Marathon winner but the meet page showed
-              // the 10km Walk winner).
+              // Deep-link to the exact discipline+gender of the advertised top
+              // performance, so /meets opens on that section.
               const nameLink =
                 r.kind === "past"
                   ? `/meets/${encodeURIComponent(r.name)}?${new URLSearchParams({
-                      year: String(year),
+                      year: (r.date_start ?? String(year)).slice(0, 4),
                       ...(r.top_event ? { discipline: r.top_event } : {}),
                       ...(r.top_gender ? { gender: r.top_gender } : {}),
                     }).toString()}`
                   : r.past_event_name
                   ? `/meets/${encodeURIComponent(r.past_event_name)}`
                   : null;
+              const quality =
+                r.level != null ? (
+                  <span className="font-mono text-xs text-neutral-300" title={QUALITY_HELP}>
+                    {Math.round(r.level)}
+                  </span>
+                ) : (
+                  <span className="text-neutral-700 text-xs">—</span>
+                );
               const topPerformance =
                 r.kind === "past" && r.top_athlete ? (
                   <>
@@ -170,14 +256,6 @@ export default async function CalendarPage({
                     </Link>
                     <span className="text-neutral-500"> · {eventLabel(r.top_event ?? "")} · </span>
                     <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
-                    {r.level != null && (
-                      <span
-                        className="ml-1.5 text-[10px] font-mono px-1 py-0.5 rounded bg-neutral-800 text-neutral-400"
-                        title="Field strength of this edition (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
-                      >
-                        Quality {Math.round(r.level)}
-                      </span>
-                    )}
                   </>
                 ) : r.kind === "upcoming" ? (
                   <span className="text-neutral-500">{[r.city, r.disciplines].filter(Boolean).join(" · ")}</span>
@@ -187,17 +265,10 @@ export default async function CalendarPage({
 
               return (
                 <div key={i} className={`relative ${r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}`}>
-                  {/* Full-row click target: only the competition name itself used
-                      to be a link, so the rest of the row (date, performance,
-                      tier) did nothing when clicked -- easy to miss on a
-                      phone where the name already fills most of the line,
-                      obvious on desktop's wider columns. pointer-events-none
-                      on the content + this absolute overlay underneath makes
-                      the whole row navigate, while re-enabling pointer-events
-                      on the nested athlete link keeps that one independently
-                      clickable (it sits above this in z-order). */}
+                  {/* Full-row click target (see the meet link above); the nested
+                      athlete link stays independently clickable. */}
                   {nameLink && <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />}
-                  {/* phones: a proper card, one line each, not a squeezed grid */}
+                  {/* phones: a card */}
                   <div
                     className={`sm:hidden flex flex-col gap-1 px-3 py-3 text-sm ${
                       nameLink ? "relative z-10 pointer-events-none [&_a]:pointer-events-auto" : ""
@@ -205,7 +276,10 @@ export default async function CalendarPage({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
-                      <TierBadge tier={r.tier} />
+                      <span className="flex items-center gap-2">
+                        {r.level != null && quality}
+                        <TierBadge tier={r.tier} />
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 min-w-0">
                       <Flag code={r.country} />
@@ -221,9 +295,9 @@ export default async function CalendarPage({
                     <div className="min-w-0 text-xs truncate">{topPerformance}</div>
                   </div>
 
-                  {/* desktop: the 4-column table row */}
+                  {/* desktop: table row */}
                   <div
-                    className={`hidden sm:grid grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3rem] gap-x-3 items-center px-3 py-2 text-sm ${
+                    className={`hidden sm:grid ${GRID} gap-x-3 items-center px-3 py-2 text-sm ${
                       nameLink ? "relative z-10 pointer-events-none [&_a]:pointer-events-auto" : ""
                     }`}
                   >
@@ -240,6 +314,7 @@ export default async function CalendarPage({
                       {live && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-500 text-white shrink-0">LIVE</span>}
                     </span>
                     <span className="min-w-0 text-xs truncate">{topPerformance}</span>
+                    <span className="text-right">{quality}</span>
                     <span className="text-right">
                       <TierBadge tier={r.tier} />
                     </span>
@@ -247,7 +322,7 @@ export default async function CalendarPage({
                 </div>
               );
             })}
-            {pageRows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No competitions for this selection.</div>}
+            {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No competitions for this selection.</div>}
           </div>
         </div>
 
@@ -259,7 +334,7 @@ export default async function CalendarPage({
               </Link>
             )}
             <span className="text-neutral-500">
-              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, rows.length)} of {rows.length}
+              {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
             </span>
             {page < pages && (
               <Link href={href({ page: page + 1 })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">

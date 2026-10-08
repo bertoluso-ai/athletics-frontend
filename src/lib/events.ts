@@ -219,6 +219,11 @@ const HIGHER_IS_BETTER_NON_FIELD = ["Decathlon", "Heptathlon", "Pentathlon"];
 export function isFieldEvent(event: string): boolean {
   if ((FIELD_EVENTS as readonly string[]).includes(event)) return true;
   if (HIGHER_IS_BETTER_NON_FIELD.includes(event)) return true;
+  // Hour races ("Hour Race Walk", "1 Hour", "One Hour", "24 Hours") are
+  // scored by DISTANCE covered ("14048 m", mark_seconds NULL): higher is
+  // better, read from `mark` like a field event -- treated as a time they
+  // had no comparable value at all (empty meet history, unsorted lists).
+  if (/\bhours?\b/i.test(event)) return true;
   // Not an exact catalog name -- likely an age/implement/round variant of
   // one ("Shot Put (5kg)", "Javelin Throw (700g)", "Discus Throw (1.500kg)",
   // "Decathlon Boys", "Heptathlon U18"). Falling back to the same keyword
