@@ -42,6 +42,7 @@ export default async function RacesPage({
     nationality?: string;
     age?: string;
     sort?: string;
+    dir?: string;
     indoor?: string;
     page?: string;
   }>;
@@ -61,6 +62,9 @@ export default async function RacesPage({
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
   // Default: most recent first (asked 2026-10-08); quality and category are opt-in sorts.
   const sortBy = sp.sort === "quality" ? "quality" : sp.sort === "tier" ? "tier" : "recent";
+  // asc/desc per column; each starts at its natural direction (newest, best quality, best category first)
+  const defaultDir = (c: string) => (c === "tier" ? "asc" : "desc");
+  const sortDir: "asc" | "desc" = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : defaultDir(sortBy);
   const indoor = sp.indoor === "true";
   const page = Math.max(1, Number(sp.page) || 1);
   const filters = { tier, area, nationality, ageCategory: age };
@@ -69,7 +73,7 @@ export default async function RacesPage({
   const nationalityOptions = area ? nationalities.filter((n) => n.area === area) : nationalities;
 
   const [rows, total] = await Promise.all([
-    getTopRaces(eventParam, gender, year, sortBy, PAGE_SIZE, indoor, page, filters),
+    getTopRaces(eventParam, gender, year, sortBy, PAGE_SIZE, indoor, page, filters, sortDir),
     getTopRacesCount(eventParam, gender, year, indoor, filters),
   ]);
   const pages = Math.ceil(total / PAGE_SIZE);
@@ -83,6 +87,7 @@ export default async function RacesPage({
     nationality?: string | null;
     age?: string | null;
     sort?: string;
+    dir?: string;
     indoor?: boolean;
     page?: number;
   }) => {
@@ -100,10 +105,15 @@ export default async function RacesPage({
     const nextAge = over.age === null ? undefined : over.age ?? age;
     if (nextAge) q.set("age", nextAge);
     q.set("sort", over.sort ?? sortBy);
+    q.set("dir", over.dir ?? sortDir);
     q.set("indoor", String(over.indoor ?? indoor));
     q.set("page", String(over.page ?? page));
     return `/races?${q.toString()}`;
   };
+  // header click: same column flips direction, another column starts at its own default
+  const sortHref = (col: "recent" | "quality" | "tier") =>
+    href({ sort: col, dir: sortBy === col ? (sortDir === "asc" ? "desc" : "asc") : defaultDir(col), page: 1 });
+  const arrow = (col: string) => (sortBy === col ? (sortDir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
 
   return (
@@ -199,8 +209,8 @@ export default async function RacesPage({
               entirely, so a 3rd leftover track here left Quality stranded
               in the middle instead of flush right. */}
           <div className="grid grid-cols-[5rem_1fr] sm:grid-cols-[6rem_minmax(0,1.5fr)_minmax(0,1.5fr)_3.5rem_4rem] gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800">
-            <Link href={href({ sort: "recent", page: 1 })} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
-              Date{sortBy === "recent" ? " ▼" : ""}
+            <Link href={sortHref("recent")} className={`hover:text-neutral-200 ${sortBy === "recent" ? "text-orange-400" : ""}`}>
+              Date{arrow("recent")}
             </Link>
             <span className="hidden sm:inline">Competition</span>
             <span className="hidden sm:inline">Top performance</span>
@@ -208,16 +218,16 @@ export default async function RacesPage({
                 their own. On phones both share the right-hand track. */}
             <span className="flex sm:contents justify-end gap-3">
               <Link
-                href={href({ sort: "tier", page: 1 })}
+                href={sortHref("tier")}
                 className={`sm:text-left hover:text-neutral-200 ${sortBy === "tier" ? "text-orange-400" : ""}`}
               >
-                Level{sortBy === "tier" ? " ▲" : ""}
+                Level{arrow("tier")}
               </Link>
               <Link
-                href={href({ sort: "quality", page: 1 })}
+                href={sortHref("quality")}
                 className={`text-right hover:text-neutral-200 ${sortBy === "quality" ? "text-orange-400" : ""}`}
               >
-                Quality{sortBy === "quality" ? " ▼" : ""}
+                Quality{arrow("quality")}
               </Link>
             </span>
           </div>

@@ -2278,15 +2278,20 @@ async function _getTopRaces(
   pageSize = 10,
   indoor = false,
   page = 1,
-  filters: TopRaceFilters = {}
+  filters: TopRaceFilters = {},
+  dir?: "asc" | "desc"
 ): Promise<TopRaceRow[]> {
   const { tier, nationality, area, ageCategory } = filters;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const winnerFiltered = !!(nationality || area || ageMax);
+  // Each column sorts both ways (asc/desc); with no `dir` it starts at its
+  // natural direction: newest date first, best quality first, best
+  // category (OW) first.
+  const d = (dir ?? (sortBy === "tier" ? "asc" : "desc")) === "asc" ? "ASC" : "DESC";
   const order =
-    sortBy === "recent" ? "race_key DESC, race_level DESC"
-    : sortBy === "tier" ? "array_position(ARRAY['OW','DF','GW','GL','A','B','C','D','E','F'], tier) ASC NULLS LAST, race_key DESC, race_level DESC"
-    : "race_level DESC, race_key DESC";
+    sortBy === "recent" ? `race_key ${d}, race_level DESC`
+    : sortBy === "tier" ? `array_position(ARRAY['OW','DF','GW','GL','A','B','C','D','E','F'], tier) ${d} NULLS LAST, race_key DESC, race_level DESC`
+    : `race_level ${d}, race_key DESC`;
 
   const params: unknown[] = [gender];
   let idx = 2;
