@@ -85,9 +85,9 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <PageBar title="Rankings" />
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
+            <PageBar title="Rankings" />
             {view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
             ) : (
