@@ -25,8 +25,16 @@ export default async function Home() {
     getEventYearlyProgression("100 Metres", "Men"),
   ]);
 
-  // two latest top competitions up top; the day-by-day feed below skips them so nothing shows twice
-  const top = topRaces.slice(0, 2);
+  // Top block = the 3 latest RACES of top competitions (regrouped under their competition);
+  // the feed above shows the 3 latest competitions and skips these so nothing shows twice
+  const latestTopRaces = topRaces
+    .flatMap((g) => g.races.map((r) => ({ g, r })))
+    .sort((a, b) => b.r.date.localeCompare(a.r.date))
+    .slice(0, 3);
+  const top = [...new Set(latestTopRaces.map((x) => x.g))].map((g) => ({
+    ...g,
+    races: latestTopRaces.filter((x) => x.g === g).map((x) => x.r),
+  }));
   const topNames = new Set(top.map((g) => g.event_name));
 
   return (
@@ -37,7 +45,7 @@ export default async function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
-          <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={2} exclude={[...topNames]} />
+          <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={3} exclude={[...topNames]} />
           {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" showFilters={false} />}
         </div>
 

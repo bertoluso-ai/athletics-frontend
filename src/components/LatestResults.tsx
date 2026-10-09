@@ -158,7 +158,7 @@ export default function LatestResults({
                     const raceWinds = new Set(race.top3.map((e) => e.wind).filter((w): w is string => !!w));
                     const raceWind = raceWinds.size === 1 ? [...raceWinds][0] : null;
                     return (
-                      <div key={race.key} className={`border-t border-neutral-800 ${ri >= 2 ? "hidden lg:block" : ""}`}>
+                      <div key={race.key} className={`border-t border-neutral-800 ${ri >= 2 && !heading ? "hidden lg:block" : ""}`}>
                         <div className="px-4 pt-3 pb-1 flex flex-wrap items-baseline gap-x-2">
                           <Link href={raceHref} className="text-xs font-bold uppercase tracking-wide text-orange-400 hover:underline">
                             {eventLabel(race.athletics_event)}
