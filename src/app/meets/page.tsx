@@ -291,9 +291,9 @@ export default async function MeetsPage({
                 Competition{sortArrow("name")}
               </Link>
             ) : (
-              <span>Competition · discipline</span>
+              <span>Competition</span>
             )}
-            <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : view === "races" ? "Winner" : "Top performance"}</span>
+            <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
             <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right hover:text-neutral-200">
               Quality{sortArrow("quality")}
             </Link>
@@ -408,11 +408,11 @@ export default async function MeetsPage({
                   <Link href={athleteHref(r.top_athlete_id!, athleteSlugs)} className="text-neutral-200 hover:text-orange-400">
                     {r.top_athlete}
                   </Link>
-                  <span className="text-neutral-500"> · </span>
+                  <span className="text-neutral-500"> · {raceLabel} · </span>
                   <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
                 </>
               ) : (
-                <span className="text-neutral-600">—</span>
+                <span className="text-neutral-600">{raceLabel}</span>
               );
               return (
                 <div key={i} className="relative bg-neutral-900/40">
@@ -434,7 +434,6 @@ export default async function MeetsPage({
                         {r.event_name}
                       </Link>
                     </div>
-                    <div className="text-[11px] text-neutral-500 truncate">{raceLabel}</div>
                     <div className="min-w-0 text-xs truncate">{winner}</div>
                   </div>
 
@@ -443,15 +442,12 @@ export default async function MeetsPage({
                     <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date, r.date, r.year)}</span>
                     <span className="min-w-0 flex items-center gap-2">
                       <Flag code={r.host_country} />
-                      <span className="min-w-0">
-                        <Link href={nameLink} className="block truncate font-medium hover:text-orange-400">
-                          {r.event_name}
-                        </Link>
-                        <span className="block text-[11px] text-neutral-500 truncate">{raceLabel}</span>
-                      </span>
+                      <Link href={nameLink} className="truncate font-medium hover:text-orange-400">
+                        {r.event_name}
+                      </Link>
                     </span>
                     <span className="min-w-0 text-xs truncate">{winner}</span>
-                    <span className="text-right font-mono text-sm text-orange-400">{Math.round(r.race_level)}</span>
+                    <span className="text-right font-mono text-xs text-neutral-300" title={QUALITY_HELP}>{Math.round(r.race_level)}</span>
                     <span className="text-right">
                       <TierBadge tier={r.tier} />
                     </span>
