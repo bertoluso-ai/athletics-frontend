@@ -189,7 +189,7 @@ export default function CompetitionsExplorer() {
               setDiscipline("");
             }}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-              categoryKey === g.key && !discipline ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400"
+              categoryKey === g.key && !discipline ? "bg-neutral-100 text-white border-neutral-100" : "border-neutral-700 text-neutral-400"
             }`}
           >
             {g.label}

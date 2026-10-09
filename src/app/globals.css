@@ -1,12 +1,38 @@
 @import "tailwindcss";
 
-/* The site is dark-only: every page paints bg-neutral-950 itself, but the
-   body shows through below the content (the space kept free for the
-   floating mobile nav), so it must be dark too, not the old light-mode
-   white. */
+/* Light theme. The components were written against Tailwind's neutral
+   scale in dark mode (neutral-950 page ... neutral-100 text), so instead of
+   rewriting hundreds of class names the scale itself is REVERSED here:
+   neutral-950 = white page, neutral-900/800 = soft surfaces, neutral-700 =
+   borders, neutral-100 = near-black text. Accent colours that were tuned for
+   a dark background (400-level tints) are darkened to keep contrast on white. */
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #ffffff;
+  --foreground: #14181f;
+  color-scheme: light;
+}
+
+@theme {
+  --color-neutral-950: #ffffff;
+  --color-neutral-900: #f7f8fa;
+  --color-neutral-800: #eceef1;
+  --color-neutral-700: #d9dce2;
+  --color-neutral-600: #a3a9b4;
+  --color-neutral-500: #6b7280;
+  --color-neutral-400: #525a67;
+  --color-neutral-300: #3b424d;
+  --color-neutral-200: #262b34;
+  --color-neutral-100: #14181f;
+  --color-orange-400: #ea580c;
+  --color-sky-400: #0284c7;
+  --color-red-400: #dc2626;
+  --color-red-300: #b91c1c;
+  --color-green-400: #16a34a;
+  --color-green-300: #15803d;
+  --color-blue-400: #2563eb;
+  --color-blue-300: #1d4ed8;
+  --color-yellow-300: #a16207;
+  --color-purple-300: #7e22ce;
 }
 
 @theme inline {

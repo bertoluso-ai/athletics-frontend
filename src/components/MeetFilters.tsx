@@ -48,7 +48,7 @@ export default function MeetFilters({
             onClick={() => go("", "", "")}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
               !category && !discipline && !gender
-                ? "bg-neutral-100 text-black border-neutral-100"
+                ? "bg-neutral-100 text-white border-neutral-100"
                 : "border-neutral-700 text-neutral-400"
             }`}
           >
@@ -60,7 +60,7 @@ export default function MeetFilters({
               onClick={() => go("", gender, category === c.key ? "" : c.key)}
               className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
                 category === c.key
-                  ? "bg-neutral-100 text-black border-neutral-100"
+                  ? "bg-neutral-100 text-white border-neutral-100"
                   : "border-neutral-700 text-neutral-400"
               }`}
             >

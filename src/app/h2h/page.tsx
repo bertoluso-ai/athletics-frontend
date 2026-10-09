@@ -352,7 +352,7 @@ function PointsChart({ seasons, a, b, nameA, nameB }: { seasons: H2HSeasonPoint[
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>
-            <line x1={P.l} x2={W - P.r} y1={py(maxY * f)} y2={py(maxY * f)} stroke="#262626" strokeDasharray="3 3" />
+            <line x1={P.l} x2={W - P.r} y1={py(maxY * f)} y2={py(maxY * f)} stroke="#e5e7eb" strokeDasharray="3 3" />
             <text x={P.l - 4} y={py(maxY * f) + 3} textAnchor="end" fontSize="9" fill="#737373">
               {Math.round(maxY * f)}
             </text>

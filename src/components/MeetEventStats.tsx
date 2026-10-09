@@ -109,7 +109,7 @@ export default async function MeetEventStats({
               <div key={i} className="grid grid-cols-[2.5rem_1fr_auto] items-center gap-x-2">
                 <span className="text-xs text-neutral-500">{w.year}</span>
                 {person(w.athlete_id, w.display_name, w.nationality)}
-                <span className="font-mono text-xs font-bold text-yellow-400">{w.mark_display} WR</span>
+                <span className="font-mono text-xs font-bold text-yellow-600">{w.mark_display} WR</span>
               </div>
             ))}
           </div>

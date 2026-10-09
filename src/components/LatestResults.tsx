@@ -88,18 +88,18 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-5 lg:gap-3">
         {loading && (
           <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
             Loading…
           </div>
         )}
         {!loading &&
-          groups.map((group) => {
+          groups.map((group, gi) => {
             const latestDate = group.races[0]?.date;
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
-              <div key={group.event_name} className="border border-neutral-800 rounded-lg overflow-hidden">
+              <div key={group.event_name} className={`border border-neutral-800 rounded-xl overflow-hidden shadow-sm ${gi >= 4 ? "hidden lg:block" : ""}`}>
                 <div className="px-4 py-2.5 bg-neutral-900 border-l-4 border-l-orange-500 flex items-center justify-between gap-2">
                   <Link href={meetHref} className="text-base font-bold leading-tight hover:text-orange-400 truncate min-w-0">
                     {group.event_name}
@@ -116,7 +116,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                   </span>
                 </div>
                 <div className="divide-y divide-neutral-800/60">
-                  {group.races.map((race) => {
+                  {group.races.map((race, ri) => {
                     const raceHref = `/meets/${encodeURIComponent(group.event_name)}?${new URLSearchParams({
                       year: race.date.slice(0, 4),
                       discipline: race.athletics_event,
@@ -127,7 +127,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
                     const raceWinds = new Set(race.top3.map((e) => e.wind).filter((w): w is string => !!w));
                     const raceWind = raceWinds.size === 1 ? [...raceWinds][0] : null;
                     return (
-                    <div key={race.key}>
+                    <div key={race.key} className={ri >= 2 ? "hidden lg:block" : ""}>
                       <div className="px-4 pt-1.5 pb-0.5 flex flex-wrap items-baseline gap-x-2 bg-neutral-900/70">
                         <Link href={raceHref} className="text-[11px] font-semibold uppercase tracking-wide text-neutral-400 hover:text-orange-400">
                           {eventLabel(race.athletics_event)}

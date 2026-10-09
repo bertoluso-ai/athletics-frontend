@@ -62,7 +62,7 @@ export default function ResultsFilters({
             onClick={() => go(event, t.v)}
             className={`text-xs px-2 py-1 rounded border ${
               year === t.v
-                ? "bg-neutral-100 text-black border-neutral-100 font-semibold"
+                ? "bg-neutral-100 text-white border-neutral-100 font-semibold"
                 : "border-neutral-700 text-neutral-400 hover:text-neutral-200 hover:border-neutral-500"
             }`}
           >

@@ -258,7 +258,7 @@ export default async function CountryPage({
                 key={a || "all"}
                 href={`/countries/${code}?${qs(year, { ...f, age: a || undefined })}`}
                 className={`flex-1 text-center py-1.5 rounded whitespace-nowrap ${
-                  (f.age ?? "") === a ? "bg-neutral-100 text-black font-semibold" : "text-neutral-400"
+                  (f.age ?? "") === a ? "bg-neutral-100 text-white font-semibold" : "text-neutral-400"
                 }`}
               >
                 {a || "All"}

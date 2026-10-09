@@ -154,7 +154,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
             onClick={() => setGroupKey(g.key)}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
               groupKey === g.key
-                ? "bg-neutral-100 text-black border-neutral-100"
+                ? "bg-neutral-100 text-white border-neutral-100"
                 : "border-neutral-700 text-neutral-400"
             }`}
           >

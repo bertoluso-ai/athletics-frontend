@@ -46,7 +46,7 @@ export default async function CountriesPage({
   const rows = await getCountryRanking(year, f);
 
   const pill = (active: boolean) =>
-    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-black border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
+    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-white border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">

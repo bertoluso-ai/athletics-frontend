@@ -23,7 +23,7 @@ export type CountryGender = "Men" | "Women";
 export const COUNTED_ATHLETES = 24;
 
 export const TIERS = [
-  { key: "gold", label: "Gold", from: 1, to: 8, color: "text-yellow-400", bg: "bg-yellow-400", border: "border-yellow-400/40" },
+  { key: "gold", label: "Gold", from: 1, to: 8, color: "text-yellow-600", bg: "bg-yellow-400", border: "border-yellow-400/40" },
   { key: "silver", label: "Silver", from: 9, to: 16, color: "text-neutral-300", bg: "bg-neutral-300", border: "border-neutral-300/40" },
   { key: "bronze", label: "Bronze", from: 17, to: 24, color: "text-orange-500", bg: "bg-orange-500", border: "border-orange-500/40" },
 ] as const;

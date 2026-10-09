@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getLatestRaces, getUpcomingCompetitions, getEventYearlyProgression } from "@/lib/queries";
 import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
@@ -20,22 +21,42 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
 
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold mb-4">Latest Results</h1>
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-6">
+      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-6">
+        <div className="mb-6 sm:mb-4">
+          <h1 className="text-2xl font-bold">Latest athletics results</h1>
+          <p className="mt-1 text-sm text-neutral-500">Track &amp; field, road running and race walking: results, rankings and records from every meet.</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0">
           <LatestResults initialGroups={races} />
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-10 lg:gap-6">
           <UpcomingRaces initial={upcoming} />
-          <HomeProgressionWidget initial={progression} />
+          <div className="hidden lg:block">
+            <HomeProgressionWidget initial={progression} />
+          </div>
         </div>
 
+        {/* phones: the long stats widgets give way to four doors into the site */}
+        <nav className="lg:hidden grid grid-cols-2 gap-3" aria-label="Explore">
+          {[
+            ["Rankings", "Top athletes by discipline", "/rankings"],
+            ["Meets", "Competitions and races", "/meets"],
+            ["Countries", "Nations and medals", "/countries"],
+            ["Disciplines", "Records and best marks", "/disciplines"],
+          ].map(([t, d, h]) => (
+            <Link key={h} href={h} className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-4 hover:border-orange-500">
+              <span className="block text-sm font-semibold">{t}</span>
+              <span className="block mt-0.5 text-xs text-neutral-500">{d}</span>
+            </Link>
+          ))}
+        </nav>
+
         {/* Stats: by athlete, then by nation */}
-        <aside className="flex flex-col gap-6">
+        <aside className="hidden lg:flex flex-col gap-6">
           <section>
             <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">
               Athletes

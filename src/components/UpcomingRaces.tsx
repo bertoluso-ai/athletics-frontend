@@ -112,12 +112,12 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
                 key={i}
                 href={`/meets/${encodeURIComponent(c.past_event_name)}`}
                 title="Results of the last edition"
-                className="px-4 py-3 bg-neutral-900/40 hover:bg-neutral-800"
+                className={`px-4 py-3 bg-neutral-900/40 hover:bg-neutral-800 ${i >= 4 ? "hidden lg:block" : ""}`}
               >
                 {body}
               </Link>
             ) : (
-              <div key={i} className="px-4 py-3 bg-neutral-900/40">
+              <div key={i} className={`px-4 py-3 bg-neutral-900/40 ${i >= 4 ? "hidden lg:block" : ""}`}>
                 {body}
               </div>
             );

@@ -34,7 +34,7 @@ export default function Header() {
                 key={l.label}
                 href={l.href}
                 className={`border-b-2 pb-1 ${
-                  active ? "text-white border-orange-500" : "border-transparent hover:text-white"
+                  active ? "text-neutral-100 border-orange-500" : "border-transparent hover:text-neutral-100"
                 }`}
               >
                 {l.label}

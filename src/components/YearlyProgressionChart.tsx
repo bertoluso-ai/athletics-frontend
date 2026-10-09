@@ -199,7 +199,7 @@ function Chart({
         </div>
         <div className="flex items-center gap-1.5">
         {onExpand && (
-          <button onClick={onExpand} title="Enlarge" className="text-[11px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 hover:text-white">
+          <button onClick={onExpand} title="Enlarge" className="text-[11px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 hover:text-neutral-100">
             ⤢
           </button>
         )}
@@ -221,7 +221,7 @@ function Chart({
         <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block w-full h-auto" onMouseLeave={() => setHover(null)}>
           {gridVals.map((v) => (
             <g key={v}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#262626" />
+              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#e5e7eb" />
               <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill="#737373">
                 {fmt(v)}
               </text>
@@ -241,8 +241,8 @@ function Chart({
               cx={x(d.year)}
               cy={y(d.mark_value)}
               r={hover === i ? 5 : 3}
-              fill={d.mark_value === d.best.mark_value ? "#f97316" : "#a3a3a3"}
-              stroke="#0a0a0a"
+              fill={d.mark_value === d.best.mark_value ? "#f97316" : "#9ca3af"}
+              stroke="#ffffff"
               strokeWidth="1"
             />
           ))}
@@ -254,7 +254,7 @@ function Chart({
               <rect key={`h${d.year}`} x={left} y={PAD.t} width={Math.max(1, right - left)} height={H - PAD.t - PAD.b} fill="transparent" onMouseEnter={() => setHover(i)} />
             );
           })}
-          {h && <line x1={x(h.year)} x2={x(h.year)} y1={PAD.t} y2={H - PAD.b} stroke="#525252" strokeDasharray="3 3" pointerEvents="none" />}
+          {h && <line x1={x(h.year)} x2={x(h.year)} y1={PAD.t} y2={H - PAD.b} stroke="#9ca3af" strokeDasharray="3 3" pointerEvents="none" />}
         </svg>
         {h && (
           <div

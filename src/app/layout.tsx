@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AthleticsInfoRanking",
-  description: "Historical athletics statistics",
+  title: "AthleticsInfoRanking - Athletics results, rankings and records",
+  description: "Athletics results, rankings and records: track & field, road running and race walking, from Diamond League to national championships.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
