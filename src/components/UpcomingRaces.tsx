@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EVENT_GROUPS, TIER_PRIORITY, eventLabel, sortEventsAlpha } from "@/lib/events";
 import type { UpcomingCompetition } from "@/lib/queries";
 import Flag from "./Flag";
+import SectionIcon from "./SectionIcon";
 
 // Every tier selectable, not just OW-B: "All categories" prioritizes the
 // bigger meets (see getUpcomingCompetitions) so C-F rarely surface there on
@@ -50,7 +51,10 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
     <section>
       <div className="mb-3">
         <div className="flex items-center justify-between gap-2 mb-3 bg-tint text-neutral-100 px-3 sm:px-4 py-2 rounded-lg">
-          <h2 className="text-[13px] font-extrabold uppercase tracking-wide">Upcoming races</h2>
+          <h2 className="flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-wide">
+            <SectionIcon name="calendar" />
+            Upcoming races
+          </h2>
           <Link href="/meets" className="text-[11px] font-semibold text-neutral-400 hover:text-orange-600 shrink-0">
             View all →
           </Link>

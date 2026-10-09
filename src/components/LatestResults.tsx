@@ -7,6 +7,7 @@ import { eventSlug } from "@/lib/slugs";
 import type { Race, LatestResultGroup } from "@/lib/queries";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
+import SectionIcon, { type IconName } from "./SectionIcon";
 
 const ALL_EVENTS = Array.from(
   new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
@@ -42,6 +43,7 @@ function place(city: string | null, country: string | null) {
 export default function LatestResults({
   initialGroups,
   heading,
+  headingIcon = "trophy",
   showFilters = true,
   defaultTier = "",
   maxGroups = 99,
@@ -49,6 +51,7 @@ export default function LatestResults({
 }: {
   initialGroups: LatestResultGroup[];
   heading?: string;
+  headingIcon?: IconName;
   showFilters?: boolean;
   defaultTier?: string; // tier filter the list opens with (initialGroups already match it)
   maxGroups?: number; // at most this many competitions are shown
@@ -84,7 +87,8 @@ export default function LatestResults({
   return (
     <section>
       {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
-        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+        <h2 className="flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+          <SectionIcon name="stopwatch" />
           Last athletics results {dayLabel(shown[0].races[0].date)}
         </h2>
       )}
@@ -134,7 +138,8 @@ export default function LatestResults({
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
                 {newDay && (heading || label) && !(gi === 0 && showFilters) && (
-                  <h2 className={`bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
+                  <h2 className={`flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
+                    <SectionIcon name={heading ? headingIcon : "stopwatch"} />
                     {heading ?? `Last athletics results ${label}`}
                   </h2>
                 )}

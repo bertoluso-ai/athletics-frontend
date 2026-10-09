@@ -39,7 +39,7 @@ export default async function Home() {
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
           <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={3} exclude={[...topNames]} />
-          {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" showFilters={false} />}
+          {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" headingIcon="trophy" showFilters={false} />}
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}
@@ -53,18 +53,18 @@ export default async function Home() {
         {/* Stats: by athlete, then by nation */}
         <aside className="flex flex-col gap-10 lg:gap-6">
           <section>
-            <SectionBar title="Athletes" href="/rankings" linkLabel="Rankings →" />
+            <SectionBar title="Athletes" icon="user" href="/rankings" linkLabel="Rankings →" />
             <StatsWidget year={CURRENT_YEAR} />
           </section>
 
           <section>
-            <SectionBar title="Nations" href="/countries" linkLabel="Countries →" />
+            <SectionBar title="Nations" icon="globe" href="/countries" linkLabel="Countries →" />
             <NationsStatsWidget year={CURRENT_YEAR} />
           </section>
 
           {/* desktop only: phones keep athletes and nations (top 5) */}
           <section className="hidden lg:block">
-            <SectionBar title="Races" href="/meets?view=races" linkLabel="Meets →" />
+            <SectionBar title="Races" icon="bib" href="/meets?view=races" linkLabel="Meets →" />
             <RacesStatsWidget year={CURRENT_YEAR} />
           </section>
         </aside>

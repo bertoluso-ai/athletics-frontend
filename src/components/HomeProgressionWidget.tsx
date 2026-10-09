@@ -48,7 +48,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
 
   return (
     <section>
-      <SectionBar title="Best mark by year" href="/disciplines" linkLabel="All disciplines →" />
+      <SectionBar title="Best mark by year" icon="chart" href="/disciplines" linkLabel="All disciplines →" />
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs shrink-0">
           {(["Men", "Women"] as Gender[]).map((g) => (
