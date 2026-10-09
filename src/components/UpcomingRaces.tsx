@@ -53,8 +53,8 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
           <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
             Upcoming Races
           </h2>
-          <Link href="/calendar" className="text-xs text-neutral-500 hover:text-orange-400 shrink-0">
-            View all → Calendar
+          <Link href="/meets" className="text-xs text-neutral-500 hover:text-orange-400 shrink-0">
+            View all → Meets
           </Link>
         </div>
         <div className="flex items-center gap-2 flex-wrap">

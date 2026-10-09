@@ -175,3 +175,93 @@ export const getCalendarYears = unstable_cache(
   ["calendar-years-pg-v1"],
   { revalidate: 3600 }
 );
+
+// ---------------------------------------------------------------------
+// "Races" view of /meets: one row per RACE (competition x discipline x
+// gender x round), from calendar_races (registry/27_materialize_calendar_races.sql).
+// Same filter bar as the competitions view -- Nation/Area are always the HOST
+// country of the competition. Gender, age and surface only exist per race.
+// ---------------------------------------------------------------------
+export type RaceRow = {
+  event_name: string;
+  athletics_event: string;
+  gender: string;
+  round: string | null;
+  date: string | null;
+  year: number | null;
+  race_level: number;
+  tier: string | null;
+  host_country: string | null;
+  top_athlete_id: string | null;
+  top_athlete: string | null;
+  top_nationality: string | null;
+  top_mark: string | null;
+};
+
+export type RaceFilters = {
+  year: number;
+  months: number[];
+  tiers: string[]; // empty = every level (races without a level included)
+  discipline?: string; // athletics_event_base
+  area?: string;
+  nation?: string; // host country
+  gender?: "Men" | "Women";
+  age?: string; // U23 | U20 | U18, by the winner's age
+  surface?: "indoor" | "outdoor";
+  from?: string;
+  to?: string;
+  sort: CalendarSort;
+  dir: "asc" | "desc";
+  page: number;
+  pageSize: number;
+};
+
+const AGE_MAX: Record<string, number> = { U23: 22, U20: 19, U18: 17 };
+
+async function _getRaces(f: RaceFilters): Promise<{ rows: RaceRow[]; total: number }> {
+  const params: unknown[] = [];
+  const p = (v: unknown) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
+  const where: string[] = [];
+  if (f.from || f.to) {
+    where.push(`r.date BETWEEN ${p(f.from ?? "0001-01-01")}::date AND ${p(f.to ?? "9999-12-31")}::date`);
+  } else {
+    where.push(`r.year = ${p(f.year)}`);
+    if (f.months.length) where.push(`EXTRACT(MONTH FROM r.date) = ANY(${p(f.months)}::int[])`);
+  }
+  if (f.tiers.length) where.push(`r.tier = ANY(${p(f.tiers)}::text[])`);
+  if (f.discipline) where.push(`r.athletics_event_base = ${p(f.discipline)}`);
+  if (f.nation) where.push(`r.host_country = ${p(f.nation)}`);
+  else if (f.area) where.push(`r.host_country IN (SELECT code FROM countries WHERE area = ${p(f.area)})`);
+  if (f.gender) where.push(`r.gender = ${p(f.gender)}`);
+  const ageMax = f.age ? AGE_MAX[f.age] : undefined;
+  if (ageMax !== undefined) where.push(`r.top_birth_year IS NOT NULL AND (r.year - r.top_birth_year) <= ${p(ageMax)}`);
+  if (f.surface === "indoor") where.push(`r.indoor`);
+  else if (f.surface === "outdoor") where.push(`NOT r.indoor`);
+
+  const d = f.dir === "asc" ? "ASC" : "DESC";
+  const raceKey = `COALESCE(r.date::text, 'Y' || r.year::text)`;
+  const order =
+    f.sort === "quality" ? `r.race_level ${d}, ${raceKey} DESC`
+    : f.sort === "tier" ? `array_position(ARRAY['OW','DF','GW','GL','A','B','C','D','E','F'], r.tier) ${d} NULLS LAST, ${raceKey} DESC, r.race_level DESC`
+    : `${raceKey} ${d}, r.race_level DESC`;
+  const limitPh = p(f.pageSize);
+  const offsetPh = p((f.page - 1) * f.pageSize);
+
+  const rows = await pgQuery<RaceRow & { total: number }>(
+    `
+    SELECT r.event_name, r.athletics_event, r.gender, NULLIF(r.round, '') AS round, r.date::text AS date, r.year,
+      r.race_level, r.tier, r.host_country, r.top_athlete_id, r.top_athlete, r.top_nationality, r.top_mark,
+      COUNT(*) OVER ()::int AS total
+    FROM calendar_races r
+    WHERE ${where.join(" AND ")}
+    ORDER BY ${order}
+    LIMIT ${limitPh} OFFSET ${offsetPh}
+  `,
+    params
+  );
+  return { rows, total: rows[0]?.total ?? 0 };
+}
+export const getRaces = unstable_cache(_getRaces, ["meets-races-pg-v1"], { revalidate: 3600 });

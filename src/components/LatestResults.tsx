@@ -227,10 +227,10 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
         )}
         {!loading && groups.length > 0 && (
           <Link
-            href="/races?sort=recent"
+            href="/meets?view=races"
             className="text-xs text-center text-neutral-500 hover:text-orange-400 py-1"
           >
-            View all → Races
+            View all → Meets
           </Link>
         )}
       </div>

@@ -4,24 +4,31 @@ import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import CalendarAutoForm from "@/components/CalendarAutoForm";
 import DateField from "@/components/DateField";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
-import { getCalendar, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
+import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
 
-// Season calendar (after the ProCyclingStats calendar): every competition
-// of the year at or above a tier, held ones with their headline
-// performance, upcoming ones with what's on the programme. Filterable by
-// discipline, host area/nation and an exact date range.
+// Meets: the old Calendar and Races pages merged. Both lists answer "what was
+// (or will be) competed and how good was it", at two levels -- a COMPETITION
+// (the whole championship/meeting, with upcoming ones) or a single RACE
+// (one discipline+gender+round of it). One filter bar serves both; Nation and
+// Area are always the HOST country of the competition. Gender, age and
+// surface only exist per race, so they only show in the Races view.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const PAGE_SIZE = 100;
 const ALL_EVENTS: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women] as string[])));
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const AGES = ["U23", "U20", "U18"] as const;
 
-function fmtRange(a: string | null, b: string | null) {
-  if (!a) return "—"; // source gives only the year
+type View = "competitions" | "races";
+
+// Some historical sources have no exact date, only the year -- show that
+// instead of a bare dash.
+function fmtRange(a: string | null, b: string | null, year?: number | null) {
+  if (!a) return year ? String(year) : "—";
   const d = (s: string) => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
   return !b || a === b ? d(a) : `${d(a)} › ${d(b)}`;
 }
@@ -38,12 +45,13 @@ function TierBadge({ tier }: { tier: string | null }) {
   );
 }
 
-const QUALITY_HELP = "Competition quality: strength of the fields it actually gathered (see Races)";
+const QUALITY_HELP = "Quality: strength of the fields actually gathered (a whole competition, or this single race)";
 
-export default async function CalendarPage({
+export default async function MeetsPage({
   searchParams,
 }: {
   searchParams: Promise<{
+    view?: string;
     year?: string;
     tier?: string | string[];
     month?: string | string[];
@@ -52,18 +60,27 @@ export default async function CalendarPage({
     nationality?: string;
     from?: string;
     to?: string;
+    gender?: string;
+    age?: string;
+    surface?: string;
     sort?: string;
     dir?: string;
     page?: string;
+    // legacy /races parameters
+    event?: string;
+    indoor?: string;
   }>;
 }) {
   const sp = await searchParams;
+  const view: View = sp.view === "races" ? "races" : "competitions";
   const [years, nations] = await Promise.all([getCalendarYears(), getAllNationalities()]);
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
   const tierValues = Array.isArray(sp.tier) ? sp.tier : sp.tier ? sp.tier.split(",") : [];
-  const selectedTiers: string[] =
-    tierValues.length === 0 ? [...TIER_ORDER] : tierValues.filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
+  const validTiers = tierValues.filter((t) => TIER_ORDER.includes(t as (typeof TIER_ORDER)[number]));
+  // Competitions: no level picked = every level that has one. Races: no level
+  // picked = no level filter at all (races without a level are included).
+  const selectedTiers: string[] = validTiers.length === 0 && view === "competitions" ? [...TIER_ORDER] : validTiers;
   const from = sp.from && ISO_DATE.test(sp.from) ? sp.from : undefined;
   const to = sp.to && ISO_DATE.test(sp.to) ? sp.to : undefined;
   const ranged = !!(from || to);
@@ -76,24 +93,43 @@ export default async function CalendarPage({
     : sp.month === undefined && year === thisYear
     ? [thisMonth]
     : monthValues.map(Number).filter((m) => m >= 1 && m <= 12);
-  const discipline = sp.discipline && ALL_EVENTS.includes(sp.discipline) ? sp.discipline : undefined;
+  const disciplineParam = sp.discipline ?? sp.event;
+  const discipline = disciplineParam && ALL_EVENTS.includes(disciplineParam) ? disciplineParam : undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const nationOptions = area ? nations.filter((n) => n.area === area) : nations;
   const nation = sp.nationality && nationOptions.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
-  const sort: CalendarSort = sp.sort === "name" || sp.sort === "tier" || sp.sort === "quality" ? sp.sort : "date";
-  const dir = sp.dir === "desc" ? "desc" : "asc";
+  const gender = sp.gender === "Men" || sp.gender === "Women" ? sp.gender : undefined;
+  const age = AGES.find((a) => a === sp.age);
+  const surfaceParam = sp.surface ?? (sp.indoor === "true" ? "indoor" : undefined);
+  const surface = surfaceParam === "indoor" || surfaceParam === "outdoor" ? surfaceParam : undefined;
+
+  // "recent" is the old Races name for the date sort; races have no name sort
+  const rawSort = sp.sort === "recent" ? "date" : sp.sort;
+  const sort: CalendarSort =
+    rawSort === "tier" || rawSort === "quality" || (rawSort === "name" && view === "competitions") ? rawSort : "date";
+  // each column starts at its natural direction: competitions run chronologically
+  // (upcoming ones last), races newest first, best quality / best level first
+  const defaultDir = (col: CalendarSort) =>
+    col === "quality" ? "desc" : col === "date" ? (view === "races" ? "desc" : "asc") : "asc";
+  const dir: "asc" | "desc" = sp.dir === "asc" || sp.dir === "desc" ? sp.dir : defaultDir(sort);
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const { rows, total } = await getCalendar({
-    year, months: selectedMonths, tiers: selectedTiers, discipline, area, nation, from, to,
-    sort, dir, page, pageSize: PAGE_SIZE,
-  });
+  const base = { year, months: selectedMonths, tiers: selectedTiers, discipline, area, nation, from, to, sort, dir, page, pageSize: PAGE_SIZE };
+  const competitions = view === "competitions" ? await getCalendar(base) : null;
+  const races = view === "races" ? await getRaces({ ...base, gender, age, surface }) : null;
+  const rows = competitions?.rows ?? [];
+  const raceRows = races?.rows ?? [];
+  const total = competitions?.total ?? races?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const today = new Date().toISOString().slice(0, 10);
-  const athleteSlugs = await getAthleteSlugs(rows.map((r) => r.top_athlete_id).filter((id): id is string => !!id));
+  const athleteSlugs = await getAthleteSlugs(
+    [...rows.map((r) => r.top_athlete_id), ...raceRows.map((r) => r.top_athlete_id)].filter((id): id is string => !!id)
+  );
 
-  const href = (over: { sort?: CalendarSort; dir?: string; page?: number }) => {
+  const href = (over: { view?: View; sort?: CalendarSort; dir?: string; page?: number; reset?: boolean }) => {
+    const v = over.view ?? view;
     const q = new URLSearchParams();
+    if (v === "races") q.set("view", "races");
     if (ranged) {
       if (from) q.set("from", from);
       if (to) q.set("to", to);
@@ -102,38 +138,64 @@ export default async function CalendarPage({
       if (selectedMonths.length === 0) q.set("month", ""); // all year, not the current-month default
       selectedMonths.forEach((m) => q.append("month", String(m)));
     }
-    tierValues.forEach((t) => q.append("tier", t));
+    validTiers.forEach((t) => q.append("tier", t));
     if (discipline) q.set("discipline", discipline);
     if (area) q.set("area", area);
     if (nation) q.set("nationality", nation);
-    q.set("sort", over.sort ?? sort);
-    q.set("dir", over.dir ?? dir);
+    if (v === "races") {
+      if (gender) q.set("gender", gender);
+      if (age) q.set("age", age);
+      if (surface) q.set("surface", surface);
+    }
+    if (!over.reset) {
+      q.set("sort", over.sort ?? sort);
+      q.set("dir", over.dir ?? dir);
+    }
     if (over.page && over.page > 1) q.set("page", String(over.page));
-    return `/calendar?${q.toString()}`;
+    return `/meets?${q.toString()}`;
   };
-  // first click on Quality sorts best-first; the others start ascending
+  // same column flips direction, another column starts at its own default
   const sortHref = (col: CalendarSort) =>
-    href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : col === "quality" ? "desc" : "asc" });
+    href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : defaultDir(col) });
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
-  const hasExtraFilters = !!(discipline || area || nation || ranged);
+  const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
   const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3.5rem_3rem]";
+
+  const raceLink = (r: (typeof raceRows)[number]) =>
+    `/meets/${encodeURIComponent(r.event_name)}?${new URLSearchParams({
+      year: (r.date ?? String(r.year ?? year)).slice(0, 4),
+      discipline: r.athletics_event,
+      gender: r.gender,
+    }).toString()}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold mb-4">Calendar</h1>
+        <h1 className="text-2xl font-bold mb-4">Meets</h1>
 
-        {/* No titles and no Filter button, same as Races: every control applies on
-            change (see CalendarAutoForm). Row 1 = when, row 2 = what/where. */}
-        <CalendarAutoForm key={JSON.stringify(sp)} action="/calendar" className="flex flex-col gap-2 mb-4">
+        <div className="flex rounded bg-neutral-800 p-0.5 text-xs w-fit mb-3">
+          {(["competitions", "races"] as const).map((v) => (
+            <Link
+              key={v}
+              href={href({ view: v, reset: true })}
+              className={`px-3 py-1.5 rounded ${view === v ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+            >
+              {v === "competitions" ? "Competitions" : "Races"}
+            </Link>
+          ))}
+        </div>
+
+        {/* No titles and no Filter button: every control applies on change (see
+            CalendarAutoForm). Row 1 = when, row 2 = what/where. Same scrolling
+            rows as the rest of the site (pill-row): nothing wraps, anything that
+            doesn't fit scrolls sideways. */}
+        <CalendarAutoForm key={JSON.stringify(sp)} action="/meets" className="flex flex-col gap-2 mb-4">
           {/* "" = all year; without it an empty Month falls back to the current month */}
           <input type="hidden" name="month" value="" />
+          <input type="hidden" name="view" value={view} />
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
-          {/* Same scrolling rows as Races (pill-row): nothing wraps, anything that
-              doesn't fit scrolls sideways. Year/Month/dates are kept narrow so the
-              four of row 1 fit a phone. */}
           <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
             <select name="year" defaultValue={year} disabled={ranged} aria-label="Year" className={`shrink-0 w-16 h-[30px] px-1.5 ${selectClass} disabled:opacity-40`}>
               {years.map((y) => (
@@ -176,7 +238,7 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
-            <select name="nationality" defaultValue={nation ?? ""} aria-label="Nation" className={`shrink-0 ${selectClass}`}>
+            <select name="nationality" defaultValue={nation ?? ""} aria-label="Host nation" className={`shrink-0 ${selectClass}`}>
               <option value="">All nations</option>
               {nationOptions.map((n) => (
                 <option key={n.code} value={n.code}>
@@ -184,8 +246,30 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
+            {view === "races" && (
+              <>
+                <select name="gender" defaultValue={gender ?? ""} aria-label="Gender" className={`shrink-0 ${selectClass}`}>
+                  <option value="">Men &amp; Women</option>
+                  <option value="Men">Men</option>
+                  <option value="Women">Women</option>
+                </select>
+                <select name="age" defaultValue={age ?? ""} aria-label="Age" className={`shrink-0 ${selectClass}`}>
+                  <option value="">All ages</option>
+                  {AGES.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+                <select name="surface" defaultValue={surface ?? ""} aria-label="Surface" className={`shrink-0 ${selectClass}`}>
+                  <option value="">Indoor &amp; outdoor</option>
+                  <option value="outdoor">Outdoor</option>
+                  <option value="indoor">Indoor</option>
+                </select>
+              </>
+            )}
             {(hasExtraFilters || tierValues.length > 0) && (
-              <Link href="/calendar" className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
+              <Link href={view === "races" ? "/meets?view=races" : "/meets"} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
                 clear
               </Link>
             )}
@@ -202,10 +286,14 @@ export default async function CalendarPage({
             <Link href={sortHref("date")} className="hover:text-neutral-200">
               Date{sortArrow("date")}
             </Link>
-            <Link href={sortHref("name")} className="hover:text-neutral-200">
-              Competition{sortArrow("name")}
-            </Link>
-            <span>{discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
+            {view === "competitions" ? (
+              <Link href={sortHref("name")} className="hover:text-neutral-200">
+                Competition{sortArrow("name")}
+              </Link>
+            ) : (
+              <span>Competition · discipline</span>
+            )}
+            <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : view === "races" ? "Winner" : "Top performance"}</span>
             <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right hover:text-neutral-200">
               Quality{sortArrow("quality")}
             </Link>
@@ -217,7 +305,7 @@ export default async function CalendarPage({
             {rows.map((r, i) => {
               const live = r.kind === "upcoming" && !!r.date_start && !!r.date_end && r.date_start <= today && r.date_end >= today;
               // Deep-link to the exact discipline+gender of the advertised top
-              // performance, so /meets opens on that section.
+              // performance, so the meet opens on that section.
               const nameLink =
                 r.kind === "past"
                   ? `/meets/${encodeURIComponent(r.name)}?${new URLSearchParams({
@@ -254,8 +342,7 @@ export default async function CalendarPage({
 
               return (
                 <div key={i} className={`relative ${r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}`}>
-                  {/* Full-row click target (see the meet link above); the nested
-                      athlete link stays independently clickable. */}
+                  {/* Full-row click target; the nested athlete link stays independently clickable. */}
                   {nameLink && <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />}
                   {/* phones: a card */}
                   <div
@@ -311,7 +398,73 @@ export default async function CalendarPage({
                 </div>
               );
             })}
-            {rows.length === 0 && <div className="px-3 py-4 text-sm text-neutral-500">No competitions for this selection.</div>}
+
+            {raceRows.map((r, i) => {
+              const nameLink = raceLink(r);
+              const raceLabel = `${eventLabel(r.athletics_event)}${r.gender === "Women" ? " · W" : r.gender === "Men" ? " · M" : ""}${r.round ? ` · ${r.round}` : ""}`;
+              const winner = r.top_athlete ? (
+                <>
+                  <Flag code={r.top_nationality} className="mr-1" />
+                  <Link href={athleteHref(r.top_athlete_id!, athleteSlugs)} className="text-neutral-200 hover:text-orange-400">
+                    {r.top_athlete}
+                  </Link>
+                  <span className="text-neutral-500"> · </span>
+                  <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
+                </>
+              ) : (
+                <span className="text-neutral-600">—</span>
+              );
+              return (
+                <div key={i} className="relative bg-neutral-900/40">
+                  <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />
+                  {/* phones: a card */}
+                  <div className="sm:hidden relative z-10 pointer-events-none [&_a]:pointer-events-auto flex flex-col gap-1 px-3 py-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date, r.date, r.year)}</span>
+                      <span className="flex items-center gap-2">
+                        <span className="font-mono text-xs text-neutral-300" title={QUALITY_HELP}>
+                          {Math.round(r.race_level)}
+                        </span>
+                        <TierBadge tier={r.tier} />
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Flag code={r.host_country} />
+                      <Link href={nameLink} className="truncate font-medium hover:text-orange-400">
+                        {r.event_name}
+                      </Link>
+                    </div>
+                    <div className="text-[11px] text-neutral-500 truncate">{raceLabel}</div>
+                    <div className="min-w-0 text-xs truncate">{winner}</div>
+                  </div>
+
+                  {/* desktop: table row */}
+                  <div className={`hidden sm:grid ${GRID} gap-x-3 items-center px-3 py-2 text-sm relative z-10 pointer-events-none [&_a]:pointer-events-auto`}>
+                    <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date, r.date, r.year)}</span>
+                    <span className="min-w-0 flex items-center gap-2">
+                      <Flag code={r.host_country} />
+                      <span className="min-w-0">
+                        <Link href={nameLink} className="block truncate font-medium hover:text-orange-400">
+                          {r.event_name}
+                        </Link>
+                        <span className="block text-[11px] text-neutral-500 truncate">{raceLabel}</span>
+                      </span>
+                    </span>
+                    <span className="min-w-0 text-xs truncate">{winner}</span>
+                    <span className="text-right font-mono text-sm text-orange-400">{Math.round(r.race_level)}</span>
+                    <span className="text-right">
+                      <TierBadge tier={r.tier} />
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+
+            {rows.length === 0 && raceRows.length === 0 && (
+              <div className="px-3 py-4 text-sm text-neutral-500">
+                {view === "races" ? "No races for this selection." : "No competitions for this selection."}
+              </div>
+            )}
           </div>
         </div>
 

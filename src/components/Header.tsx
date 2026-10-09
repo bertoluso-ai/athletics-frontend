@@ -6,8 +6,7 @@ import SearchBox from "./SearchBox";
 
 const NAV_LINKS = [
   { label: "Home", href: "/" },
-  { label: "Calendar", href: "/calendar" },
-  { label: "Races", href: "/races" },
+  { label: "Meets", href: "/meets" },
   { label: "Rankings", href: "/rankings" },
   { label: "Countries", href: "/countries" },
   { label: "Disciplines", href: "/disciplines" },

@@ -81,16 +81,17 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     };
   }, [mode, event, gender, year, isAll, indoor]);
 
-  // Carries the widget's current filters over to the full /races page --
+  // Carries the widget's current filters over to the full /meets page (races view) --
   // landing there on whatever was actually being looked at here, not a
   // reset back to defaults.
-  const viewAllHref = `/races?${new URLSearchParams({
+  const viewAllHref = `/meets?${new URLSearchParams({
+    view: "races",
     year: String(year),
+    month: "", // the whole year, not just the current month
     gender,
-    group: groupKey,
-    ...(isAll ? {} : { event }),
-    sort: mode,
-    indoor: String(indoor),
+    ...(isAll ? {} : { discipline: event }),
+    sort: mode === "recent" ? "date" : "quality",
+    surface: indoor ? "indoor" : "outdoor",
   }).toString()}`;
 
   return (

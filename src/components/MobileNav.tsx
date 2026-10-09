@@ -15,17 +15,10 @@ const NAV_ITEMS = [
     icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" />,
   },
   {
-    label: "Calendar",
-    href: "/calendar",
+    label: "Meets",
+    href: "/meets",
     icon: (
       <path d="M7 2v2H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V2h-2v2H9V2H7Zm-1 6h12v11H6V8Z" />
-    ),
-  },
-  {
-    label: "Races",
-    href: "/races",
-    icon: (
-      <path d="M12 2 4 6v6c0 5 3.4 8.4 8 10 4.6-1.6 8-5 8-10V6l-8-4Zm-1.2 13.4L7.2 11.8l1.4-1.4 2.2 2.2 4.6-4.6 1.4 1.4-6 6Z" />
     ),
   },
   {
