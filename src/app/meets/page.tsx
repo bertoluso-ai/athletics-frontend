@@ -154,9 +154,10 @@ export default async function MeetsPage({
     if (over.page && over.page > 1) q.set("page", String(over.page));
     return `/meets?${q.toString()}`;
   };
-  // same column flips direction, another column starts at its own default
+  // same column flips direction; a newly picked column starts descending
+  // (names ascending), so one more click gives the opposite order
   const sortHref = (col: CalendarSort) =>
-    href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : defaultDir(col) });
+    href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : col === "name" ? "asc" : "desc" });
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
   const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
@@ -280,6 +281,20 @@ export default async function MeetsPage({
             Showing {from ?? "…"} → {to ?? "…"} (the date range replaces year and month).
           </p>
         )}
+
+        {/* phones have no table header: a sort bar instead (tap again to flip) */}
+        <div className="sm:hidden flex items-center gap-2 mb-2 text-xs">
+          <span className="text-neutral-500">Sort</span>
+          {([["date", "Date"], ["quality", "Quality"], ["tier", "Level"]] as [CalendarSort, string][]).map(([col, label]) => (
+            <Link
+              key={col}
+              href={sortHref(col)}
+              className={`px-2.5 py-1 rounded border ${sort === col ? "border-orange-500 text-orange-400" : "border-neutral-700 text-neutral-400"}`}
+            >
+              {label}{sortArrow(col)}
+            </Link>
+          ))}
+        </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
           <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
