@@ -42,7 +42,7 @@ export default function ResultsFilters({
   }
 
   const selectClass =
-    "bg-neutral-800 text-xs rounded px-1.5 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500 min-w-0 truncate";
+    "bg-neutral-800 text-xs rounded px-1.5 h-[26px] py-0 border border-neutral-700 focus:outline-none focus:border-orange-500 min-w-0 truncate";
 
   return (
     <div className="flex items-center lg:items-start gap-1.5 min-w-0">
