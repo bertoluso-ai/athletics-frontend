@@ -16,14 +16,16 @@ function formatDate(iso: string | null, year: number, showYear: boolean) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", ...(showYear ? { year: "numeric" } : {}) });
 }
 
-type SortBy = "date" | "pos" | "mark" | "points";
+const QUALITY_HELP = "Quality: strength of the field actually gathered in this race";
+
+type SortBy = "date" | "pos" | "mark" | "points" | "quality";
 
 // Sensible default direction the first time a column is selected -- most
 // recent date, best position, best mark (track vs field differ), most points.
 function defaultDirFor(col: SortBy, isField: boolean): 1 | -1 {
   if (col === "pos") return 1;
   if (col === "mark") return isField ? -1 : 1;
-  return -1; // date, points: most/latest first
+  return -1; // date, points, quality: most/latest first
 }
 
 // Numeric value to sort by, per column -- null means "missing", always
@@ -35,6 +37,7 @@ function sortValue(r: AthleteYearResultRow, col: SortBy): number | null {
   if (col === "date") return r.date ? Date.parse(r.date) : Date.parse(`${r.year}-01-01`);
   if (col === "pos") return r.place;
   if (col === "points") return r.competition_score;
+  if (col === "quality") return r.race_level;
   return r.mark_value;
 }
 
@@ -44,12 +47,12 @@ function sortValue(r: AthleteYearResultRow, col: SortBy): number | null {
 // The date column widens when "All years" is selected -- the year gets
 // appended to the date text then ("02 Mar 2002" vs "02 Mar"), and the
 // narrower width overflowed into the Pos column.
-// From sm up there's room for Mark and Points side by side, so the
-// Mark/Points toggle only exists on phones.
+// From sm up there's room for Mark, Quality and Points side by side, so the
+// Mark/Points toggle (and the inline Quality chip) only exist on phones.
 function gridCols(showYear: boolean) {
   return showYear
-    ? "grid-cols-[5.4rem_2rem_1fr_auto] sm:grid-cols-[5.4rem_2rem_1fr_auto_3rem]"
-    : "grid-cols-[3.4rem_2rem_1fr_auto] sm:grid-cols-[3.4rem_2rem_1fr_auto_3rem]";
+    ? "grid-cols-[5.4rem_2rem_1fr_auto] sm:grid-cols-[5.4rem_2rem_1fr_auto_4.5rem_3rem]"
+    : "grid-cols-[3.4rem_2rem_1fr_auto] sm:grid-cols-[3.4rem_2rem_1fr_auto_4.5rem_3rem]";
 }
 
 export default function ResultsList({
@@ -162,6 +165,13 @@ export default function ResultsList({
           Mark {effectiveSortBy === "mark" && arrow("mark")}
         </button>
         <button
+          onClick={() => handleSort("quality")}
+          className="hidden sm:flex text-right items-center justify-end gap-0.5 hover:text-neutral-300"
+          title={QUALITY_HELP}
+        >
+          Quality {effectiveSortBy === "quality" && arrow("quality")}
+        </button>
+        <button
           onClick={() => handleSort("points")}
           className="hidden sm:flex text-right items-center justify-end gap-0.5 hover:text-neutral-300"
         >
@@ -199,10 +209,7 @@ export default function ResultsList({
                   </span>
                 )}
                 {r.race_level != null && (
-                  <span
-                    title="Field strength of this race (0-100): mostly its competition tier, with a smaller adjustment for how strong the actual entrants were"
-                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400"
-                  >
+                  <span title={QUALITY_HELP} className="sm:hidden text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">
                     Quality {Math.round(r.race_level)}
                   </span>
                 )}
@@ -226,6 +233,18 @@ export default function ResultsList({
             <span className="hidden sm:flex items-center justify-end gap-1.5 whitespace-nowrap">
               <WindBadge wind={r.wind} windLegal={r.wind_legal} />
               <span className="font-mono text-sm text-neutral-200">{r.mark_display}</span>
+            </span>
+            <span className="hidden sm:block text-right whitespace-nowrap">
+              {r.race_level != null && (
+                <span
+                  title={QUALITY_HELP}
+                  className={`inline-block min-w-11 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${
+                    r.race_level >= 1000 ? "bg-orange-100 text-orange-800" : r.race_level >= 500 ? "bg-orange-50 text-orange-700" : "text-neutral-400"
+                  }`}
+                >
+                  {Math.round(r.race_level)}
+                </span>
+              )}
             </span>
             <span className="hidden sm:block text-right font-mono text-sm text-orange-400 whitespace-nowrap">
               {r.competition_score !== null ? r.competition_score : ""}
