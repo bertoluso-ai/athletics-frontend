@@ -7,18 +7,18 @@ export const EVENT_GROUPS = [
     // group's own first entry is used as the initial selection (Home's
     // Athletes/Races widgets, Rankings, Disciplines...) -- 60m is indoor-
     // only and far less representative to lead with.
-    events: { Men: ["100 Metres", "60 Metres", "200 Metres", "400 Metres"], Women: ["100 Metres", "60 Metres", "200 Metres", "400 Metres"] },
-    names: { "60 Metres": "60m", "100 Metres": "100m", "200 Metres": "200m", "400 Metres": "400m" } as Record<string, string>,
+    events: { Men: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "600 Metres"], Women: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "600 Metres"] },
+    names: { "60 Metres": "60m", "100 Metres": "100m", "200 Metres": "200m", "400 Metres": "400m", "150 Metres": "150m", "300 Metres": "300m", "600 Metres": "600m" } as Record<string, string>,
   },
   {
     key: "hurdles", label: "Hurdles",
-    events: { Men: ["60 Metres Hurdles", "110 Metres Hurdles", "400 Metres Hurdles"], Women: ["60 Metres Hurdles", "100 Metres Hurdles", "400 Metres Hurdles"] },
-    names: { "60 Metres Hurdles": "60mH", "110 Metres Hurdles": "110mH", "100 Metres Hurdles": "100mH", "400 Metres Hurdles": "400mH" } as Record<string, string>,
+    events: { Men: ["60 Metres Hurdles", "110 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles"], Women: ["60 Metres Hurdles", "100 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles"] },
+    names: { "60 Metres Hurdles": "60mH", "110 Metres Hurdles": "110mH", "100 Metres Hurdles": "100mH", "400 Metres Hurdles": "400mH", "300 Metres Hurdles": "300mH" } as Record<string, string>,
   },
   {
     key: "middle", label: "Middle Distance",
-    events: { Men: ["800 Metres", "1500 Metres", "Mile"], Women: ["800 Metres", "1500 Metres", "Mile"] },
-    names: { "800 Metres": "800m", "1500 Metres": "1500m", "Mile": "Mile" } as Record<string, string>,
+    events: { Men: ["800 Metres", "1500 Metres", "Mile", "1000 Metres"], Women: ["800 Metres", "1500 Metres", "Mile", "1000 Metres"] },
+    names: { "800 Metres": "800m", "1500 Metres": "1500m", "Mile": "Mile", "1000 Metres": "1000m" } as Record<string, string>,
   },
   {
     key: "long", label: "Long Distance",
