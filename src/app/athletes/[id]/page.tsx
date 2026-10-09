@@ -180,7 +180,7 @@ export default async function AthletePage({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start lg:[&>section:nth-child(-n+3)]:self-stretch">
           {/* Info */}
           <section className="lg:col-start-1 lg:row-start-1">
-            <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
+            <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Bio</h2>
             {/* On desktop the photo takes no height of its own: it's absolutely
                 positioned in a wrapper that stretches to the row, so the
                 picture always matches the tallest of the three top cells
