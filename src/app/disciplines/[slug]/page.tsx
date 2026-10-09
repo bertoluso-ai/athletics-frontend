@@ -278,7 +278,7 @@ export default async function DisciplinePage({
             instead of being pushed down below a full-width filter block. */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
-            <PageBar title="Disciplines" />
+            <PageBar title="Disciplines" icon="disciplines" />
 
             {/* Filters: two rows, same look as Rankings (pill-row, no
                 submit -- every control navigates on change) -- row 1 picks

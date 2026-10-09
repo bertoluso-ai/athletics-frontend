@@ -3,6 +3,7 @@ import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import CalendarAutoForm from "@/components/CalendarAutoForm";
 import DateField from "@/components/DateField";
+import NavIcon from "@/components/NavIcons";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, sortEventsAlpha } from "@/lib/events";
 import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
@@ -213,14 +214,17 @@ export default async function MeetsPage({
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <div className="flex items-center justify-between gap-3 bg-tint text-neutral-100 px-3 sm:px-4 py-2 rounded-lg mb-3">
-          <h1 className="text-[13px] font-extrabold uppercase tracking-wide">Meets</h1>
+        <div className="flex items-center justify-between gap-3 h-9 bg-tint text-neutral-100 px-3 sm:px-4 rounded-lg mb-3">
+          <h1 className="flex items-center gap-2 text-[13px] font-extrabold uppercase tracking-wide">
+            <NavIcon name="meets" className="w-4 h-4 shrink-0 text-neutral-400" />
+            Meets
+          </h1>
           <div className="flex rounded p-0.5 text-xs bg-white/60">
             {(["competitions", "races"] as const).map((v) => (
               <Link
                 key={v}
                 href={href({ view: v, reset: true })}
-                className={`px-3 py-1 rounded ${view === v ? "bg-neutral-950 text-neutral-100 font-semibold shadow-sm" : "text-neutral-400 hover:text-neutral-100"}`}
+                className={`px-3 py-0.5 rounded ${view === v ? "bg-neutral-950 text-neutral-100 font-semibold shadow-sm" : "text-neutral-400 hover:text-neutral-100"}`}
               >
                 {v === "competitions" ? "Calendar" : "Races"}
               </Link>

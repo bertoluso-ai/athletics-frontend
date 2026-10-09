@@ -52,7 +52,7 @@ export default async function CountriesPage({
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <PageBar title="Countries" />
+        <PageBar title="Countries" icon="countries" />
         <p className="text-sm text-neutral-500 mb-3">
           Each country scores the season points of its {COUNTED_ATHLETES} best athletes. Top 8 are Gold, next 8
           Silver, next 8 Bronze.

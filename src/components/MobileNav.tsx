@@ -2,42 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NavIcon, { type NavIconName } from "./NavIcons";
 
 // Mobile-only bottom bar, replacing the top nav links on small screens
 // (Header already hides those via `hidden sm:flex`). Floating pill in the
 // style of WhatsApp/Strava: inset from the screen edges, rounded, blurred
 // translucent background, active tab highlighted with a filled pill.
 // Add more items here as new sections get built.
-const NAV_ITEMS = [
-  {
-    label: "Home",
-    href: "/",
-    icon: <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5Z" />,
-  },
-  {
-    label: "Meets",
-    href: "/meets",
-    icon: (
-      <path d="M7 2v2H6a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1V2h-2v2H9V2H7Zm-1 6h12v11H6V8Z" />
-    ),
-  },
-  {
-    label: "Rankings",
-    href: "/rankings",
-    icon: <path d="M4 20V10h4v10H4Zm6 0V4h4v16h-4Zm6 0v-7h4v7h-4Z" />,
-  },
-  {
-    label: "Countries",
-    href: "/countries",
-    icon: <path d="M5 21V4h1.5v1H19l-2.5 4.5L19 14H6.5v7H5Z" />,
-  },
-  {
-    label: "Disciplines",
-    href: "/disciplines",
-    icon: (
-      <path d="M4 4h7v7H4V4Zm9 0h7v7h-7V4ZM4 13h7v7H4v-7Zm9 0h7v7h-7v-7Z" />
-    ),
-  },
+const NAV_ITEMS: { label: string; href: string; icon: NavIconName }[] = [
+  { label: "Home", href: "/", icon: "home" },
+  { label: "Meets", href: "/meets", icon: "meets" },
+  { label: "Rankings", href: "/rankings", icon: "rankings" },
+  { label: "Countries", href: "/countries", icon: "countries" },
+  { label: "Disciplines", href: "/disciplines", icon: "disciplines" },
 ];
 
 export default function MobileNav() {
@@ -57,9 +34,7 @@ export default function MobileNav() {
               active ? "bg-orange-500/20 text-orange-400" : "text-neutral-300"
             }`}
           >
-            <svg viewBox="0 0 24 24" className="w-[18px] h-[18px]" fill="currentColor" aria-hidden="true">
-              {item.icon}
-            </svg>
+            <NavIcon name={item.icon} className="w-[18px] h-[18px]" />
             <span className="whitespace-nowrap">{item.label}</span>
           </Link>
         );

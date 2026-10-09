@@ -88,12 +88,12 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
         {/* phones: the title goes above the Athletes/Nations switch (which the grid orders first);
             desktop: it sits over the left column so the side menu starts level with it */}
         <div className="lg:hidden">
-          <PageBar title="Rankings" />
+          <PageBar title="Rankings" icon="rankings" />
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
             <div className="hidden lg:block">
-              <PageBar title="Rankings" />
+              <PageBar title="Rankings" icon="rankings" />
             </div>
             {view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
