@@ -84,7 +84,7 @@ export default function LatestResults({
   return (
     <section>
       {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
-        <h2 className="bg-tint text-neutral-100 text-[11px] font-bold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+        <h2 className="bg-tint text-neutral-100 text-[11px] font-extrabold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
           Last athletics results {dayLabel(shown[0].races[0].date)}
         </h2>
       )}
@@ -134,7 +134,7 @@ export default function LatestResults({
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
                 {newDay && (heading || label) && !(gi === 0 && showFilters) && (
-                  <h2 className={`bg-tint text-neutral-100 text-[11px] font-bold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
+                  <h2 className={`bg-tint text-neutral-100 text-[11px] font-extrabold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
                     {heading ?? `Last athletics results ${label}`}
                   </h2>
                 )}

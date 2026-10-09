@@ -214,7 +214,7 @@ export default async function MeetsPage({
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <div className="flex items-center justify-between gap-3 bg-tint text-neutral-100 px-3 sm:px-4 py-2 rounded-lg mb-3">
-          <h1 className="text-sm font-bold">Meets</h1>
+          <h1 className="text-sm font-extrabold">Meets</h1>
           <div className="flex rounded p-0.5 text-xs bg-white/60">
             {(["competitions", "races"] as const).map((v) => (
               <Link
@@ -338,7 +338,7 @@ export default async function MeetsPage({
         </div>
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden bg-neutral-950">
-          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide bg-tint text-neutral-300`}>
+          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-2 text-[10px] font-extrabold uppercase tracking-wide bg-tint text-neutral-300`}>
             <Link href={sortHref("date")} className={`whitespace-nowrap hover:text-neutral-100 ${sort === "date" ? "text-neutral-100" : ""}`}>
               Date{sortArrow("date")}
             </Link>
