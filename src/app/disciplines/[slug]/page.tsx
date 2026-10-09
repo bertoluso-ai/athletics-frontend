@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import PageBar from "@/components/PageBar";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
@@ -44,7 +45,7 @@ function lastName(fullName: string) {
 
 function MarkRowItem({ m, rank, athleteSlugs }: { m: MarkRow; rank: number; athleteSlugs: Map<string, string> }) {
   return (
-    <Link href={athleteHref(m.athlete_id, athleteSlugs)} className="flex items-center justify-between px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800">
+    <Link href={athleteHref(m.athlete_id, athleteSlugs)} className="flex items-center justify-between px-4 py-2 bg-neutral-950 hover:bg-neutral-800">
       <span className="text-sm flex items-center gap-2 min-w-0">
         <span className="text-neutral-500 font-mono text-xs w-4 shrink-0">{rank}</span>
         <Flag code={m.nationality} />
@@ -60,7 +61,7 @@ function MarkRowItem({ m, rank, athleteSlugs }: { m: MarkRow; rank: number; athl
 
 function RelayMarkRowItem({ m, rank }: { m: RelayMarkRow; rank: number }) {
   return (
-    <div className="flex items-center justify-between px-4 py-2 bg-neutral-900/40">
+    <div className="flex items-center justify-between px-4 py-2 bg-neutral-950">
       <span className="text-sm flex items-center gap-2 min-w-0">
         <span className="text-neutral-500 font-mono text-xs w-4 shrink-0">{rank}</span>
         <Flag code={m.nationality} />
@@ -125,10 +126,10 @@ async function Podium({ rows, gender, athleteSlugs }: { rows: MarkRow[]; gender:
 function SideList({ title, help, children }: { title: string; help: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-1.5 px-1" title={help}>
+      <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-2" title={help}>
         {title}
       </h2>
-      <div className="flex flex-col">{children}</div>
+      <div className="flex flex-col bg-neutral-950 border border-neutral-800 rounded-lg px-2 sm:px-3 py-1">{children}</div>
     </section>
   );
 }
@@ -269,7 +270,7 @@ export default async function DisciplinePage({
   const yearHref = (y: string) => buildHref({ year: y });
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         {/* Everything -- title, category pills, filters, podium, table,
             chart -- lives in the grid's left column, same as Rankings/Home,
@@ -277,13 +278,13 @@ export default async function DisciplinePage({
             instead of being pushed down below a full-width filter block. */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold mb-4">Disciplines</h1>
+            <PageBar title="Disciplines" />
 
             {/* Filters: two rows, same look as Rankings (pill-row, no
                 submit -- every control navigates on change) -- row 1 picks
                 WHICH discipline (gender/group/discipline/indoor), row 2
                 narrows it (continent/nation/age). */}
-            <div className="flex flex-col gap-2 mb-6">
+            <div className="flex flex-col gap-2 mb-6 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
               <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
                 {availableGenders.length > 1 && (
                   <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
@@ -348,9 +349,9 @@ export default async function DisciplinePage({
             <Podium rows={isRelay ? [] : (allTime as MarkRow[])} gender={gender} athleteSlugs={athleteSlugs} />
 
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">{eventLabel(event)} · Best Marks</h2>
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1">{eventLabel(event)} · Best Marks</h2>
             </div>
-            <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mb-8">
+            <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden mb-8 bg-neutral-950">
               {isRelay
                 ? (tableRows as RelayMarkRow[]).map((m, i) => <RelayMarkRowItem key={i} m={m} rank={i + 1} />)
                 : (tableRows as MarkRow[]).map((m, i) => <MarkRowItem key={i} m={m} rank={i + 1} athleteSlugs={athleteSlugs} />)}
@@ -373,7 +374,7 @@ export default async function DisciplinePage({
 
             {progression.length >= 2 && (
               <section>
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Best Mark by Year</h2>
+                <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">Best Mark by Year</h2>
                 <YearlyProgressionChart data={progression} isField={fieldEvent} recordPhoto={bestPhoto ? { url: bestPhoto.url, credit: photoCredit(bestPhoto) } : null} />
               </section>
             )}

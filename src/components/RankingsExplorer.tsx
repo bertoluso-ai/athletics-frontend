@@ -195,7 +195,7 @@ export default function RankingsExplorer() {
             onClick={() => setGroupKey(g.key)}
             className={`shrink-0 sm:flex-1 text-center whitespace-nowrap text-xs px-2.5 py-1.5 rounded-full border ${
               groupKey === g.key
-                ? "bg-neutral-100 text-white border-neutral-100"
+                ? "bg-orange-50 text-orange-700 border-orange-300"
                 : "border-neutral-700 text-neutral-400"
             }`}
           >

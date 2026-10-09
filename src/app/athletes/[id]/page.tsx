@@ -453,7 +453,7 @@ export default async function AthletePage({
                         scroll={false}
                         className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
                           category === c
-                            ? "bg-neutral-100 text-white border-neutral-100"
+                            ? "bg-orange-50 text-orange-700 border-orange-300"
                             : "border-neutral-700 text-neutral-400"
                         }`}
                       >

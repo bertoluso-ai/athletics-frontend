@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import PageBar from "@/components/PageBar";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import { GenericAthlete } from "@/components/Avatar";
@@ -82,9 +83,9 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
     : "season") as RankingView | "discipline" | (typeof NATION_VIEWS)[number];
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold mb-4">Rankings</h1>
+        <PageBar title="Rankings" />
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
             {view.startsWith("n-") ? (
@@ -143,7 +144,7 @@ function SideMenu({ view }: { view: string }) {
       <aside className="hidden lg:flex flex-col gap-6 min-w-0">
         {MENU.map((m) => (
           <section key={m.title}>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">{m.title}</h2>
+            <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-2">{m.title}</h2>
             <ul className="flex flex-col gap-1">
               {m.items.map((it) => {
                 const active = it.view === view;
@@ -236,7 +237,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
       {/* Filters: two rows, no submit button -- every control navigates as
           soon as it changes (gender/year are plain links, the rest are
           LinkSelects), same pill look as the rest of the site. */}
-      <div className="flex flex-col gap-2 mb-6">
+      <div className="flex flex-col gap-2 mb-4 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
             {(["Men", "Women"] as const).map((g) => (
@@ -349,8 +350,8 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
       ) : (
         <>
         {/* Table */}
-        <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
+        <div className="border border-neutral-800 rounded-lg overflow-hidden bg-neutral-950">
+          <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide bg-tint text-neutral-300`}>
             <span>#</span>
             {movement && <span>Prev</span>}
             {movement && <span>Diff</span>}
@@ -469,7 +470,7 @@ function PodiumAndClimbersView({
       {/* Biggest climbers */}
       {climbers.length > 0 && page === 1 && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Biggest climbers · last 2 weeks</h2>
+          <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">Biggest climbers · last 2 weeks</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {climbers.map((r) => {
               const ph = photoOf.get(r.athlete_id);
@@ -477,7 +478,7 @@ function PodiumAndClimbersView({
                 <Link
                   key={r.athlete_id}
                   href={athleteHref(r.athlete_id, athleteSlugs)}
-                  className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800"
+                  className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-950 p-2.5 hover:bg-neutral-800"
                 >
                   <span className="relative w-11 h-11 rounded-full overflow-hidden bg-neutral-800 shrink-0">
                     {ph ? (
@@ -556,7 +557,7 @@ function RankingLine({
   return (
     <Link
       href={athleteHref(r.athlete_id, athleteSlugs)}
-      className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-900/40"} hover:bg-neutral-800`}
+      className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-950"} hover:bg-neutral-800`}
     >
       <span className={`tabular-nums ${r.rank <= 3 ? "text-orange-400 font-bold" : "text-neutral-300"}`}>{r.rank}</span>
       {movement && <span className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
@@ -635,7 +636,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   return (
     <>
 
-      <div className="flex flex-col gap-2 mb-6">
+      <div className="flex flex-col gap-2 mb-4 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
             {(["Men", "Women"] as const).map((g) => (
@@ -710,10 +711,10 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
 
       {climbers.length > 0 && (
         <section className="mb-8">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Biggest climbers · last 2 weeks</h2>
+          <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">Biggest climbers · last 2 weeks</h2>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {climbers.map((r) => (
-              <Link key={r.code} href={countryHref(r.code)} className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-900/40 p-2.5 hover:bg-neutral-800">
+              <Link key={r.code} href={countryHref(r.code)} className="flex items-center gap-3 rounded-lg border border-neutral-800 bg-neutral-950 p-2.5 hover:bg-neutral-800">
                 <Flag code={r.code} className="w-8 h-6" />
                 <span className="min-w-0">
                   <span className="block text-sm truncate">{r.name}</span>
@@ -749,7 +750,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             const t = tierForRank(r.rank);
             const diff = r.prev_rank === null ? null : r.prev_rank - r.rank;
             return (
-              <Link key={r.code} href={countryHref(r.code)} className={`grid ${cols} gap-x-2 items-center px-3 py-2 text-sm bg-neutral-900/40 hover:bg-neutral-800`}>
+              <Link key={r.code} href={countryHref(r.code)} className={`grid ${cols} gap-x-2 items-center px-3 py-2 text-sm bg-neutral-950 hover:bg-neutral-800`}>
                 <span className={`tabular-nums font-semibold ${t ? t.color : "text-neutral-400"}`}>{r.rank}</span>
                 {movement && <span className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
                 {movement && (
@@ -797,7 +798,7 @@ async function ProgressionBox({ event, data }: { event: string; data: Awaited<Re
   );
   const photo = best?.athlete ? await getAthletePhotoInfo(best.athlete) : null;
   return (
-    <section className="mb-8 border border-neutral-800 rounded-lg p-3 bg-neutral-900/40">
+    <section className="mb-8 border border-neutral-800 rounded-lg p-3 bg-neutral-950">
       <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-1">{eventLabel(event)} · best mark by year</div>
       <YearlyProgressionChart data={data} isField={field} recordPhoto={photo ? { url: photo.url, credit: photoCredit(photo) } : null} />
     </section>

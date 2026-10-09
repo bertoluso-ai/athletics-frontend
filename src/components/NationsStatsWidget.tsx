@@ -94,7 +94,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
             onClick={() => setGroupKey(g.key)}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
               groupKey === g.key
-                ? "bg-neutral-100 text-white border-neutral-100"
+                ? "bg-orange-50 text-orange-700 border-orange-300"
                 : "border-neutral-700 text-neutral-400"
             }`}
           >

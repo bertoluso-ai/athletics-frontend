@@ -192,7 +192,7 @@ async function ListTab({ q, flag, tier }: { q: string; flag: RegistryFlag | ""; 
 async function DiffTab({ kind, pending }: { kind: string; pending: boolean }) {
   const rows = await listRegistryDiffs({ kind, pending });
   const pill = (active: boolean) =>
-    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-white border-neutral-100" : "border-neutral-700 text-neutral-400"}`;
+    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-orange-50 text-orange-700 border-orange-300" : "border-neutral-700 text-neutral-400"}`;
   const href = (k: string, p: boolean) => `/competitions?tab=diff${k ? `&kind=${k}` : ""}${p ? "&pending=1" : ""}`;
   return (
     <>

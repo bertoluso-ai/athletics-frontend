@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PageBar from "@/components/PageBar";
 import Flag from "@/components/Flag";
 import { flagUrlWide } from "@/lib/flags";
 import {
@@ -46,19 +47,19 @@ export default async function CountriesPage({
   const rows = await getCountryRanking(year, f);
 
   const pill = (active: boolean) =>
-    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-neutral-100 text-white border-neutral-100" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
+    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-orange-50 text-orange-700 border-orange-300" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold mb-1">Countries</h1>
-        <p className="text-sm text-neutral-500 mb-4">
+        <PageBar title="Countries" />
+        <p className="text-sm text-neutral-500 mb-3">
           Each country scores the season points of its {COUNTED_ATHLETES} best athletes. Top 8 are Gold, next 8
           Silver, next 8 Bronze.
         </p>
 
         {/* Filters: year, gender, category */}
-        <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
           <form action="/countries" className="flex items-center gap-2">
             <input type="hidden" name="gender" value={f.gender} />
             {f.age && <input type="hidden" name="age" value={f.age} />}
@@ -102,12 +103,12 @@ export default async function CountriesPage({
           if (block.length === 0) return null;
           return (
             <section key={t.key} className="mb-10">
-              <h2 className={`text-sm font-semibold uppercase tracking-wide mb-3 flex items-center gap-2 ${t.color}`}>
+              <h2 className="flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">
                 <span className={`w-2.5 h-2.5 rounded-full ${t.bg}`} />
                 {t.label}
-                <span className="text-neutral-500 normal-case font-normal">· {t.from}–{t.to}</span>
+                <span className="text-neutral-400 normal-case font-medium text-xs">· {t.from}–{t.to}</span>
               </h2>
-              <div className="sm:columns-2 gap-x-10 mb-4">
+              <div className="sm:columns-2 gap-x-10 mb-4 bg-neutral-950 border border-neutral-800 rounded-lg px-3 sm:px-4 py-2">
                 {block.map((r) => (
                   <CountryLine key={r.code} r={r} href={countryHref(r.code, year, f)} />
                 ))}
@@ -120,7 +121,7 @@ export default async function CountriesPage({
                       key={r.code}
                       href={countryHref(r.code, year, f)}
                       title={`${r.rank}. ${r.name} — ${r.points} pts`}
-                      className={`group flex flex-col items-center gap-1 rounded-lg border ${t.border} bg-neutral-900/40 p-2 hover:bg-neutral-800`}
+                      className={`group flex flex-col items-center gap-1 rounded-lg border ${t.border} bg-neutral-950 p-2 hover:bg-neutral-800`}
                     >
                       {src ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -141,8 +142,8 @@ export default async function CountriesPage({
 
         {rows.length > 24 && (
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide mb-3 text-neutral-400">Rest of the world</h2>
-            <div className="sm:columns-2 lg:columns-3 gap-x-10">
+            <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">Rest of the world</h2>
+            <div className="sm:columns-2 lg:columns-3 gap-x-10 bg-neutral-950 border border-neutral-800 rounded-lg px-3 sm:px-4 py-2">
               {rows
                 .filter((r) => r.rank > 24)
                 .map((r) => (
