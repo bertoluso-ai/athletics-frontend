@@ -146,7 +146,7 @@ export default function ResultsList({
         <button onClick={() => handleSort("pos")} className="text-left flex items-center gap-0.5 hover:text-neutral-300">
           Pos {arrow("pos")}
         </button>
-        <span>Race</span>
+        <span>Meet</span>
         <button
           onClick={() => handleSort(metric === "mark" ? "points" : "mark")}
           className="sm:hidden text-right flex items-center justify-end gap-0.5 hover:text-neutral-300"
