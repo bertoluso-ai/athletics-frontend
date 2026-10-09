@@ -98,7 +98,7 @@ export default function MultiSelectDropdown({
         ref={buttonRef}
         type="button"
         onClick={toggleOpen}
-        className="w-full h-[30px] bg-neutral-800 text-xs rounded px-2 border border-neutral-700 text-left truncate"
+        className="w-full h-[30px] bg-neutral-800 text-xs rounded px-2 border border-neutral-700 text-left truncate focus:outline-none focus:border-orange-500"
       >
         {label}
       </button>

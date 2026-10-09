@@ -158,7 +158,7 @@ export default async function MeetsPage({
   const sortHref = (col: CalendarSort) =>
     href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : defaultDir(col) });
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
-  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
   const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
   const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3.5rem_3rem]";
 
