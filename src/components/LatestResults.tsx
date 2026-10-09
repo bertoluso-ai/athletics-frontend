@@ -83,6 +83,11 @@ export default function LatestResults({
 
   return (
     <section>
+      {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
+        <h2 className="bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+          All athletics results {dayLabel(shown[0].races[0].date)}
+        </h2>
+      )}
       <div className={showFilters ? "mb-3" : "hidden"}>
         <div className="flex items-center gap-2 flex-wrap">
           <select
@@ -128,9 +133,9 @@ export default function LatestResults({
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
-                {newDay && (heading || label) && (
+                {newDay && (heading || label) && !(gi === 0 && showFilters) && (
                   <h2 className={`bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
-                    {heading ?? `All results ${label}`}
+                    {heading ?? `All athletics results ${label}`}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
