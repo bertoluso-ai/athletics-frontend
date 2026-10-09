@@ -33,7 +33,7 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
 
-      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-8 sm:py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="sr-only">Latest athletics results</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
