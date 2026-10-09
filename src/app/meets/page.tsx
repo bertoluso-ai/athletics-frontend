@@ -39,7 +39,7 @@ function DateBlock({ a, b, year, inline = false }: { a: string | null; b: string
   const months = range && mon(a) !== mon(b!) ? `${mon(a)}-${mon(b!)}` : mon(a);
   if (inline) return <span className="text-xs font-semibold text-neutral-300 tabular-nums">{days} {months}</span>;
   return (
-    <span className="inline-flex flex-col items-center justify-center leading-none min-w-10 px-1.5 py-1.5 rounded border border-neutral-700 bg-neutral-900">
+    <span className="inline-flex flex-col items-center justify-center leading-none min-w-10 px-1.5 py-1">
       <span className="text-sm font-bold tabular-nums">{days}</span>
       <span className="mt-0.5 text-[9px] uppercase tracking-wide text-neutral-500">{months}</span>
     </span>
@@ -49,12 +49,12 @@ function DateBlock({ a, b, year, inline = false }: { a: string | null; b: string
 // Level badge scaled by rank: the big championships are solid orange, the
 // middle tiers soft orange, the small meets stay grey.
 const TIER_BADGE: Record<string, string> = {
-  OW: "bg-orange-600 text-white",
-  DF: "bg-orange-600 text-white",
-  GW: "bg-orange-600 text-white",
-  GL: "bg-orange-200 text-orange-900",
-  A: "bg-orange-200 text-orange-900",
-  B: "bg-orange-100 text-orange-700",
+  OW: "bg-orange-100 text-orange-800",
+  DF: "bg-orange-100 text-orange-800",
+  GW: "bg-orange-100 text-orange-800",
+  GL: "bg-orange-50 text-orange-700",
+  A: "bg-orange-50 text-orange-700",
+  B: "bg-neutral-800 text-orange-700",
 };
 
 function TierBadge({ tier }: { tier: string | null }) {
@@ -62,7 +62,7 @@ function TierBadge({ tier }: { tier: string | null }) {
   return (
     <span
       title={TIER_LABELS.find((t) => t.value === tier)?.label ?? tier}
-      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${TIER_BADGE[tier] ?? "bg-neutral-800 text-neutral-500"}`}
+      className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${TIER_BADGE[tier] ?? "text-neutral-400"}`}
     >
       {tier}
     </span>
@@ -72,7 +72,7 @@ function TierBadge({ tier }: { tier: string | null }) {
 // Quality as a heat chip: the stronger the field, the stronger the orange.
 function QualityChip({ value }: { value: number }) {
   const tone =
-    value >= 1000 ? "bg-orange-600 text-white" : value >= 500 ? "bg-orange-200 text-orange-900" : value >= 200 ? "bg-orange-100 text-orange-800" : "bg-neutral-800 text-neutral-500";
+    value >= 1000 ? "bg-orange-100 text-orange-800" : value >= 500 ? "bg-orange-50 text-orange-700" : "text-neutral-400";
   return (
     <span className={`inline-block min-w-11 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${tone}`} title={QUALITY_HELP}>
       {Math.round(value)}
@@ -82,7 +82,7 @@ function QualityChip({ value }: { value: number }) {
 
 // the left edge of a row marks the top competitions
 const rowAccent = (tier: string | null) =>
-  tier === "OW" || tier === "DF" || tier === "GW" ? "border-l-orange-600" : tier === "GL" ? "border-l-orange-300" : "border-l-transparent";
+  tier === "OW" || tier === "DF" || tier === "GW" ? "border-l-orange-400" : tier === "GL" ? "border-l-orange-200" : "border-l-transparent";
 
 const QUALITY_HELP = "Quality: strength of the fields actually gathered (a whole competition, or this single race)";
 
@@ -199,7 +199,7 @@ export default async function MeetsPage({
     href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : col === "name" ? "asc" : "desc" });
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
-  const sc = (on: boolean) => (on ? "bg-orange-50 text-orange-700 text-xs rounded px-2 py-1.5 border border-orange-500 focus:outline-none" : selectClass);
+  const sc = (on: boolean) => (on ? "bg-orange-50 text-orange-700 text-xs rounded px-2 py-1.5 border border-orange-300 focus:outline-none" : selectClass);
   const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
   const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_5rem_3.75rem]";
 
@@ -213,16 +213,16 @@ export default async function MeetsPage({
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <div className="flex items-center justify-between gap-3 bg-neutral-100 text-white px-3 sm:px-4 py-2 rounded-lg mb-3">
-          <h1 className="text-[11px] font-bold uppercase tracking-wider">Meets</h1>
-          <div className="flex rounded p-0.5 text-xs bg-white/10">
+        <div className="flex items-center justify-between gap-3 bg-tint text-neutral-100 px-3 sm:px-4 py-2 rounded-lg mb-3">
+          <h1 className="text-sm font-bold">Meets</h1>
+          <div className="flex rounded p-0.5 text-xs bg-white/60">
             {(["competitions", "races"] as const).map((v) => (
               <Link
                 key={v}
                 href={href({ view: v, reset: true })}
-                className={`px-3 py-1 rounded ${view === v ? "bg-orange-500 text-black font-semibold" : "text-neutral-600 hover:text-white"}`}
+                className={`px-3 py-1 rounded ${view === v ? "bg-neutral-950 text-neutral-100 font-semibold shadow-sm" : "text-neutral-400 hover:text-neutral-100"}`}
               >
-                {v === "competitions" ? "Competitions" : "Races"}
+                {v === "competitions" ? "Calendar" : "Races"}
               </Link>
             ))}
           </div>
@@ -232,7 +232,7 @@ export default async function MeetsPage({
             CalendarAutoForm). Row 1 = when, row 2 = what/where. Same scrolling
             rows as the rest of the site (pill-row): nothing wraps, anything that
             doesn't fit scrolls sideways. */}
-        <CalendarAutoForm key={JSON.stringify(sp)} action="/meets" className="flex flex-col gap-2 mb-3 bg-neutral-950 border border-neutral-700 rounded-lg shadow-sm p-2 sm:p-3">
+        <CalendarAutoForm key={JSON.stringify(sp)} action="/meets" className="flex flex-col gap-2 mb-3 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
           {/* "" = all year; without it an empty Month falls back to the current month */}
           <input type="hidden" name="month" value="" />
           <input type="hidden" name="view" value={view} />
@@ -330,30 +330,30 @@ export default async function MeetsPage({
             <Link
               key={col}
               href={sortHref(col)}
-              className={`px-2.5 py-1 rounded border ${sort === col ? "border-neutral-100 bg-neutral-100 text-white" : "border-neutral-700 bg-neutral-950 text-neutral-400"}`}
+              className={`px-2.5 py-1 rounded border ${sort === col ? "border-neutral-700 bg-tint text-neutral-100 font-semibold" : "border-neutral-700 bg-neutral-950 text-neutral-400"}`}
             >
               {label}{sortArrow(col)}
             </Link>
           ))}
         </div>
 
-        <div className="border border-neutral-700 rounded-lg overflow-hidden shadow-sm bg-neutral-950">
-          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide bg-neutral-100 text-neutral-600`}>
-            <Link href={sortHref("date")} className={`whitespace-nowrap hover:text-white ${sort === "date" ? "text-white" : ""}`}>
+        <div className="border border-neutral-800 rounded-lg overflow-hidden bg-neutral-950">
+          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide bg-tint text-neutral-300`}>
+            <Link href={sortHref("date")} className={`whitespace-nowrap hover:text-neutral-100 ${sort === "date" ? "text-neutral-100" : ""}`}>
               Date{sortArrow("date")}
             </Link>
             {view === "competitions" ? (
-              <Link href={sortHref("name")} className={`hover:text-white ${sort === "name" ? "text-white" : ""}`}>
+              <Link href={sortHref("name")} className={`hover:text-neutral-100 ${sort === "name" ? "text-neutral-100" : ""}`}>
                 Competition{sortArrow("name")}
               </Link>
             ) : (
               <span>Competition</span>
             )}
             <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
-            <Link href={sortHref("quality")} title={QUALITY_HELP} className={`text-right whitespace-nowrap hover:text-white ${sort === "quality" ? "text-white" : ""}`}>
+            <Link href={sortHref("quality")} title={QUALITY_HELP} className={`text-right whitespace-nowrap hover:text-neutral-100 ${sort === "quality" ? "text-neutral-100" : ""}`}>
               Quality{sortArrow("quality")}
             </Link>
-            <Link href={sortHref("tier")} className={`text-right whitespace-nowrap hover:text-white ${sort === "tier" ? "text-white" : ""}`}>
+            <Link href={sortHref("tier")} className={`text-right whitespace-nowrap hover:text-neutral-100 ${sort === "tier" ? "text-neutral-100" : ""}`}>
               Level{sortArrow("tier")}
             </Link>
           </div>
@@ -390,7 +390,7 @@ export default async function MeetsPage({
                 );
 
               return (
-                <div key={i} className={`relative border-l-4 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-orange-50`}>
+                <div key={i} className={`relative border-l-2 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-neutral-900`}>
                   {/* Full-row click target; the nested athlete link stays independently clickable. */}
                   {nameLink && <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />}
                   {/* phones: a card */}
@@ -466,7 +466,7 @@ export default async function MeetsPage({
                 <span className="text-neutral-600">{raceLabel}</span>
               );
               return (
-                <div key={i} className={`relative border-l-4 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-orange-50`}>
+                <div key={i} className={`relative border-l-2 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-neutral-900`}>
                   <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />
                   {/* phones: a card */}
                   <div className="sm:hidden relative z-10 pointer-events-none [&_a]:pointer-events-auto flex flex-col gap-1 px-3 py-3 text-sm">
