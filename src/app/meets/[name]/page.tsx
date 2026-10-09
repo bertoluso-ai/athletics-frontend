@@ -162,8 +162,8 @@ export default async function MeetPage({
     .filter((g) => g === "Men" || g === "Women");
   const statsGender = (gender && (statsGenders as string[]).includes(gender) ? gender : statsGenders[0]) ?? "";
 
-  // no known city -> no location at all (never a dangling ", ESP")
-  const place = first?.city ? (first.country ? `${first.city}, ${first.country}` : first.city) : null;
+  // no known city -> just the country, never a dangling ", ESP"
+  const place = [first?.city, first?.country].filter(Boolean).join(", ") || null;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -178,7 +178,7 @@ export default async function MeetPage({
                 picked as the series' representative name. The edition's own
                 event_name always matches the city/date actually shown below. */}
             <h1 className="text-2xl font-bold">{first?.event_name ?? eventName}</h1>
-            {(first?.city || meetDate || bestTier) && (
+            {(place || meetDate || bestTier) && (
               <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
                 <span>
                   {place}
