@@ -289,3 +289,6 @@ export function eventCategory(event: string): string {
 export function sortEventsAlpha(events: readonly string[]): string[] {
   return [...events].sort((a, b) => eventLabel(a).localeCompare(eventLabel(b), "en", { numeric: true, sensitivity: "base" }));
 }
+
+// Home "Latest results" opens on B and above; the category filter widens it.
+export const BASE_TIERS = "OW,DF,GW,GL,A,B";

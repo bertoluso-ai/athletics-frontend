@@ -295,7 +295,7 @@ async function _getUpcomingHome(limit: number, category?: string, event?: string
     ? "u.date_start ASC"
     : "CASE WHEN u.tier IN ('OW','DF','GW','GL','A','B') THEN 0 ELSE 1 END, u.date_start ASC";
   const rows = await pgQuery<UpcomingCompetition>(
-    `SELECT date_start::text AS date_start, date_end::text AS date_end, name, COALESCE(city, '') AS venue,
+    `SELECT date_start::text AS date_start, date_end::text AS date_end, name, CASE WHEN COALESCE(city, '') <> '' THEN city || ' (' || country || ')' ELSE COALESCE(country, '') END AS venue,
             country, tier AS category, disciplines, past_event_name
      FROM (
        SELECT u.* FROM calendar_upcoming u

@@ -43,18 +43,24 @@ export default function LatestResults({
   initialGroups,
   heading,
   showFilters = true,
+  defaultTier = "",
+  maxGroups = 99,
+  exclude = [],
 }: {
   initialGroups: LatestResultGroup[];
   heading?: string;
   showFilters?: boolean;
+  defaultTier?: string; // tier filter the list opens with (initialGroups already match it)
+  maxGroups?: number; // at most this many competitions are shown
+  exclude?: string[]; // competitions shown elsewhere on the page
 }) {
   const [event, setEvent] = useState("");
-  const [tier, setTier] = useState("");
+  const [tier, setTier] = useState(defaultTier);
   const [groups, setGroups] = useState<LatestResultGroup[]>(initialGroups);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!event && !tier) {
+    if (!event && tier === defaultTier) {
       setGroups(initialGroups);
       return;
     }
@@ -72,6 +78,8 @@ export default function LatestResults({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, tier]);
+
+  const shown = groups.filter((g) => !exclude.includes(g.event_name)).slice(0, maxGroups);
 
   return (
     <section>
@@ -94,6 +102,7 @@ export default function LatestResults({
             onChange={(e) => setTier(e.target.value)}
             className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
+            {defaultTier && <option value={defaultTier}>B and above</option>}
             <option value="">All categories</option>
             {TIERS.map((t) => (
               <option key={t} value={t}>
@@ -111,10 +120,10 @@ export default function LatestResults({
           </div>
         )}
         {!loading &&
-          groups.map((group, gi) => {
+          shown.map((group, gi) => {
             const latestDate = group.races[0]?.date;
             const label = latestDate ? dayLabel(latestDate) : "";
-            const prevDate = gi > 0 ? groups[gi - 1].races[0]?.date : undefined;
+            const prevDate = gi > 0 ? shown[gi - 1].races[0]?.date : undefined;
             const newDay = heading ? gi === 0 : gi === 0 || (prevDate ? dayLabel(prevDate) : "") !== label;
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
@@ -244,12 +253,12 @@ export default function LatestResults({
               </div>
             );
           })}
-        {!loading && groups.length === 0 && (
+        {!loading && shown.length === 0 && (
           <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
             No recent results.
           </div>
         )}
-        {!loading && groups.length > 0 && showFilters && (
+        {!loading && shown.length > 0 && showFilters && (
           <Link
             href="/meets?view=races"
             className="text-xs text-center text-neutral-500 hover:text-orange-400 py-1"

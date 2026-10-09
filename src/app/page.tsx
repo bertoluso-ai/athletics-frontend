@@ -5,19 +5,20 @@ import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
 import RacesStatsWidget from "@/components/RacesStatsWidget";
 import LatestResults from "@/components/LatestResults";
+import { BASE_TIERS } from "@/lib/events";
 import UpcomingRaces from "@/components/UpcomingRaces";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 
 export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
 
 const CURRENT_YEAR = new Date().getFullYear();
-const TOP_TIERS = "OW,DF,GW,GL,A";
+const TOP_TIERS = "OW,DF,GW,GL"; // Olympics/Worlds, Diamond League Final, world-level and continental championships
 
 export default async function Home() {
   const topSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const [races, topRaces, upcoming, progression] = await Promise.all([
-    getLatestRaces(15), // enough race-slots for >=5 competitions, capped at 3 races each
-    // the latest big competitions (Olympics/Worlds, Diamond League, continental, tier A): a quiet week of
+    getLatestRaces(15, { tier: BASE_TIERS }), // B and above by default; the filter widens it
+    // the latest big competitions (GL and above): a quiet week of
     // small meets must not bury them for a visitor who only wants the headline event
     getLatestRaces(12, { tier: TOP_TIERS, from: topSince }),
     getUpcomingHome(10),
@@ -27,18 +28,17 @@ export default async function Home() {
   // two latest top competitions up top; the day-by-day feed below skips them so nothing shows twice
   const top = topRaces.slice(0, 2);
   const topNames = new Set(top.map((g) => g.event_name));
-  const rest = races.filter((g) => !topNames.has(g.event_name));
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
 
       <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-6">
-        <h1 className="text-2xl font-bold mb-6 sm:mb-4">Latest athletics results</h1>
+        <h1 className="sr-only">Latest athletics results</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
           {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions" showFilters={false} />}
-          <LatestResults initialGroups={rest} />
+          <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={2} exclude={[...topNames]} />
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}
