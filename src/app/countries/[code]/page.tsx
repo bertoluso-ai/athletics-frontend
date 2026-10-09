@@ -308,7 +308,7 @@ export default async function CountryPage({
 
           <section>
             <div className="flex items-baseline justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Top Results</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Best Results</h2>
               {topResults.length > 7 && (
                 <a href={`/countries/${code}?${qs(year, f, { list: "top", sort, dir })}#results`} className="text-xs text-orange-400 hover:underline">
                   View all →
@@ -367,14 +367,14 @@ export default async function CountryPage({
               </Suspense>
             )}
 
-            {/* Latest wins / Top results in one table with a switcher; the
-                "View all" of Top Results lands here */}
+            {/* Latest wins / Best results in one table with a switcher; the
+                "View all" of Best Results lands here */}
             <section id="results" className="scroll-mt-4">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
                   {([
                     { key: "wins", label: `Latest wins${me?.wins ? ` (${me.wins})` : ""}` },
-                    { key: "top", label: "Top results" },
+                    { key: "top", label: "Best results" },
                   ] as const).map((t) => (
                     <a
                       key={t.key}
