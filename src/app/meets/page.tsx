@@ -25,25 +25,64 @@ const AGES = ["U23", "U20", "U18"] as const;
 
 type View = "competitions" | "races";
 
-// Some historical sources have no exact date, only the year -- show that
-// instead of a bare dash.
-function fmtRange(a: string | null, b: string | null, year?: number | null) {
-  if (!a) return year ? String(year) : "—";
-  const d = (s: string) => `${s.slice(8, 10)}.${s.slice(5, 7)}`;
-  return !b || a === b ? d(a) : `${d(a)} › ${d(b)}`;
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Calendar-style date: big day over a small month ("10-12" over "Oct"). Some
+// historical sources have no exact date, only the year -- show that instead.
+// `inline` is the one-line version used in the phone cards.
+function DateBlock({ a, b, year, inline = false }: { a: string | null; b: string | null; year?: number | null; inline?: boolean }) {
+  if (!a) return <span className="text-xs text-neutral-500">{year ? String(year) : "—"}</span>;
+  const day = (s: string) => String(Number(s.slice(8, 10)));
+  const mon = (s: string) => MONTH_ABBR[Number(s.slice(5, 7)) - 1];
+  const range = !!b && b !== a;
+  const days = range ? `${day(a)}-${day(b!)}` : day(a);
+  const months = range && mon(a) !== mon(b!) ? `${mon(a)}-${mon(b!)}` : mon(a);
+  if (inline) return <span className="text-xs font-semibold text-neutral-300 tabular-nums">{days} {months}</span>;
+  return (
+    <span className="inline-flex flex-col items-center justify-center leading-none min-w-10 px-1.5 py-1.5 rounded border border-neutral-700 bg-neutral-900">
+      <span className="text-sm font-bold tabular-nums">{days}</span>
+      <span className="mt-0.5 text-[9px] uppercase tracking-wide text-neutral-500">{months}</span>
+    </span>
+  );
 }
+
+// Level badge scaled by rank: the big championships are solid orange, the
+// middle tiers soft orange, the small meets stay grey.
+const TIER_BADGE: Record<string, string> = {
+  OW: "bg-orange-600 text-white",
+  DF: "bg-orange-600 text-white",
+  GW: "bg-orange-600 text-white",
+  GL: "bg-orange-200 text-orange-900",
+  A: "bg-orange-200 text-orange-900",
+  B: "bg-orange-100 text-orange-700",
+};
 
 function TierBadge({ tier }: { tier: string | null }) {
   if (!tier) return null;
   return (
     <span
       title={TIER_LABELS.find((t) => t.value === tier)?.label ?? tier}
-      className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400"
+      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${TIER_BADGE[tier] ?? "bg-neutral-800 text-neutral-500"}`}
     >
       {tier}
     </span>
   );
 }
+
+// Quality as a heat chip: the stronger the field, the stronger the orange.
+function QualityChip({ value }: { value: number }) {
+  const tone =
+    value >= 1000 ? "bg-orange-600 text-white" : value >= 500 ? "bg-orange-200 text-orange-900" : value >= 200 ? "bg-orange-100 text-orange-800" : "bg-neutral-800 text-neutral-500";
+  return (
+    <span className={`inline-block min-w-11 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded ${tone}`} title={QUALITY_HELP}>
+      {Math.round(value)}
+    </span>
+  );
+}
+
+// the left edge of a row marks the top competitions
+const rowAccent = (tier: string | null) =>
+  tier === "OW" || tier === "DF" || tier === "GW" ? "border-l-orange-600" : tier === "GL" ? "border-l-orange-300" : "border-l-transparent";
 
 const QUALITY_HELP = "Quality: strength of the fields actually gathered (a whole competition, or this single race)";
 
@@ -160,6 +199,7 @@ export default async function MeetsPage({
     href({ sort: col, dir: sort === col ? (dir === "asc" ? "desc" : "asc") : col === "name" ? "asc" : "desc" });
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
+  const sc = (on: boolean) => (on ? "bg-orange-50 text-orange-700 text-xs rounded px-2 py-1.5 border border-orange-500 focus:outline-none" : selectClass);
   const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
   const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_5rem_3.75rem]";
 
@@ -171,27 +211,28 @@ export default async function MeetsPage({
     }).toString()}`;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <h1 className="text-2xl font-bold mb-4">Meets</h1>
-
-        <div className="flex rounded bg-neutral-800 p-0.5 text-xs w-fit mb-3">
-          {(["competitions", "races"] as const).map((v) => (
-            <Link
-              key={v}
-              href={href({ view: v, reset: true })}
-              className={`px-3 py-1.5 rounded ${view === v ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-            >
-              {v === "competitions" ? "Competitions" : "Races"}
-            </Link>
-          ))}
+        <div className="flex items-center justify-between gap-3 bg-neutral-100 text-white px-3 sm:px-4 py-2 rounded-lg mb-3">
+          <h1 className="text-[11px] font-bold uppercase tracking-wider">Meets</h1>
+          <div className="flex rounded p-0.5 text-xs bg-white/10">
+            {(["competitions", "races"] as const).map((v) => (
+              <Link
+                key={v}
+                href={href({ view: v, reset: true })}
+                className={`px-3 py-1 rounded ${view === v ? "bg-orange-500 text-black font-semibold" : "text-neutral-600 hover:text-white"}`}
+              >
+                {v === "competitions" ? "Competitions" : "Races"}
+              </Link>
+            ))}
+          </div>
         </div>
 
         {/* No titles and no Filter button: every control applies on change (see
             CalendarAutoForm). Row 1 = when, row 2 = what/where. Same scrolling
             rows as the rest of the site (pill-row): nothing wraps, anything that
             doesn't fit scrolls sideways. */}
-        <CalendarAutoForm key={JSON.stringify(sp)} action="/meets" className="flex flex-col gap-2 mb-4">
+        <CalendarAutoForm key={JSON.stringify(sp)} action="/meets" className="flex flex-col gap-2 mb-3 bg-neutral-950 border border-neutral-700 rounded-lg shadow-sm p-2 sm:p-3">
           {/* "" = all year; without it an empty Month falls back to the current month */}
           <input type="hidden" name="month" value="" />
           <input type="hidden" name="view" value={view} />
@@ -223,7 +264,7 @@ export default async function MeetsPage({
               defaultSelected={tierValues}
               options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
             />
-            <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${selectClass}`}>
+            <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${sc(!!discipline)}`}>
               <option value="">All disciplines</option>
               {sortEventsAlpha(ALL_EVENTS).map((ev) => (
                 <option key={ev} value={ev}>
@@ -231,7 +272,7 @@ export default async function MeetsPage({
                 </option>
               ))}
             </select>
-            <select name="area" defaultValue={area ?? ""} aria-label="Area" className={`shrink-0 ${selectClass}`}>
+            <select name="area" defaultValue={area ?? ""} aria-label="Area" className={`shrink-0 ${sc(!!area)}`}>
               <option value="">All areas</option>
               {Object.entries(AREAS).map(([code, name]) => (
                 <option key={code} value={code}>
@@ -239,7 +280,7 @@ export default async function MeetsPage({
                 </option>
               ))}
             </select>
-            <select name="nationality" defaultValue={nation ?? ""} aria-label="Host nation" className={`shrink-0 ${selectClass}`}>
+            <select name="nationality" defaultValue={nation ?? ""} aria-label="Host nation" className={`shrink-0 ${sc(!!nation)}`}>
               <option value="">All nations</option>
               {nationOptions.map((n) => (
                 <option key={n.code} value={n.code}>
@@ -249,12 +290,12 @@ export default async function MeetsPage({
             </select>
             {view === "races" && (
               <>
-                <select name="gender" defaultValue={gender ?? ""} aria-label="Gender" className={`shrink-0 ${selectClass}`}>
+                <select name="gender" defaultValue={gender ?? ""} aria-label="Gender" className={`shrink-0 ${sc(!!gender)}`}>
                   <option value="">Men &amp; Women</option>
                   <option value="Men">Men</option>
                   <option value="Women">Women</option>
                 </select>
-                <select name="age" defaultValue={age ?? ""} aria-label="Age" className={`shrink-0 ${selectClass}`}>
+                <select name="age" defaultValue={age ?? ""} aria-label="Age" className={`shrink-0 ${sc(!!age)}`}>
                   <option value="">All ages</option>
                   {AGES.map((a) => (
                     <option key={a} value={a}>
@@ -262,7 +303,7 @@ export default async function MeetsPage({
                     </option>
                   ))}
                 </select>
-                <select name="surface" defaultValue={surface ?? ""} aria-label="Surface" className={`shrink-0 ${selectClass}`}>
+                <select name="surface" defaultValue={surface ?? ""} aria-label="Surface" className={`shrink-0 ${sc(!!surface)}`}>
                   <option value="">Indoor &amp; outdoor</option>
                   <option value="outdoor">Outdoor</option>
                   <option value="indoor">Indoor</option>
@@ -289,30 +330,30 @@ export default async function MeetsPage({
             <Link
               key={col}
               href={sortHref(col)}
-              className={`px-2.5 py-1 rounded border ${sort === col ? "border-orange-500 text-orange-400" : "border-neutral-700 text-neutral-400"}`}
+              className={`px-2.5 py-1 rounded border ${sort === col ? "border-neutral-100 bg-neutral-100 text-white" : "border-neutral-700 bg-neutral-950 text-neutral-400"}`}
             >
               {label}{sortArrow(col)}
             </Link>
           ))}
         </div>
 
-        <div className="border border-neutral-800 rounded-lg overflow-hidden">
-          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
-            <Link href={sortHref("date")} className="whitespace-nowrap hover:text-neutral-200">
+        <div className="border border-neutral-700 rounded-lg overflow-hidden shadow-sm bg-neutral-950">
+          <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide bg-neutral-100 text-neutral-600`}>
+            <Link href={sortHref("date")} className={`whitespace-nowrap hover:text-white ${sort === "date" ? "text-white" : ""}`}>
               Date{sortArrow("date")}
             </Link>
             {view === "competitions" ? (
-              <Link href={sortHref("name")} className="hover:text-neutral-200">
+              <Link href={sortHref("name")} className={`hover:text-white ${sort === "name" ? "text-white" : ""}`}>
                 Competition{sortArrow("name")}
               </Link>
             ) : (
               <span>Competition</span>
             )}
             <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
-            <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right whitespace-nowrap hover:text-neutral-200">
+            <Link href={sortHref("quality")} title={QUALITY_HELP} className={`text-right whitespace-nowrap hover:text-white ${sort === "quality" ? "text-white" : ""}`}>
               Quality{sortArrow("quality")}
             </Link>
-            <Link href={sortHref("tier")} className="text-right whitespace-nowrap hover:text-neutral-200">
+            <Link href={sortHref("tier")} className={`text-right whitespace-nowrap hover:text-white ${sort === "tier" ? "text-white" : ""}`}>
               Level{sortArrow("tier")}
             </Link>
           </div>
@@ -331,14 +372,7 @@ export default async function MeetsPage({
                   : r.past_event_name
                   ? `/meets/${encodeURIComponent(r.past_event_name)}`
                   : null;
-              const quality =
-                r.level != null ? (
-                  <span className="font-mono text-xs text-neutral-300" title={QUALITY_HELP}>
-                    {Math.round(r.level)}
-                  </span>
-                ) : (
-                  <span className="text-neutral-700 text-xs">—</span>
-                );
+              const quality = r.level != null ? <QualityChip value={r.level} /> : <span className="text-neutral-600 text-xs">—</span>;
               const topPerformance =
                 r.kind === "past" && r.top_athlete ? (
                   <>
@@ -356,7 +390,7 @@ export default async function MeetsPage({
                 );
 
               return (
-                <div key={i} className={`relative ${r.kind === "upcoming" ? "bg-neutral-950" : "bg-neutral-900/40"}`}>
+                <div key={i} className={`relative border-l-4 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-orange-50`}>
                   {/* Full-row click target; the nested athlete link stays independently clickable. */}
                   {nameLink && <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />}
                   {/* phones: a card */}
@@ -366,7 +400,7 @@ export default async function MeetsPage({
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
+                      <DateBlock a={r.date_start} b={r.date_end} inline />
                       <span className="flex items-center gap-2">
                         {r.level != null && quality}
                         <TierBadge tier={r.tier} />
@@ -392,7 +426,9 @@ export default async function MeetsPage({
                       nameLink ? "relative z-10 pointer-events-none [&_a]:pointer-events-auto" : ""
                     }`}
                   >
-                    <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date_start, r.date_end)}</span>
+                    <span>
+                      <DateBlock a={r.date_start} b={r.date_end} />
+                    </span>
                     <span className="min-w-0 flex items-center gap-2">
                       <Flag code={r.country} />
                       {nameLink ? (
@@ -430,16 +466,14 @@ export default async function MeetsPage({
                 <span className="text-neutral-600">{raceLabel}</span>
               );
               return (
-                <div key={i} className="relative bg-neutral-900/40">
+                <div key={i} className={`relative border-l-4 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-orange-50`}>
                   <Link href={nameLink} className="absolute inset-0 z-0" tabIndex={-1} aria-hidden="true" />
                   {/* phones: a card */}
                   <div className="sm:hidden relative z-10 pointer-events-none [&_a]:pointer-events-auto flex flex-col gap-1 px-3 py-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date, r.date, r.year)}</span>
+                      <DateBlock a={r.date} b={r.date} year={r.year} inline />
                       <span className="flex items-center gap-2">
-                        <span className="font-mono text-xs text-neutral-300" title={QUALITY_HELP}>
-                          {Math.round(r.race_level)}
-                        </span>
+                        <QualityChip value={r.race_level} />
                         <TierBadge tier={r.tier} />
                       </span>
                     </div>
@@ -454,7 +488,9 @@ export default async function MeetsPage({
 
                   {/* desktop: table row */}
                   <div className={`hidden sm:grid ${GRID} gap-x-3 items-center px-3 py-2 text-sm relative z-10 pointer-events-none [&_a]:pointer-events-auto`}>
-                    <span className="text-xs text-neutral-400 tabular-nums">{fmtRange(r.date, r.date, r.year)}</span>
+                    <span>
+                      <DateBlock a={r.date} b={r.date} year={r.year} />
+                    </span>
                     <span className="min-w-0 flex items-center gap-2">
                       <Flag code={r.host_country} />
                       <Link href={nameLink} className="truncate font-medium hover:text-orange-400">
@@ -462,7 +498,9 @@ export default async function MeetsPage({
                       </Link>
                     </span>
                     <span className="min-w-0 text-xs truncate">{winner}</span>
-                    <span className="text-right font-mono text-xs text-neutral-300" title={QUALITY_HELP}>{Math.round(r.race_level)}</span>
+                    <span className="text-right">
+                      <QualityChip value={r.race_level} />
+                    </span>
                     <span className="text-right">
                       <TierBadge tier={r.tier} />
                     </span>

@@ -99,8 +99,8 @@ export default function DateField({
         onClick={toggle}
         aria-label={label}
         title={label}
-        className={`block w-full h-[30px] bg-neutral-800 text-xs text-left rounded px-2 border border-neutral-700 focus:outline-none focus:border-orange-500 truncate ${
-          value ? "" : "text-neutral-400"
+        className={`block w-full h-[30px] text-xs text-left rounded px-2 border focus:outline-none focus:border-orange-500 truncate ${
+          value ? "bg-orange-50 border-orange-500 text-orange-700" : "bg-neutral-800 border-neutral-700 text-neutral-400"
         }`}
       >
         {value ? fmt(value) : label}
