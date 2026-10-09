@@ -162,6 +162,9 @@ export default async function MeetPage({
     .filter((g) => g === "Men" || g === "Women");
   const statsGender = (gender && (statsGenders as string[]).includes(gender) ? gender : statsGenders[0]) ?? "";
 
+  // no known city -> no location at all (never a dangling ", ESP")
+  const place = first?.city ? (first.country ? `${first.city}, ${first.country}` : first.city) : null;
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
@@ -178,8 +181,8 @@ export default async function MeetPage({
             {(first?.city || meetDate || bestTier) && (
               <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
                 <span>
-                  {first?.city}{first?.country ? `, ${first.country}` : ""}
-                  {meetDate && <span className="text-neutral-500">{first?.city ? " · " : ""}{meetDate}</span>}
+                  {place}
+                  {meetDate && <span className="text-neutral-500">{place ? " · " : ""}{meetDate}</span>}
                 </span>
                 {bestTier && (
                   <span title={tierLabel(bestTier)} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-orange-400">

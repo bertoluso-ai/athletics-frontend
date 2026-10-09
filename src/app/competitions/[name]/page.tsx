@@ -61,7 +61,7 @@ export default async function CompetitionDetailPage({
             {(first?.city || date || tiers.length > 0) && (
               <p className="text-sm text-neutral-400 flex items-center gap-2 flex-wrap">
                 <span>
-                  {first?.city}{first?.country ? `, ${first.country}` : ""}
+                  {first?.city ? (first.country ? `${first.city}, ${first.country}` : first.city) : null}
                   {date && <span className="text-neutral-500">{first?.city ? " · " : ""}{date}</span>}
                 </span>
                 {tiers.map((t) => (
