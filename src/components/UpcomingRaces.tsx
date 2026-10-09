@@ -49,12 +49,10 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
   return (
     <section>
       <div className="mb-3">
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-            Upcoming Races
-          </h2>
-          <Link href="/meets" className="text-xs text-neutral-500 hover:text-orange-400 shrink-0">
-            View all → Meets
+        <div className="flex items-center justify-between gap-2 mb-3 bg-neutral-100 text-white px-4 py-2 rounded-lg">
+          <h2 className="text-[11px] font-bold uppercase tracking-wider">Upcoming races</h2>
+          <Link href="/meets" className="text-[11px] text-neutral-600 hover:text-orange-400 shrink-0">
+            View all →
           </Link>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
