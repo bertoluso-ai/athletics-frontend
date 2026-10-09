@@ -7,8 +7,8 @@ export const EVENT_GROUPS = [
     // group's own first entry is used as the initial selection (Home's
     // Athletes/Races widgets, Rankings, Disciplines...) -- 60m is indoor-
     // only and far less representative to lead with.
-    events: { Men: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "600 Metres"], Women: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "600 Metres"] },
-    names: { "60 Metres": "60m", "100 Metres": "100m", "200 Metres": "200m", "400 Metres": "400m", "150 Metres": "150m", "300 Metres": "300m", "600 Metres": "600m" } as Record<string, string>,
+    events: { Men: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "500 Metres", "600 Metres"], Women: ["100 Metres", "60 Metres", "200 Metres", "400 Metres", "150 Metres", "300 Metres", "500 Metres", "600 Metres"] },
+    names: { "60 Metres": "60m", "100 Metres": "100m", "200 Metres": "200m", "400 Metres": "400m", "150 Metres": "150m", "300 Metres": "300m", "500 Metres": "500m", "600 Metres": "600m" } as Record<string, string>,
   },
   {
     key: "hurdles", label: "Hurdles",
@@ -17,8 +17,8 @@ export const EVENT_GROUPS = [
   },
   {
     key: "middle", label: "Middle Distance",
-    events: { Men: ["800 Metres", "1500 Metres", "Mile", "1000 Metres"], Women: ["800 Metres", "1500 Metres", "Mile", "1000 Metres"] },
-    names: { "800 Metres": "800m", "1500 Metres": "1500m", "Mile": "Mile", "1000 Metres": "1000m" } as Record<string, string>,
+    events: { Men: ["800 Metres", "1500 Metres", "Mile", "1000 Metres", "2000 Metres", "2 Miles"], Women: ["800 Metres", "1500 Metres", "Mile", "1000 Metres", "2000 Metres", "2 Miles"] },
+    names: { "800 Metres": "800m", "1500 Metres": "1500m", "Mile": "Mile", "1000 Metres": "1000m", "2000 Metres": "2000m", "2 Miles": "2 Miles" } as Record<string, string>,
   },
   {
     key: "long", label: "Long Distance",
@@ -81,12 +81,12 @@ export const EVENT_GROUPS = [
   {
     key: "road", label: "Road",
     events: {
-      Men: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road"],
-      Women: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road"],
+      Men: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "10 Miles Road", "Mile Road"],
+      Women: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "10 Miles Road", "Mile Road"],
     },
     names: {
       Marathon: "Marathon", "Half Marathon": "Half Marathon",
-      "10 Kilometres Road": "10km", "5 Kilometres Road": "5km",
+      "10 Kilometres Road": "10km", "5 Kilometres Road": "5km", "10 Miles Road": "10 Miles", "Mile Road": "Mile Road",
     } as Record<string, string>,
   },
   {
