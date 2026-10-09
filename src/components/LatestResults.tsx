@@ -84,7 +84,7 @@ export default function LatestResults({
   return (
     <section>
       {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
-        <h2 className="bg-tint text-neutral-100 text-base font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
           Last athletics results {dayLabel(shown[0].races[0].date)}
         </h2>
       )}
@@ -134,13 +134,13 @@ export default function LatestResults({
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
                 {newDay && (heading || label) && !(gi === 0 && showFilters) && (
-                  <h2 className={`bg-tint text-neutral-100 text-base font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
+                  <h2 className={`bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
                     {heading ?? `Last athletics results ${label}`}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
                   <div className="px-3 sm:px-4 pt-3 pb-2.5 bg-neutral-900 border-l-4 border-l-orange-500">
-                    <Link href={meetHref} className="block text-[15px] font-bold leading-snug hover:text-orange-400">
+                    <Link href={meetHref} className="block text-[11px] font-bold leading-snug hover:text-orange-400">
                       {group.event_name}
                     </Link>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">

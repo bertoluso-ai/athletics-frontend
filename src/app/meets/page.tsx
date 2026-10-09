@@ -214,7 +214,7 @@ export default async function MeetsPage({
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <div className="flex items-center justify-between gap-3 bg-tint text-neutral-100 px-3 sm:px-4 py-2 rounded-lg mb-3">
-          <h1 className="text-base font-extrabold uppercase tracking-wide">Meets</h1>
+          <h1 className="text-[13px] font-extrabold uppercase tracking-wide">Meets</h1>
           <div className="flex rounded p-0.5 text-xs bg-white/60">
             {(["competitions", "races"] as const).map((v) => (
               <Link
