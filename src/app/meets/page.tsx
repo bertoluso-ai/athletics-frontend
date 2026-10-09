@@ -160,7 +160,7 @@ export default async function MeetsPage({
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
   const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
-  const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_3.5rem_3rem]";
+  const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_5rem_3.75rem]";
 
   const raceLink = (r: (typeof raceRows)[number]) =>
     `/meets/${encodeURIComponent(r.event_name)}?${new URLSearchParams({
@@ -283,7 +283,7 @@ export default async function MeetsPage({
 
         <div className="border border-neutral-800 rounded-lg overflow-hidden">
           <div className={`hidden sm:grid ${GRID} gap-x-3 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500 border-b border-neutral-800`}>
-            <Link href={sortHref("date")} className="hover:text-neutral-200">
+            <Link href={sortHref("date")} className="whitespace-nowrap hover:text-neutral-200">
               Date{sortArrow("date")}
             </Link>
             {view === "competitions" ? (
@@ -294,10 +294,10 @@ export default async function MeetsPage({
               <span>Competition</span>
             )}
             <span>{view === "competitions" && discipline ? `Top performance · ${eventLabel(discipline)}` : "Top performance"}</span>
-            <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right hover:text-neutral-200">
+            <Link href={sortHref("quality")} title={QUALITY_HELP} className="text-right whitespace-nowrap hover:text-neutral-200">
               Quality{sortArrow("quality")}
             </Link>
-            <Link href={sortHref("tier")} className="text-right hover:text-neutral-200">
+            <Link href={sortHref("tier")} className="text-right whitespace-nowrap hover:text-neutral-200">
               Level{sortArrow("tier")}
             </Link>
           </div>
