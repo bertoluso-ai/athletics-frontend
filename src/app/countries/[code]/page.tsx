@@ -6,7 +6,7 @@ import ViewAllList from "@/components/ViewAllList";
 import LinkSelect from "@/components/LinkSelect";
 import { GenericAthlete } from "@/components/Avatar";
 import { flagUrlWide } from "@/lib/flags";
-import { eventLabel, TIER_LABELS, EVENT_GROUPS } from "@/lib/events";
+import { eventLabel, TIER_LABELS, EVENT_GROUPS, sortEventsAlpha } from "@/lib/events";
 import { getAthletePhotosBatch, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import {
@@ -450,7 +450,7 @@ export default async function CountryPage({
                   className="max-w-[10rem]"
                   options={[
                     { value: "", label: "All disciplines", href: `/countries/${code}?${qs(year, f, { sort, dir, list })}` },
-                    ...seasonEvents.map((e) => ({
+                    ...sortEventsAlpha(seasonEvents).map((e) => ({
                       value: e,
                       label: eventLabel(e),
                       href: `/countries/${code}?${qs(year, f, { sort, dir, list, sevent: e })}`,

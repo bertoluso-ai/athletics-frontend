@@ -3,7 +3,7 @@ import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import CalendarAutoForm from "@/components/CalendarAutoForm";
 import DateField from "@/components/DateField";
-import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, TIER_LABELS, sortEventsAlpha } from "@/lib/events";
 import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
@@ -225,7 +225,7 @@ export default async function MeetsPage({
             />
             <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${selectClass}`}>
               <option value="">All disciplines</option>
-              {ALL_EVENTS.map((ev) => (
+              {sortEventsAlpha(ALL_EVENTS).map((ev) => (
                 <option key={ev} value={ev}>
                   {eventLabel(ev)}
                 </option>

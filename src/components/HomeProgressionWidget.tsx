@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { EVENT_GROUPS, eventLabel, isFieldEvent } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, isFieldEvent, sortEventsAlpha } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import type { YearProgressionPoint } from "@/lib/queries";
 import YearlyProgressionChart from "./YearlyProgressionChart";
@@ -81,7 +81,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
           onChange={(e) => setEvent(e.target.value)}
           className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700"
         >
-          {(group.events[gender] as readonly string[]).map((ev) => (
+          {sortEventsAlpha(group.events[gender] as readonly string[]).map((ev) => (
             <option key={ev} value={ev}>
               {eventLabel(ev)}
             </option>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { EVENT_GROUPS, TIER_PRIORITY, eventLabel } from "@/lib/events";
+import { EVENT_GROUPS, TIER_PRIORITY, eventLabel, sortEventsAlpha } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import type { Race, LatestResultGroup } from "@/lib/queries";
 import Flag from "./Flag";
@@ -67,7 +67,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
             className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
-            {ALL_EVENTS.map((ev) => (
+            {sortEventsAlpha(ALL_EVENTS).map((ev) => (
               <option key={ev} value={ev}>
                 {eventLabel(ev)}
               </option>

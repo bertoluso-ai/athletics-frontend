@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { EVENT_GROUPS, eventLabel } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
 import Flag from "./Flag";
 import Avatar from "./Avatar";
 
@@ -143,7 +143,7 @@ export default function StatsWidget({ year }: { year: number }) {
             onChange={(e) => setEvent(e.target.value)}
             className="flex-1 min-w-0 bg-neutral-800 text-xs rounded px-2 py-1 border border-neutral-700"
           >
-            {(group.events[gender] as readonly string[]).map((ev) => (
+            {sortEventsAlpha(group.events[gender] as readonly string[]).map((ev) => (
               <option key={ev} value={ev}>
                 {eventLabel(ev)}
               </option>

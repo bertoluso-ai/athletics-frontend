@@ -124,27 +124,28 @@ export const EVENT_GROUPS = [
     //
     // Reagrupado por DISTANCIA (2026-10-08, matchAthletesIncremental/
     // regroup_cross_country.sql): esas etiquetas de WA significaban lo mismo
-    // que otras, asi que ahora cada carrera va al grupo que le toca por el
-    // tiempo de su ganador -- Cross Country (largo, ~20-40 min), Short (~4 km,
-    // 9:30-17 min), Sprint (~2 km de los nacionales, 4-8:40 min) -- mas las
-    // categorias de edad. Las URLs viejas redirigen (LEGACY_EVENT_ALIASES).
+    // que otras. Decision 2026-10-09: se agrupa por la categoria de ORIGEN
+    // (regroup_cross_country_by_label.sql), sin reparto por tiempos ni grupo
+    // Sprint -- Cross Country (+ Senior Race), Short Race (+ 4000m, Short
+    // Cross), Long Race (+ "Cross" de sports123) -- mas las categorias de
+    // edad. Las URLs viejas redirigen (LEGACY_EVENT_ALIASES).
     events: {
       Men: [
-        "Cross Country", "Cross Country Short", "Cross Country Sprint",
+        "Cross Country", "Cross Country Short", "Cross Country Long Race",
         "Cross Country U23", "Cross Country U20", "Cross Country U18",
       ],
       Women: [
-        "Cross Country", "Cross Country Short", "Cross Country Sprint",
+        "Cross Country", "Cross Country Short", "Cross Country Long Race",
         "Cross Country U23", "Cross Country U20", "Cross Country U18",
       ],
     },
     names: {
       "Cross Country": "Cross Country",
-      "Cross Country Short": "Cross Country Short (~4 km)",
-      "Cross Country Sprint": "Cross Country Sprint (~2 km)",
-      "Cross Country U23": "Cross Country U23",
-      "Cross Country U20": "Cross Country U20",
-      "Cross Country U18": "Cross Country U18",
+      "Cross Country Short": "Cross Country Short Race",
+      "Cross Country Long Race": "Cross Country Long Race",
+      "Cross Country U23": "Cross Country U23 Race",
+      "Cross Country U20": "Cross Country U20 Race",
+      "Cross Country U18": "Cross Country U18 Race",
     } as Record<string, string>,
   },
   {
@@ -163,7 +164,7 @@ export const EVENT_GROUPS = [
 // into another (regroup_cross_country.sql): old /disciplines/<slug> links
 // redirect to the group they now belong to instead of 404ing.
 export const LEGACY_EVENT_ALIASES: Record<string, string> = {
-  "Cross Country Long Race": "Cross Country",
+  "Cross Country Sprint": "Cross Country",
   "Cross Country Short Race": "Cross Country Short",
   "Short Cross": "Cross Country Short",
   "Cross Country 4000m": "Cross Country Short",
@@ -279,4 +280,12 @@ export function eventCategory(event: string): string {
   if (/marathon|\d+\s*(kilometres|kilometers|km)\b/.test(lower)) return "Road";
   if (/jump|vault|shot put|discus|javelin|hammer|throw/.test(lower)) return "Field";
   return "Track";
+}
+
+// Discipline combos list alphabetically by the label the user reads ("100m",
+// "1500m", "Half Marathon"...), numbers in natural order. Sort only when
+// RENDERING options: the catalog order above stays the source of defaults
+// (a group's first entry is the initial selection in several widgets).
+export function sortEventsAlpha(events: readonly string[]): string[] {
+  return [...events].sort((a, b) => eventLabel(a).localeCompare(eventLabel(b), "en", { numeric: true, sensitivity: "base" }));
 }

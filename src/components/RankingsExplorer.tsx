@@ -5,7 +5,7 @@ import Link from "next/link";
 import YearlyProgressionChart from "./YearlyProgressionChart";
 import type { YearProgressionPoint } from "@/lib/queries";
 import { useSearchParams } from "next/navigation";
-import { EVENT_GROUPS, eventLabel, isRelayEvent, isFieldEvent } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, isRelayEvent, isFieldEvent, sortEventsAlpha } from "@/lib/events";
 import Avatar from "./Avatar";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
@@ -210,7 +210,7 @@ export default function RankingsExplorer() {
           onChange={(e) => setEvent(e.target.value)}
           className={`${selectClass} w-full mb-4`}
         >
-          {(group!.events[gender] as readonly string[]).map((ev) => (
+          {sortEventsAlpha(group!.events[gender] as readonly string[]).map((ev) => (
             <option key={ev} value={ev}>{eventLabel(ev)}</option>
           ))}
         </select>

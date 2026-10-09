@@ -13,7 +13,7 @@ import {
   getAthleteSlugs, athleteHref,
   type MarkRow, type RelayMarkRow, type NationalityOption, type DisciplineSideData,
 } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory, sortEventsAlpha } from "@/lib/events";
 import { eventSlug, eventFromSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
@@ -314,7 +314,7 @@ export default async function DisciplinePage({
                 <LinkSelect
                   value={event}
                   className={selectClass}
-                  options={eventOptions.map((ev) => ({ value: ev, label: eventLabel(ev), href: baseHref({ event: ev }) }))}
+                  options={sortEventsAlpha(eventOptions).map((ev) => ({ value: ev, label: eventLabel(ev), href: baseHref({ event: ev }) }))}
                 />
                 {!isRelay && (
                   <LinkSelect

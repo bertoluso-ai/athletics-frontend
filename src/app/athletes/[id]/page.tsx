@@ -543,7 +543,7 @@ export default async function AthletePage({
               event={event}
               gender={info.gender ?? ""}
               emptyLabel={`No results for ${event === "all" ? "any discipline" : eventLabel(event)}${year !== "all" ? ` in ${year}` : ""}.`}
-              filterEvents={athleteEvents.map((ev) => ({
+              filterEvents={[...athleteEvents].sort((a, b) => eventLabel(a.athletics_event).localeCompare(eventLabel(b.athletics_event), "en", { numeric: true, sensitivity: "base" })).map((ev) => ({
                 value: ev.athletics_event,
                 label: eventLabel(ev.athletics_event),
                 years: ev.years,

@@ -8,7 +8,7 @@ import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import ViewAllList from "@/components/ViewAllList";
 import { getEventYearlyProgression, getAthleteSlugs, athleteHref } from "@/lib/queries";
-import { isFieldEvent } from "@/lib/events";
+import { isFieldEvent, sortEventsAlpha } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
 import { flagUrlWide } from "@/lib/flags";
 import { AREAS } from "@/lib/country-data";
@@ -263,7 +263,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             className={selectClass}
             options={[
               { value: "", label: "All disciplines", href: href({ event: "" }) },
-              ...eventOptions.map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
+              ...sortEventsAlpha(eventOptions).map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
             ]}
           />
           <LinkSelect
@@ -658,7 +658,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             className={selectClass}
             options={[
               { value: "", label: "All disciplines", href: href({ event: "" }) },
-              ...eventOptions.map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
+              ...sortEventsAlpha(eventOptions).map((e) => ({ value: e, label: eventLabel(e), href: href({ event: e }) })),
             ]}
           />
           <LinkSelect
