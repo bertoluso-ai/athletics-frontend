@@ -140,7 +140,7 @@ export default function LatestResults({
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
                   <div className="px-3 sm:px-4 pt-3 pb-2.5 bg-neutral-900 border-l-4 border-l-orange-500">
-                    <Link href={meetHref} className="block text-[11px] font-bold leading-snug hover:text-orange-400">
+                    <Link href={meetHref} className="block text-[13px] font-bold leading-snug hover:text-orange-400">
                       {group.event_name}
                     </Link>
                     <div className="mt-0.5 flex items-center gap-2 text-xs text-neutral-500">
