@@ -37,8 +37,8 @@ export default async function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
-          {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions" showFilters={false} />}
           <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={2} exclude={[...topNames]} />
+          {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" showFilters={false} />}
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}

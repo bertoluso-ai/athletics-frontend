@@ -130,7 +130,7 @@ export default function LatestResults({
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
                 {newDay && (heading || label) && (
                   <h2 className={`bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
-                    {heading ?? `Results ${label}`}
+                    {heading ?? `All results ${label}`}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
