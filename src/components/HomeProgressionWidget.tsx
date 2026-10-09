@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SectionBar from "./SectionBar";
 import { EVENT_GROUPS, eventLabel, isFieldEvent, sortEventsAlpha } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import type { YearProgressionPoint } from "@/lib/queries";
@@ -47,12 +48,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
 
   return (
     <section>
-      <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Best Mark by Year</h2>
-        <Link href="/disciplines" className="text-xs text-neutral-500 hover:text-orange-400">
-          View all disciplines →
-        </Link>
-      </div>
+      <SectionBar title="Best mark by year" href="/disciplines" linkLabel="All disciplines →" />
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs shrink-0">
           {(["Men", "Women"] as Gender[]).map((g) => (

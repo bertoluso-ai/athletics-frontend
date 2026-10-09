@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { getLatestRaces, getEventYearlyProgression } from "@/lib/queries";
 import { getUpcomingHome } from "@/lib/calendar";
 import StatsWidget from "@/components/StatsWidget";
@@ -7,6 +6,7 @@ import RacesStatsWidget from "@/components/RacesStatsWidget";
 import LatestResults from "@/components/LatestResults";
 import { BASE_TIERS } from "@/lib/events";
 import UpcomingRaces from "@/components/UpcomingRaces";
+import SectionBar from "@/components/SectionBar";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 
 export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
@@ -57,41 +57,21 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* phones: the long stats widgets give way to four doors into the site */}
-        <nav className="lg:hidden grid grid-cols-2 gap-3" aria-label="Explore">
-          {[
-            ["Rankings", "Top athletes by discipline", "/rankings"],
-            ["Meets", "Competitions and races", "/meets"],
-            ["Countries", "Nations and medals", "/countries"],
-            ["Disciplines", "Records and best marks", "/disciplines"],
-          ].map(([t, d, h]) => (
-            <Link key={h} href={h} className="rounded-xl border border-neutral-800 bg-neutral-900 px-4 py-4 hover:border-orange-500">
-              <span className="block text-sm font-semibold">{t}</span>
-              <span className="block mt-0.5 text-xs text-neutral-500">{d}</span>
-            </Link>
-          ))}
-        </nav>
-
         {/* Stats: by athlete, then by nation */}
-        <aside className="hidden lg:flex flex-col gap-6">
+        <aside className="flex flex-col gap-10 lg:gap-6">
           <section>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">
-              Athletes
-            </h2>
+            <SectionBar title="Athletes" href="/rankings" linkLabel="Rankings →" />
             <StatsWidget year={CURRENT_YEAR} />
           </section>
 
           <section>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">
-              Nations
-            </h2>
+            <SectionBar title="Nations" href="/countries" linkLabel="Countries →" />
             <NationsStatsWidget year={CURRENT_YEAR} />
           </section>
 
-          <section>
-            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-neutral-500 mb-2 px-2">
-              Races
-            </h2>
+          {/* desktop only: phones keep athletes and nations (top 5) */}
+          <section className="hidden lg:block">
+            <SectionBar title="Races" href="/meets?view=races" linkLabel="Meets →" />
             <RacesStatsWidget year={CURRENT_YEAR} />
           </section>
         </aside>

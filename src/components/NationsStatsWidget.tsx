@@ -142,7 +142,7 @@ export default function NationsStatsWidget({ year }: { year: number }) {
             <Link
               key={r.code}
               href={`/countries/${r.code}`}
-              className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800"
+              className={`items-center justify-between px-4 py-2 hover:bg-neutral-800 ${i >= 5 ? "hidden lg:flex" : "flex"}`}
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
                 <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
