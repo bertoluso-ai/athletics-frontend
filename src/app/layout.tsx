@@ -29,8 +29,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col pb-24 sm:pb-0 bg-neutral-950">
         <Header />
         {children}
-        <div id="photo-credits-slot" />
-        <ReportErrorLink />
+        <footer className="mx-auto w-full max-w-7xl px-2 sm:px-6 pb-6">
+          {/* starts where the text inside the tables starts (card border + cell padding) */}
+          <div className="pl-[13px] flex flex-wrap items-start gap-x-10 gap-y-2">
+            <div id="photo-credits-slot" className="contents" />
+            <ReportErrorLink />
+          </div>
+        </footer>
         <MobileNav />
       </body>
     </html>
