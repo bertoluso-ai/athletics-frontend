@@ -12,13 +12,13 @@ import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
 
 const CURRENT_YEAR = new Date().getFullYear();
-const TOP_TIERS = "OW,DF,GW,GL"; // Olympics/Worlds, Diamond League Final, world-level and continental championships
+const TOP_TIERS = "OW,DF,GW"; // Olympics/Worlds, Diamond League Final and world-level championships
 
 export default async function Home() {
   const topSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const [races, topRaces, upcoming, progression] = await Promise.all([
     getLatestRaces(15, { tier: BASE_TIERS }), // B and above by default; the filter widens it
-    // the latest big competitions (GL and above): a quiet week of
+    // the latest big competitions (GW and above): a quiet week of
     // small meets must not bury them for a visitor who only wants the headline event
     getLatestRaces(12, { tier: TOP_TIERS, from: topSince }),
     getUpcomingHome(10),
