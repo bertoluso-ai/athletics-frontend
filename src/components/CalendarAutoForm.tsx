@@ -31,7 +31,7 @@ export default function CalendarAutoForm({
         if (v === "" && k !== "month") continue;
         params.append(k, v);
       }
-      router.push(`${action}?${params.toString()}`);
+      router.push(`${action}?${params.toString()}`, { scroll: false });
     };
     form.addEventListener("change", go);
     return () => form.removeEventListener("change", go);

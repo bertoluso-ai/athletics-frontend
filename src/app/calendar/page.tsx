@@ -2,6 +2,7 @@ import Link from "next/link";
 import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
 import CalendarAutoForm from "@/components/CalendarAutoForm";
+import DateField from "@/components/DateField";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS } from "@/lib/events";
 import { getCalendar, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
@@ -130,35 +131,36 @@ export default async function CalendarPage({
           <input type="hidden" name="month" value="" />
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
-          <div className="flex flex-wrap items-center gap-2">
-            <select name="year" defaultValue={year} disabled={ranged} aria-label="Year" className={`${selectClass} disabled:opacity-40`}>
+          {/* Same scrolling rows as Races (pill-row): nothing wraps, anything that
+              doesn't fit scrolls sideways. Year/Month/dates are kept narrow so the
+              four of row 1 fit a phone. */}
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+            <select name="year" defaultValue={year} disabled={ranged} aria-label="Year" className={`shrink-0 w-16 h-[30px] px-1.5 ${selectClass} disabled:opacity-40`}>
               {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
               ))}
             </select>
-            <div className={ranged ? "opacity-40 pointer-events-none" : ""}>
-              <MultiSelectDropdown
-                name="month"
-                className="min-w-[8rem]"
-                placeholder="All year"
-                defaultSelected={selectedMonths.map(String)}
-                options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
-              />
-            </div>
-            <input type="date" name="from" defaultValue={from} aria-label="From date" title="From date" className={selectClass} />
-            <input type="date" name="to" defaultValue={to} aria-label="To date" title="To date" className={selectClass} />
+            <MultiSelectDropdown
+              name="month"
+              className={`shrink-0 w-[4.75rem] ${ranged ? "opacity-40 pointer-events-none" : ""}`}
+              placeholder="All year"
+              defaultSelected={selectedMonths.map(String)}
+              options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
+            />
+            <DateField name="from" defaultValue={from} label="From" />
+            <DateField name="to" defaultValue={to} label="To" />
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
             <MultiSelectDropdown
               name="tier"
-              className="min-w-[8rem]"
+              className="shrink-0 min-w-[6.5rem]"
               placeholder="All levels"
               defaultSelected={tierValues}
               options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
             />
-            <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={selectClass}>
+            <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${selectClass}`}>
               <option value="">All disciplines</option>
               {ALL_EVENTS.map((ev) => (
                 <option key={ev} value={ev}>
@@ -166,7 +168,7 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
-            <select name="area" defaultValue={area ?? ""} aria-label="Area" className={selectClass}>
+            <select name="area" defaultValue={area ?? ""} aria-label="Area" className={`shrink-0 ${selectClass}`}>
               <option value="">All areas</option>
               {Object.entries(AREAS).map(([code, name]) => (
                 <option key={code} value={code}>
@@ -174,7 +176,7 @@ export default async function CalendarPage({
                 </option>
               ))}
             </select>
-            <select name="nationality" defaultValue={nation ?? ""} aria-label="Nation" className={selectClass}>
+            <select name="nationality" defaultValue={nation ?? ""} aria-label="Nation" className={`shrink-0 ${selectClass}`}>
               <option value="">All nations</option>
               {nationOptions.map((n) => (
                 <option key={n.code} value={n.code}>
@@ -183,7 +185,7 @@ export default async function CalendarPage({
               ))}
             </select>
             {(hasExtraFilters || tierValues.length > 0) && (
-              <Link href="/calendar" className="text-xs text-neutral-500 hover:text-neutral-300">
+              <Link href="/calendar" className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
                 clear
               </Link>
             )}

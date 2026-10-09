@@ -9,6 +9,11 @@ type Option = { value: string; label: string; title?: string };
 // the "a whole row of pills" look. Checkboxes submit as repeated
 // `name=value` fields -- same as a native <select multiple> -- so the
 // surrounding <form> and the server-side parsing need no special handling.
+//
+// The list is `fixed`, positioned from the button's rect: inside a
+// horizontally scrolling row (overflow-x:auto clips anything absolutely
+// positioned) an `absolute` list would be cut off. It closes on scroll/resize
+// since a fixed list would otherwise stay behind while its button moves.
 export default function MultiSelectDropdown({
   name,
   options,
@@ -23,8 +28,11 @@ export default function MultiSelectDropdown({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   const [selected, setSelected] = useState<string[]>(defaultSelected);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function onClick(e: MouseEvent) {
@@ -33,6 +41,29 @@ export default function MultiSelectDropdown({
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    // scrolling the list itself must not close it
+    const close = (e: Event) => {
+      if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => {
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    };
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && buttonRef.current) {
+      const r = buttonRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, minWidth: r.width });
+    }
+    setOpen((o) => !o);
+  };
 
   const toggle = (v: string) => setSelected((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
 
@@ -64,14 +95,19 @@ export default function MultiSelectDropdown({
         <input key={v} type="hidden" name={name} value={v} />
       ))}
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 text-left truncate"
+        onClick={toggleOpen}
+        className="w-full h-[30px] bg-neutral-800 text-xs rounded px-2 border border-neutral-700 text-left truncate"
       >
         {label}
       </button>
-      {open && (
-        <div className="absolute z-20 mt-1 bg-neutral-800 border border-neutral-700 rounded shadow-lg p-1 max-h-60 overflow-y-auto min-w-full whitespace-nowrap">
+      {open && pos && (
+        <div
+          ref={menuRef}
+          style={{ top: pos.top, left: pos.left, minWidth: pos.minWidth }}
+          className="fixed z-30 bg-neutral-800 border border-neutral-700 rounded shadow-lg p-1 max-h-60 overflow-y-auto whitespace-nowrap"
+        >
           {options.map((o) => (
             <label
               key={o.value}
