@@ -1,13 +1,25 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
 export type PhotoCreditItem = { who: string; credit: string; url: string };
 
 // Licence credits for the page's photos (CC BY / BY-SA require them), kept
 // out of the way: one small line at the very bottom of the page that
 // expands into the list only when asked. Never floats over the content.
+// It is rendered into the footer slot of the root layout (#photo-credits-slot)
+// through a portal, so it ALWAYS sits at the bottom of the page no matter
+// where on the page the photos (and this component) are.
 export default function PhotoCreditsToast({ items }: { items: PhotoCreditItem[] }) {
-  if (items.length === 0) return null;
-  return (
-    <div className="mx-auto max-w-7xl px-2 sm:px-6 pb-6">
-      <details className="text-[11px] text-neutral-600">
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setSlot(document.getElementById("photo-credits-slot"));
+  }, []);
+  if (items.length === 0 || !slot) return null;
+  return createPortal(
+    <div className="mx-auto w-full max-w-7xl px-2 sm:px-6 pb-2">
+      <details className="text-[13px] text-neutral-600">
         <summary className="cursor-pointer select-none hover:text-neutral-400 w-fit">
           Photos: Wikimedia Commons · credits
         </summary>
@@ -22,6 +34,7 @@ export default function PhotoCreditsToast({ items }: { items: PhotoCreditItem[] 
           ))}
         </ul>
       </details>
-    </div>
+    </div>,
+    slot
   );
 }

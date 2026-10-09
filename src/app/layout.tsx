@@ -29,6 +29,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col pb-24 sm:pb-0 bg-neutral-950">
         <Header />
         {children}
+        <div id="photo-credits-slot" />
         <ReportErrorLink />
         <MobileNav />
       </body>
