@@ -49,7 +49,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
   return (
     <section>
       <div className="mb-3">
-        <div className="flex items-center justify-between gap-2 mb-3 bg-neutral-100 text-white px-4 py-2 rounded-lg">
+        <div className="flex items-center justify-between gap-2 mb-3 bg-neutral-100 text-white px-3 sm:px-4 py-2 rounded-lg">
           <h2 className="text-[11px] font-bold uppercase tracking-wider">Upcoming races</h2>
           <Link href="/meets" className="text-[11px] text-neutral-600 hover:text-orange-400 shrink-0">
             View all →
@@ -83,7 +83,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
         </div>
       </div>
       <div className="flex flex-col divide-y divide-neutral-800 border border-neutral-800 rounded-lg overflow-hidden">
-        {loading && <div className="px-4 py-6 text-sm text-neutral-500">Loading…</div>}
+        {loading && <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500">Loading…</div>}
         {!loading &&
           rows.map((c, i) => {
             // link to the most recent PAST edition's results, when one is
@@ -110,18 +110,18 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
                 key={i}
                 href={`/meets/${encodeURIComponent(c.past_event_name)}`}
                 title="Results of the last edition"
-                className={`px-4 py-3 bg-neutral-900/40 hover:bg-neutral-800 ${i >= 4 ? "hidden lg:block" : ""}`}
+                className={`px-3 sm:px-4 py-3 bg-neutral-900/40 hover:bg-neutral-800 ${i >= 4 ? "hidden lg:block" : ""}`}
               >
                 {body}
               </Link>
             ) : (
-              <div key={i} className={`px-4 py-3 bg-neutral-900/40 ${i >= 4 ? "hidden lg:block" : ""}`}>
+              <div key={i} className={`px-3 sm:px-4 py-3 bg-neutral-900/40 ${i >= 4 ? "hidden lg:block" : ""}`}>
                 {body}
               </div>
             );
           })}
         {!loading && rows.length === 0 && (
-          <div className="px-4 py-6 text-sm text-neutral-500">No upcoming races.</div>
+          <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500">No upcoming races.</div>
         )}
       </div>
     </section>

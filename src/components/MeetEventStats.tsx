@@ -188,7 +188,7 @@ export default async function MeetEventStats({
 
       {s.winners.length === 0 && !s.meetRecord && <p className="text-xs text-neutral-500">No history for this event yet.</p>}
       {recordPhoto && s.meetRecord && (
-        <div className="-mx-3 sm:-mx-6">
+        <div className="-mx-2 sm:-mx-6">
           <PhotoCreditsToast items={[{ who: s.meetRecord.display_name ?? "", credit: photoCredit(recordPhoto), url: recordPhoto.sourceUrl }]} />
         </div>
       )}

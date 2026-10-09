@@ -71,7 +71,7 @@ export default function StatsWidget({ year }: { year: number }) {
 
   return (
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
-      <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["ranking", "marks"] as Mode[]).map((m) =>
             m === "marks" && isAll ? null : (
@@ -101,7 +101,7 @@ export default function StatsWidget({ year }: { year: number }) {
       {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
           pill row can't be scrolled, so the group becomes a dropdown on the
           same line as the discipline one. */}
-      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
+      <div className="pill-row px-3 sm:px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
         {GROUPS.map((g) => (
           <button
             key={g.key}
@@ -118,7 +118,7 @@ export default function StatsWidget({ year }: { year: number }) {
       </div>
 
       <div
-        className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
+        className={`px-3 sm:px-4 py-2 border-b border-neutral-800 gap-2 ${
           !isAll && (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
         }`}
       >
@@ -153,7 +153,7 @@ export default function StatsWidget({ year }: { year: number }) {
       </div>
 
       <div className="divide-y divide-neutral-800">
-        {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
+        {loading && <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">Loading…</div>}
 
         {!loading &&
           mode === "ranking" &&
@@ -161,7 +161,7 @@ export default function StatsWidget({ year }: { year: number }) {
             <Link
               key={r.athlete_id}
               href={`/athletes/${r.slug ?? r.athlete_id}`}
-              className={`items-center justify-between px-4 py-2 hover:bg-neutral-800 ${i >= 5 ? "hidden lg:flex" : "flex"}`}
+              className={`items-center justify-between px-3 sm:px-4 py-2 hover:bg-neutral-800 ${i >= 5 ? "hidden lg:flex" : "flex"}`}
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
                 <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
@@ -179,7 +179,7 @@ export default function StatsWidget({ year }: { year: number }) {
             <Link
               key={i}
               href={`/athletes/${m.slug ?? m.athlete_id}`}
-              className={`items-center justify-between px-4 py-2 hover:bg-neutral-800 ${i >= 5 ? "hidden lg:flex" : "flex"}`}
+              className={`items-center justify-between px-3 sm:px-4 py-2 hover:bg-neutral-800 ${i >= 5 ? "hidden lg:flex" : "flex"}`}
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
                 <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
@@ -192,10 +192,10 @@ export default function StatsWidget({ year }: { year: number }) {
           ))}
 
         {!loading && mode === "ranking" && rankingRows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No results yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
+          <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">No results yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
         )}
         {!loading && mode === "marks" && markRows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
+          <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">No results yet for {eventLabel(event)}.</div>
         )}
       </div>
     </div>

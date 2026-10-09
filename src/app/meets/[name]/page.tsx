@@ -164,7 +164,7 @@ export default async function MeetPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
           <div>
             {/* Itinerant series (World Champs, Grand Prix Final, ...) share

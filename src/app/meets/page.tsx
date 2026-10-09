@@ -172,7 +172,7 @@ export default async function MeetsPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Meets</h1>
 
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs w-fit mb-3">
@@ -197,7 +197,7 @@ export default async function MeetsPage({
           <input type="hidden" name="view" value={view} />
           <input type="hidden" name="sort" value={sort} />
           <input type="hidden" name="dir" value={dir} />
-          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
             <select name="year" defaultValue={year} disabled={ranged} aria-label="Year" className={`shrink-0 w-16 h-[30px] px-1.5 ${selectClass} disabled:opacity-40`}>
               {years.map((y) => (
                 <option key={y} value={y}>
@@ -215,7 +215,7 @@ export default async function MeetsPage({
             <DateField name="from" defaultValue={from} label="From" />
             <DateField name="to" defaultValue={to} label="To" />
           </div>
-          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
             <MultiSelectDropdown
               name="tier"
               className="shrink-0 min-w-[6.5rem]"

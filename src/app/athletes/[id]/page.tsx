@@ -160,7 +160,7 @@ export default async function AthletePage({
   // underneath (personal bests). On phones: one column in reading order.
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
           {info.nationality && (
             <Link href={`/countries/${info.nationality}`} title="Country page" className="hidden lg:inline-block">
@@ -297,7 +297,7 @@ export default async function AthletePage({
               </dl>
             </div>
             {/* phones: Olympian / Worlds / Nationals as one swipeable strip under the bio */}
-            <div className="lg:hidden pill-row flex flex-nowrap overflow-x-auto gap-2 mt-3 -mx-3 px-3">
+            <div className="lg:hidden pill-row flex flex-nowrap overflow-x-auto gap-2 mt-3 -mx-2 px-2">
               {(["olympics", "worlds", "nationals"] as const).filter((k) => k !== "nationals" || championships.some((c) => c.kind === "nationals")).map((kind) => {
                 const c = championships.find((x) => x.kind === kind);
                 const n = c?.editions.length ?? 0;

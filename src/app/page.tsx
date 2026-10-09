@@ -25,22 +25,15 @@ export default async function Home() {
     getEventYearlyProgression("100 Metres", "Men"),
   ]);
 
-  // Top block = the 3 latest RACES of top competitions (regrouped under their competition);
-  // the feed above shows the 3 latest competitions and skips these so nothing shows twice
-  const latestTopRaces = topRaces
-    .flatMap((g) => g.races.map((r) => ({ g, r })))
-    .sort((a, b) => b.r.date.localeCompare(a.r.date))
-    .slice(0, 3);
-  const top = [...new Set(latestTopRaces.map((x) => x.g))].map((g) => ({
-    ...g,
-    races: latestTopRaces.filter((x) => x.g === g).map((x) => x.r),
-  }));
+  // Top block = the 3 latest top competitions, each with its best race; the feed
+  // above skips them so nothing shows twice
+  const top = topRaces.slice(0, 3);
   const topNames = new Set(top.map((g) => g.event_name));
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
 
-      <main className="mx-auto max-w-7xl px-4 sm:px-6 py-8 sm:py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-8 sm:py-6">
         <h1 className="sr-only">Latest athletics results</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}

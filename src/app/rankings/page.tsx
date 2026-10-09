@@ -83,7 +83,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-4">Rankings</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
@@ -237,7 +237,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           soon as it changes (gender/year are plain links, the rest are
           LinkSelects), same pill look as the rest of the site. */}
       <div className="flex flex-col gap-2 mb-6">
-        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
             {(["Men", "Women"] as const).map((g) => (
               <Link
@@ -257,7 +257,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             />
           )}
         </div>
-        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <LinkSelect
             value={event ?? ""}
             className={selectClass}
@@ -636,7 +636,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
     <>
 
       <div className="flex flex-col gap-2 mb-6">
-        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
             {(["Men", "Women"] as const).map((g) => (
               <Link key={g} href={href({ gender: g, event: "" })} className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
@@ -652,7 +652,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
             />
           )}
         </div>
-        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
           <LinkSelect
             value={event ?? ""}
             className={selectClass}

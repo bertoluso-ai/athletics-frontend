@@ -96,7 +96,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
 
   return (
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
-      <div className="px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           {(["quality", "recent"] as Mode[]).map((m) => (
             <button
@@ -128,7 +128,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
           held indoors earlier in the year could otherwise always win the
           Quality sort over the regular outdoor season just by being a
           bigger meet, with no way to see outdoor-only results. */}
-      <div className="px-4 pt-2 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 pt-2 flex items-center justify-between gap-2">
         <Link href={viewAllHref} className="text-xs text-neutral-500 hover:text-orange-400">
           View all →
         </Link>
@@ -147,7 +147,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
       {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
           pill row can't be scrolled, so the group becomes a dropdown on the
           same line as the discipline one. */}
-      <div className="pill-row px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
+      <div className="pill-row px-3 sm:px-4 py-2 border-b border-neutral-800 flex flex-nowrap overflow-x-auto gap-1 lg:hidden">
         {GROUPS.map((g) => (
           <button
             key={g.key}
@@ -164,7 +164,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
       </div>
 
       <div
-        className={`px-4 py-2 border-b border-neutral-800 gap-2 ${
+        className={`px-3 sm:px-4 py-2 border-b border-neutral-800 gap-2 ${
           !isAll && (group.events[gender] as readonly string[]).length > 1 ? "flex" : "hidden lg:flex"
         }`}
       >
@@ -195,14 +195,14 @@ export default function RacesStatsWidget({ year }: { year: number }) {
       </div>
 
       <div className="divide-y divide-neutral-800">
-        {loading && <div className="px-4 py-4 text-xs text-neutral-500">Loading…</div>}
+        {loading && <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">Loading…</div>}
 
         {!loading &&
           rows.map((r, i) => (
             <Link
               key={i}
               href={`/meets/${encodeURIComponent(r.event_name)}?year=${year}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${gender}`}
-              className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800 gap-2"
+              className="flex items-center justify-between px-3 sm:px-4 py-2 hover:bg-neutral-800 gap-2"
             >
               <span className="text-sm flex items-center gap-2 min-w-0">
                 <span className="text-neutral-500 font-mono text-xs w-3 shrink-0">{i + 1}</span>
@@ -226,7 +226,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
           ))}
 
         {!loading && rows.length === 0 && (
-          <div className="px-4 py-4 text-xs text-neutral-500">No races yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
+          <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">No races yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
         )}
       </div>
     </div>

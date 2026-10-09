@@ -179,7 +179,7 @@ export default function RankingsExplorer() {
   return (
     <div>
       {/* discipline first: group pills across the full width + event */}
-      <div className="pill-row flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible gap-1 mb-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+      <div className="pill-row flex flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible gap-1 mb-2 -mx-2 px-2 sm:mx-0 sm:px-0">
         <button
           onClick={() => setGroupKey(GLOBAL_KEY)}
           title="Total points across every discipline that year, not one event's ranking"

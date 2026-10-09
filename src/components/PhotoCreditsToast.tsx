@@ -6,7 +6,7 @@ export type PhotoCreditItem = { who: string; credit: string; url: string };
 export default function PhotoCreditsToast({ items }: { items: PhotoCreditItem[] }) {
   if (items.length === 0) return null;
   return (
-    <div className="mx-auto max-w-7xl px-3 sm:px-6 pb-6">
+    <div className="mx-auto max-w-7xl px-2 sm:px-6 pb-6">
       <details className="text-[11px] text-neutral-600">
         <summary className="cursor-pointer select-none hover:text-neutral-400 w-fit">
           Photos: Wikimedia Commons · credits

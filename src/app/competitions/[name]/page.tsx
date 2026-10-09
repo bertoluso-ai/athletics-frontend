@@ -48,7 +48,7 @@ export default async function CompetitionDetailPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <Link href="/competitions" className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Competitions
         </Link>

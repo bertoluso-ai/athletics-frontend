@@ -488,6 +488,7 @@ export type Race = {
   level: number | null;
   city: string | null;
   country: string | null;
+  quality: number | null; // race_level (the Quality shown in Meets), when known
   top3: PodiumEntry[];
 };
 
@@ -534,7 +535,7 @@ async function _getLatestRaces(
 // exports run every 2 h).
 export const getLatestRaces = unstable_cache(
   _getLatestRaces,
-  ["latest-races-v1"],
+  ["latest-races-v2"],
   { revalidate: 300 }
 );
 
@@ -682,6 +683,7 @@ async function fetchWindow(
         level: r.level,
         city: r.city,
         country: r.country,
+        quality: null,
         top3: [],
       };
       races.set(key, race);
@@ -710,7 +712,9 @@ async function fetchWindow(
   // of its latest results plus a link to the rest, instead of flooding the
   // whole list with one meet.
   const groups = new Map<string, LatestResultGroup>();
+  const allRaces = new Map<string, Race[]>();
   for (const race of list) {
+    (allRaces.get(race.event_name) ?? allRaces.set(race.event_name, []).get(race.event_name)!).push(race);
     let g = groups.get(race.event_name);
     if (!g) {
       g = { event_name: race.event_name, competition_level: race.competition_level, level: race.level, city: race.city, country: race.country, races: [], total_races: 0 };
@@ -751,6 +755,33 @@ async function fetchWindow(
     result.push(g);
     slots += g.races.length;
     if (slots >= maxSlots) break;
+  }
+
+  // One race per competition: the one with the best Quality (race_level), so a
+  // visitor sees each competition's headline race instead of its last heat or
+  // a minor final. Ties (and races without a score) fall back to the most recent.
+  if (result.length > 0) {
+    const names = result.map((g) => g.event_name);
+    const since = list.reduce((m, r) => (r.date < m ? r.date : m), list[0].date);
+    const quality = new Map<string, number>();
+    try {
+      const q = await pgQuery<{ event_name: string; athletics_event: string; gender: string; date: string; q: number }>(
+        `SELECT event_name, athletics_event, gender, date::text AS date, MAX(race_level)::float8 AS q
+         FROM race_level
+         WHERE event_name = ANY($1::text[]) AND date >= $2::date
+         GROUP BY 1, 2, 3, 4`,
+        [names, since]
+      );
+      for (const r of q) quality.set(`${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}`, r.q);
+    } catch {
+      // no quality data: every competition keeps its most recent race
+    }
+    for (const g of result) {
+      const cands = allRaces.get(g.event_name) ?? g.races;
+      for (const r of cands) r.quality = quality.get(`${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}`) ?? null;
+      const best = cands.reduce((b, r) => ((r.quality ?? -1) > (b.quality ?? -1) ? r : b), cands[0]);
+      g.races = [best];
+    }
   }
 
   const ids = result.flatMap((g) => g.races.flatMap((race) => race.top3.flatMap((e) => e.athletes.map((a) => a.athlete_id))));

@@ -40,7 +40,7 @@ export default function MeetFilters({
   return (
     <div className="flex flex-col gap-2">
       {categories.length > 1 && (
-        <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 -mx-3 px-3 sm:mx-0 sm:px-0">
+        <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 -mx-2 px-2 sm:mx-0 sm:px-0">
           {/* "All categories" clears the category + gender filters, dropping
               back to the meet's default (first) discipline -- the way back
               when arriving from a link that pre-selects one discipline */}

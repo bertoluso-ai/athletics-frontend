@@ -84,8 +84,8 @@ export default function LatestResults({
   return (
     <section>
       {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
-        <h2 className="bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
-          All athletics results {dayLabel(shown[0].races[0].date)}
+        <h2 className="bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
+          Last athletics results {dayLabel(shown[0].races[0].date)}
         </h2>
       )}
       <div className={showFilters ? "mb-3" : "hidden"}>
@@ -120,7 +120,7 @@ export default function LatestResults({
 
       <div className="flex flex-col gap-4">
         {loading && (
-          <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
+          <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
             Loading…
           </div>
         )}
@@ -134,12 +134,12 @@ export default function LatestResults({
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
                 {newDay && (heading || label) && !(gi === 0 && showFilters) && (
-                  <h2 className={`bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
-                    {heading ?? `All athletics results ${label}`}
+                  <h2 className={`bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
+                    {heading ?? `Last athletics results ${label}`}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
-                  <div className="px-4 pt-3 pb-2.5 bg-neutral-900 border-l-4 border-l-orange-500">
+                  <div className="px-3 sm:px-4 pt-3 pb-2.5 bg-neutral-900 border-l-4 border-l-orange-500">
                     <Link href={meetHref} className="block text-base font-bold leading-snug hover:text-orange-400">
                       {group.event_name}
                     </Link>
@@ -164,7 +164,7 @@ export default function LatestResults({
                     const raceWind = raceWinds.size === 1 ? [...raceWinds][0] : null;
                     return (
                       <div key={race.key} className={`border-t border-neutral-800 ${ri >= 2 && !heading ? "hidden lg:block" : ""}`}>
-                        <div className="px-4 pt-3 pb-1 flex flex-wrap items-baseline gap-x-2">
+                        <div className="px-3 sm:px-4 pt-3 pb-1 flex flex-wrap items-baseline gap-x-2">
                           <Link href={raceHref} className="text-xs font-bold uppercase tracking-wide text-orange-400 hover:underline">
                             {eventLabel(race.athletics_event)}
                           </Link>
@@ -222,7 +222,7 @@ export default function LatestResults({
                           );
                           if (isTeam) {
                             return (
-                              <div key={i} className="flex items-center justify-between px-4 py-2">
+                              <div key={i} className="flex items-center justify-between px-3 sm:px-4 py-2">
                                 {content}
                               </div>
                             );
@@ -231,7 +231,7 @@ export default function LatestResults({
                             <Link
                               key={i}
                               href={solo.athlete_id ? `/athletes/${solo.slug ?? solo.athlete_id}` : "#"}
-                              className="flex items-center justify-between px-4 py-2 hover:bg-neutral-900"
+                              className="flex items-center justify-between px-3 sm:px-4 py-2 hover:bg-neutral-900"
                             >
                               {content}
                             </Link>
@@ -239,7 +239,7 @@ export default function LatestResults({
                         })}
                         <Link
                           href={raceHref}
-                          className="inline-block mx-4 mt-1 mb-3 text-[11px] font-semibold uppercase tracking-wide px-3 py-1 rounded border border-neutral-700 text-neutral-500 hover:text-orange-400 hover:border-orange-500"
+                          className="inline-block mx-3 sm:mx-4 mt-1 mb-3 text-[11px] font-semibold uppercase tracking-wide px-3 py-1 rounded border border-neutral-700 text-neutral-500 hover:text-orange-400 hover:border-orange-500"
                         >
                           View results
                         </Link>
@@ -249,7 +249,7 @@ export default function LatestResults({
                   {group.total_races > group.races.length && (
                     <Link
                       href={meetHref}
-                      className="block px-4 py-2 text-xs text-center text-neutral-500 hover:text-orange-400 bg-neutral-900 border-t border-neutral-800"
+                      className="block px-3 sm:px-4 py-2 text-xs text-center text-neutral-500 hover:text-orange-400 bg-neutral-900 border-t border-neutral-800"
                     >
                       View all {group.total_races} results of this competition
                     </Link>
@@ -259,7 +259,7 @@ export default function LatestResults({
             );
           })}
         {!loading && shown.length === 0 && (
-          <div className="px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
+          <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500 border border-neutral-800 rounded-lg">
             No recent results.
           </div>
         )}

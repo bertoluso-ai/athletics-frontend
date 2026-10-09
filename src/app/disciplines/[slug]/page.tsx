@@ -270,7 +270,7 @@ export default async function DisciplinePage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         {/* Everything -- title, category pills, filters, podium, table,
             chart -- lives in the grid's left column, same as Rankings/Home,
             so the right-hand column starts flush with the page title
@@ -284,7 +284,7 @@ export default async function DisciplinePage({
                 WHICH discipline (gender/group/discipline/indoor), row 2
                 narrows it (continent/nation/age). */}
             <div className="flex flex-col gap-2 mb-6">
-              <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+              <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
                 {availableGenders.length > 1 && (
                   <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
                     {(["Men", "Women"] as const).map((g) => (
@@ -310,7 +310,7 @@ export default async function DisciplinePage({
                   options={[{ value: "all", label: "All-time", href: yearHref("all") }, ...years.map((y) => ({ value: String(y), label: String(y), href: yearHref(String(y)) }))]}
                 />
               </div>
-              <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-3 px-3 sm:mx-0 sm:px-0">
+              <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
                 <LinkSelect
                   value={event}
                   className={selectClass}

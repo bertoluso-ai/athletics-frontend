@@ -13,6 +13,11 @@
 }
 
 @theme {
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.3125rem;
+  --radius-xl: 0.5rem;
+  --radius-2xl: 0.75rem;
   --color-neutral-950: #ffffff;
   --color-neutral-900: #f7f8fa;
   --color-neutral-800: #eceef1;

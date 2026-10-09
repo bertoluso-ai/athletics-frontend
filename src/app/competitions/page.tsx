@@ -66,7 +66,7 @@ export default async function CompetitionsPage({
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
-      <main className="mx-auto max-w-7xl px-3 sm:px-6 py-6">
+      <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl font-bold mb-1">Competitions</h1>
         <p className="text-sm text-neutral-500 mb-4">
           Grouping debugger: the new competition registry, why each competition was grouped the way it is, and
