@@ -39,7 +39,15 @@ function place(city: string | null, country: string | null) {
   return [city, country].filter(Boolean).join(", ");
 }
 
-export default function LatestResults({ initialGroups }: { initialGroups: LatestResultGroup[] }) {
+export default function LatestResults({
+  initialGroups,
+  heading,
+  showFilters = true,
+}: {
+  initialGroups: LatestResultGroup[];
+  heading?: string;
+  showFilters?: boolean;
+}) {
   const [event, setEvent] = useState("");
   const [tier, setTier] = useState("");
   const [groups, setGroups] = useState<LatestResultGroup[]>(initialGroups);
@@ -67,7 +75,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
 
   return (
     <section>
-      <div className="mb-3">
+      <div className={showFilters ? "mb-3" : "hidden"}>
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={event}
@@ -107,13 +115,13 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
             const latestDate = group.races[0]?.date;
             const label = latestDate ? dayLabel(latestDate) : "";
             const prevDate = gi > 0 ? groups[gi - 1].races[0]?.date : undefined;
-            const newDay = gi === 0 || (prevDate ? dayLabel(prevDate) : "") !== label;
+            const newDay = heading ? gi === 0 : gi === 0 || (prevDate ? dayLabel(prevDate) : "") !== label;
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
-                {newDay && label && (
+                {newDay && (heading || label) && (
                   <h2 className={`bg-neutral-100 text-white text-[11px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
-                    Results {label}
+                    {heading ?? `Results ${label}`}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
@@ -241,7 +249,7 @@ export default function LatestResults({ initialGroups }: { initialGroups: Latest
             No recent results.
           </div>
         )}
-        {!loading && groups.length > 0 && (
+        {!loading && groups.length > 0 && showFilters && (
           <Link
             href="/meets?view=races"
             className="text-xs text-center text-neutral-500 hover:text-orange-400 py-1"

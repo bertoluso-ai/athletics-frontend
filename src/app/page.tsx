@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getLatestRaces, getUpcomingCompetitions, getEventYearlyProgression } from "@/lib/queries";
+import { getLatestRaces, getEventYearlyProgression } from "@/lib/queries";
+import { getUpcomingHome } from "@/lib/calendar";
 import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
 import RacesStatsWidget from "@/components/RacesStatsWidget";
@@ -10,13 +11,23 @@ import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
 
 const CURRENT_YEAR = new Date().getFullYear();
+const TOP_TIERS = "OW,DF,GW,GL,A";
 
 export default async function Home() {
-  const [races, upcoming, progression] = await Promise.all([
+  const topSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+  const [races, topRaces, upcoming, progression] = await Promise.all([
     getLatestRaces(15), // enough race-slots for >=5 competitions, capped at 3 races each
-    getUpcomingCompetitions(10),
+    // the latest big competitions (Olympics/Worlds, Diamond League, continental, tier A): a quiet week of
+    // small meets must not bury them for a visitor who only wants the headline event
+    getLatestRaces(12, { tier: TOP_TIERS, from: topSince }),
+    getUpcomingHome(10),
     getEventYearlyProgression("100 Metres", "Men"),
   ]);
+
+  // two latest top competitions up top; the day-by-day feed below skips them so nothing shows twice
+  const top = topRaces.slice(0, 2);
+  const topNames = new Set(top.map((g) => g.event_name));
+  const rest = races.filter((g) => !topNames.has(g.event_name));
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -25,8 +36,9 @@ export default async function Home() {
         <h1 className="text-2xl font-bold mb-6 sm:mb-4">Latest athletics results</h1>
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
-        <div className="min-w-0">
-          <LatestResults initialGroups={races} />
+        <div className="min-w-0 flex flex-col gap-8">
+          {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions" showFilters={false} />}
+          <LatestResults initialGroups={rest} />
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}

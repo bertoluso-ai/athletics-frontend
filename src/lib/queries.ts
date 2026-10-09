@@ -604,7 +604,7 @@ async function fetchWindow(
         AND ${NOT_SHADOW()}
         AND (mark_seconds IS NOT NULL OR ${safeMark} IS NOT NULL)
         ${event ? `AND athletics_event = ${eventPh}` : ""}
-        ${tier ? `AND division_key_resolved = ${tierPh}` : ""}
+        ${tier ? `AND division_key_resolved = ANY(string_to_array(${tierPh}, ','))` : ""}
     ),
     ranked AS (
       SELECT *,

@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
 import { eventCategory } from "./events";
+import type { UpcomingCompetition } from "./queries";
 
 // Season calendar: competitions already held (with their headline
 // performance) plus the ones still to come, in one list.
@@ -265,3 +266,47 @@ async function _getRaces(f: RaceFilters): Promise<{ rows: RaceRow[]; total: numb
   return { rows, total: rows[0]?.total ?? 0 };
 }
 export const getRaces = unstable_cache(_getRaces, ["meets-races-pg-v1"], { revalidate: 3600 });
+
+// Home "Upcoming races": next competitions on the calendar, optionally by
+// FINE discipline (the same list as Latest results). The scraped calendar only
+// says "Track and Field" / "Road Running"..., so a discipline matches the
+// competitions whose most recent past edition actually contested it; one with
+// no known past edition falls back to the coarse family of that discipline.
+async function _getUpcomingHome(limit: number, category?: string, event?: string): Promise<UpcomingCompetition[]> {
+  const params: unknown[] = [];
+  const p = (v: unknown) => {
+    params.push(v);
+    return `$${params.length}`;
+  };
+  const where = ["u.date_start >= CURRENT_DATE"];
+  if (category) where.push(`u.tier = ${p(category)}`);
+  if (event) {
+    const evPh = p(event);
+    const famPh = p(`%${UPCOMING_CATEGORY[eventCategory(event)] ?? "Track and Field"}%`);
+    where.push(`(
+      EXISTS (SELECT 1 FROM calendar_races r
+              WHERE r.event_name = u.past_event_name AND r.athletics_event_base = ${evPh}
+                AND r.year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 3)
+      OR (u.past_event_name IS NULL AND u.disciplines ILIKE ${famPh})
+    )`);
+  }
+  // no category: OW-B as a bucket outranks C-F so small club meets cannot crowd out the real ones
+  const orderBy = category
+    ? "u.date_start ASC"
+    : "CASE WHEN u.tier IN ('OW','DF','GW','GL','A','B') THEN 0 ELSE 1 END, u.date_start ASC";
+  const rows = await pgQuery<UpcomingCompetition>(
+    `SELECT date_start::text AS date_start, date_end::text AS date_end, name, COALESCE(city, '') AS venue,
+            country, tier AS category, disciplines, past_event_name
+     FROM (
+       SELECT u.* FROM calendar_upcoming u
+       WHERE ${where.join(" AND ")}
+       ORDER BY ${orderBy}
+       LIMIT ${Math.max(1, Math.floor(limit))}
+     ) u
+     ORDER BY date_start ASC, name`,
+    params
+  );
+  return rows;
+}
+
+export const getUpcomingHome = unstable_cache(_getUpcomingHome, ["home-upcoming-pg-v1"], { revalidate: 3600 });

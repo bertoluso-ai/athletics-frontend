@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { TIER_PRIORITY } from "@/lib/events";
+import { EVENT_GROUPS, TIER_PRIORITY, eventLabel, sortEventsAlpha } from "@/lib/events";
 import type { UpcomingCompetition } from "@/lib/queries";
 import Flag from "./Flag";
 
@@ -11,10 +11,10 @@ import Flag from "./Flag";
 // their own -- picking one of them here is the actual way to see them.
 const CATEGORIES = Object.keys(TIER_PRIORITY).sort((a, b) => TIER_PRIORITY[a] - TIER_PRIORITY[b]);
 
-// Coarse discipline families, as stored on the scraped calendar row itself
-// (tablasauxiliares.upcoming_competitions.disciplines) -- not the site's
-// fine-grained event list, which that source doesn't carry.
-const DISCIPLINES = ["Track and Field", "Road Running", "Cross Country", "Race Walking", "Combined Events"];
+// Same discipline list as Latest results (the calendar itself only knows coarse
+// families; getUpcomingHome matches the fine discipline through each
+// competition's last edition).
+const ALL_EVENTS = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women])));
 
 function formatDate(iso: string) {
   const d = new Date(iso + "T00:00:00");
@@ -62,9 +62,9 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
             className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
-            {DISCIPLINES.map((d) => (
-              <option key={d} value={d}>
-                {d}
+            {sortEventsAlpha(ALL_EVENTS).map((ev) => (
+              <option key={ev} value={ev}>
+                {eventLabel(ev)}
               </option>
             ))}
           </select>
