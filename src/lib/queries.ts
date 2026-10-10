@@ -2308,6 +2308,47 @@ function racesCte(eventPh: string | null, genderPh: string, yearPh: string | nul
 // When any of those three is set, the winners join switches from LEFT to
 // INNER (races whose winner doesn't match the filter are excluded outright,
 // not shown with a blank "—" winner).
+// Relays have no race_level (it rates the individual athletes in a field, and teams have none), so
+// the Races widget lists them straight from `events`: each final's winning team (nationality +
+// time), "quality" = the tier points the win carries (competition_score), newest or highest first.
+async function _relayTopRaces(
+  event: string,
+  gender: string,
+  year: number | "all",
+  sortBy: "quality" | "recent" | "tier",
+  pageSize: number,
+  indoor: boolean,
+  page: number,
+  dir?: "asc" | "desc"
+): Promise<TopRaceRow[]> {
+  const params: unknown[] = [gender, event];
+  let yearCond = "";
+  if (year !== "all") {
+    params.push(year);
+    yearCond = `AND year = $${params.length}`;
+  }
+  const d = (dir ?? "desc") === "asc" ? "ASC" : "DESC";
+  const order = sortBy === "recent" ? `MIN(date) ${d} NULLS LAST` : `COALESCE(MAX(competition_score), 0) ${d}, MIN(date) DESC NULLS LAST`;
+  return pgQuery<TopRaceRow>(
+    `
+    SELECT event_name, athletics_event, gender, MIN(date)::text AS date, MIN(year) AS year, COALESCE(round, '') AS round,
+      COALESCE(MAX(competition_score), 0) AS race_level, MAX(division_key_resolved) AS tier,
+      CAST(NULL AS TEXT) AS top_athlete_id,
+      (ARRAY_AGG(nationality))[1] || COALESCE(' · ' || (ARRAY_AGG(mark_display))[1], '') AS top_athlete,
+      (ARRAY_AGG(nationality))[1] AS top_nationality, (ARRAY_AGG(mark_display))[1] AS top_mark
+    FROM events
+    WHERE gender = $1 AND athletics_event = $2 AND place = 1 ${yearCond}
+      AND nationality IS NOT NULL
+      AND (round IS NULL OR (LOWER(round) LIKE '%final%' AND LOWER(round) NOT LIKE '%semifinal%' AND LOWER(round) NOT LIKE '%quarterfinal%'))
+      AND ${NOT_SHADOW()} AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}
+    GROUP BY event_name, athletics_event, gender, ${RACE_KEY_SQL}, COALESCE(round, '')
+    ORDER BY ${order}
+    LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+  `,
+    params
+  );
+}
+
 async function _getTopRaces(
   event: string,
   gender: string,
@@ -2320,6 +2361,9 @@ async function _getTopRaces(
   dir?: "asc" | "desc"
 ): Promise<TopRaceRow[]> {
   const { tier, nationality, area, ageCategory } = filters;
+  if (event !== "all" && /relay/i.test(event) && !tier && !nationality && !area && !ageCategory) {
+    return _relayTopRaces(event, gender, year, sortBy, pageSize, indoor, page, dir);
+  }
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const winnerFiltered = !!(nationality || area || ageMax);
   // Each column sorts both ways (asc/desc); with no `dir` it starts at its
@@ -2430,7 +2474,7 @@ async function _getTopRaces(
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `, params);
 }
-export const getTopRaces = unstable_cache(_getTopRaces, ["getTopRaces-v2"], DAY_CACHE);
+export const getTopRaces = unstable_cache(_getTopRaces, ["getTopRaces-v3"], DAY_CACHE);
 
 async function _getTopRacesCount(
   event: string,
