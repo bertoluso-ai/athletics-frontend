@@ -1,6 +1,5 @@
 "use client";
 
-import { RACE_TYPES } from "@/lib/raceTypes";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
@@ -52,7 +51,6 @@ function formatDate(iso: string | null, year: number | null) {
 export default function RacesStatsWidget({ year }: { year: number }) {
   const [mode, setMode] = useState<Mode>("quality");
   const [gender, setGender] = useState<Gender>("Men");
-  const [type, setType] = useState<string>("track");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
   const isAll = groupKey === "all";
@@ -72,7 +70,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     let cancelled = false;
     setLoading(true);
     const eventParam = isAll ? "all" : event;
-    const url = `/api/races?event=${encodeURIComponent(eventParam)}&gender=${gender}&year=${year}&sortBy=${mode}${type ? `&type=${type}` : ""}`;
+    const url = `/api/races?event=${encodeURIComponent(eventParam)}&gender=${gender}&year=${year}&sortBy=${mode}`;
     fetch(url)
       .then((r) => r.json())
       .then((data) => !cancelled && setRows(data))
@@ -80,7 +78,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     return () => {
       cancelled = true;
     };
-  }, [mode, event, gender, year, isAll, type]);
+  }, [mode, event, gender, year, isAll]);
 
   // Carries the widget's current filters over to the full /meets page (races view) --
   // landing there on whatever was actually being looked at here, not a
@@ -92,7 +90,6 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     gender,
     ...(isAll ? {} : { discipline: event }),
     sort: mode === "recent" ? "date" : "quality",
-    ...(type ? { type } : {}),
   }).toString()}`;
 
   return (
@@ -122,31 +119,10 @@ export default function RacesStatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      {/* Race type (Track / Indoor / Road / Cross country / Race walk / Mountain & trail), no
-          "all types": Track is the default, same as the old outdoor-only behaviour -- indoor is
-          its own context, so a championship held indoors never outranks the outdoor season unless
-          Indoor is picked. The kinds that are not track jump to "All disciplines": the discipline
-          pills are track-first. */}
-      <div className="px-3 sm:px-4 pt-2 flex items-center justify-between gap-2">
+      <div className="px-3 sm:px-4 pt-2">
         <Link href={viewAllHref} className="text-xs text-neutral-500 hover:text-orange-400">
           View all →
         </Link>
-        <select
-          value={type}
-          onChange={(e) => {
-            const v = e.target.value;
-            setType(v);
-            if (v && v !== "track" && v !== "indoor") setGroupKey("all");
-          }}
-          aria-label="Type"
-          className="shrink-0 h-[26px] text-xs rounded px-1.5 border bg-neutral-800 border-neutral-700 focus:outline-none focus:border-orange-500"
-        >
-          {RACE_TYPES.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
       </div>
 
       {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
