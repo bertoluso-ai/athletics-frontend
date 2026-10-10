@@ -82,7 +82,10 @@ export default function LatestResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, tier]);
 
-  const shown = groups.filter((g) => !exclude.includes(g.event_name)).slice(0, maxGroups);
+  // The cap (3 on the Home) belongs to the default "B and above" view only; "All categories"
+  // or a single tier shows the wider list (up to 10 competitions).
+  const limit = tier === defaultTier ? maxGroups : Math.max(maxGroups, 10);
+  const shown = groups.filter((g) => !exclude.includes(g.event_name)).slice(0, limit);
 
   return (
     <section>
