@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import PageBar from "@/components/PageBar";
+import { RACE_TYPES, eventMatchesType, type RaceType } from "@/lib/raceTypes";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import { GenericAthlete } from "@/components/Avatar";
@@ -55,7 +56,14 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
   },
 ];
 
-type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string; sort?: string; area?: string };
+type SP = { view?: string; gender?: string; year?: string; nationality?: string; age?: string; page?: string; event?: string; sort?: string; area?: string; type?: string };
+
+// Race type narrows the discipline list. No Indoor here: rankings are outdoor
+// season points, there is no indoor ranking to show.
+const RANKING_TYPES = RACE_TYPES.filter((t) => t.value !== "indoor");
+function rankingType(v?: string): RaceType | undefined {
+  return RANKING_TYPES.find((t) => t.value === v)?.value;
+}
 const NATION_VIEWS = ["n-season", "n-rolling", "n-wins", "n-discipline"] as const;
 
 // Same columns for the table header and every row.
@@ -184,7 +192,9 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
   const nationality = sp.nationality || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   // optional discipline filter: the same ranking restricted to one event
-  const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const type = rankingType(sp.type);
+  const allEventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const eventOptions = allEventOptions.filter((ev) => !type || eventMatchesType(ev, type));
   const event = sp.event && eventOptions.includes(sp.event) ? sp.event : undefined;
   const discipline = !!event;
 
@@ -231,7 +241,7 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
 
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", area: area ?? "", page: "1", ...over };
+    const merged = { view, gender, year: String(year), nationality: nationality ?? "", age: age ?? "", event: event ?? "", sort: sortBy === "mark" ? "mark" : "", area: area ?? "", type: type ?? "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -266,6 +276,14 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
           )}
         </div>
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+          <LinkSelect
+            value={type ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All types", href: href({ type: "", event: "" }) },
+              ...RANKING_TYPES.map((o) => ({ value: o.value, label: o.label, href: href({ type: o.value, event: allEventOptions.find((ev) => eventMatchesType(ev, o.value)) ?? "" }) })),
+            ]}
+          />
           <LinkSelect
             value={event ?? ""}
             className={selectClass}
@@ -612,7 +630,9 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years[0];
   const gender = sp.gender === "Women" ? "Women" : "Men";
   const age = AGES.includes((sp.age ?? "") as (typeof AGES)[number]) ? sp.age || undefined : undefined;
-  const eventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const type = rankingType(sp.type);
+  const allEventOptions: string[] = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[gender]])));
+  const eventOptions = allEventOptions.filter((ev) => !type || eventMatchesType(ev, type));
   const event = sp.event && eventOptions.includes(sp.event) ? sp.event : undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const [rows, progression] = await Promise.all([
@@ -629,7 +649,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
     : [];
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: `n-${view}`, gender, year: String(year), age: age ?? "", event: event ?? "", area: area ?? "", ...over };
+    const merged = { view: `n-${view}`, gender, year: String(year), age: age ?? "", event: event ?? "", area: area ?? "", type: type ?? "", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -661,6 +681,14 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
           )}
         </div>
         <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+          <LinkSelect
+            value={type ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All types", href: href({ type: "", event: "" }) },
+              ...RANKING_TYPES.map((o) => ({ value: o.value, label: o.label, href: href({ type: o.value, event: allEventOptions.find((ev) => eventMatchesType(ev, o.value)) ?? "" }) })),
+            ]}
+          />
           <LinkSelect
             value={event ?? ""}
             className={selectClass}

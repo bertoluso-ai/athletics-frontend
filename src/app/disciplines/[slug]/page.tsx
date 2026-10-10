@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import PageBar from "@/components/PageBar";
+import { RACE_TYPES, eventMatchesType, eventRaceKind, type RaceType } from "@/lib/raceTypes";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
@@ -190,9 +191,20 @@ export default async function DisciplinePage({
   // Country, Relays never have indoor results) -- otherwise the dropdown
   // offered "Marathon"/"Cross Country" while Indoor was active, which
   // always rendered empty since no row of those ever has an indoor mark.
-  const eventOptions = Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[]))).filter(
-    (ev) => !indoor || (eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && !isRelayEvent(ev))
-  );
+  const allEventOptions = Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[])));
+  // Kind of the discipline on screen: Indoor when the indoor view is on, else by the discipline's own
+  // name. The discipline list is narrowed to that kind (Road lists road runs, Track lists track events...).
+  const currentType: RaceType = indoor ? "indoor" : eventRaceKind(event);
+  const eventOptions = allEventOptions.filter((ev) => eventMatchesType(ev, currentType));
+  // Switching type lands on a discipline of the new type: the current one if it fits, else the first.
+  const typeHref = (ty: RaceType) => {
+    const ev = eventMatchesType(event, ty) ? event : allEventOptions.find((e) => eventMatchesType(e, ty)) ?? event;
+    const q = new URLSearchParams({ gender });
+    const eligible = eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && !isRelayEvent(ev);
+    if (eligible) q.set("indoor", String(ty === "indoor"));
+    if (yearParam != null) q.set("year", String(yearParam));
+    return `/disciplines/${eventSlug(ev)}?${q.toString()}`;
+  };
 
   // The table queries and the right-column/chart queries are all
   // independent, so they fire in one Promise.all. The right column
@@ -295,16 +307,11 @@ export default async function DisciplinePage({
                     ))}
                   </div>
                 )}
-                {indoorEligible && (
-                  <LinkSelect
-                    value={indoor ? "indoor" : "outdoor"}
-                    className={selectClass}
-                    options={[
-                      { value: "outdoor", label: "Outdoor", href: `/disciplines/${slug}?gender=${gender}${yearParam != null ? `&year=${yearParam}` : ""}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}&indoor=false` },
-                      { value: "indoor", label: "Indoor", href: `/disciplines/${slug}?gender=${gender}${yearParam != null ? `&year=${yearParam}` : ""}${ageCategory ? `&age=${ageCategory}` : ""}${limit !== 10 ? `&limit=${limit}` : ""}&indoor=true` },
-                    ]}
-                  />
-                )}
+                <LinkSelect
+                  value={currentType}
+                  className={selectClass}
+                  options={RACE_TYPES.map((o) => ({ value: o.value, label: o.label, href: typeHref(o.value) }))}
+                />
                 <LinkSelect
                   value={yearParam == null ? "all" : String(yearParam)}
                   className={selectClass}
