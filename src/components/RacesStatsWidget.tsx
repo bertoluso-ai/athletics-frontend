@@ -52,7 +52,7 @@ function formatDate(iso: string | null, year: number | null) {
 export default function RacesStatsWidget({ year }: { year: number }) {
   const [mode, setMode] = useState<Mode>("quality");
   const [gender, setGender] = useState<Gender>("Men");
-  const [type, setType] = useState<string>("");
+  const [type, setType] = useState<string>("track");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
   const isAll = groupKey === "all";
@@ -122,11 +122,11 @@ export default function RacesStatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      {/* Race type (Track / Indoor / Road / Cross country / Race walk / Mountain & trail).
-          Default "All types" keeps the old behaviour (outdoor races only): indoor
-          is its own context, so a championship held indoors never outranks the
-          outdoor season unless Indoor is picked. The kinds that are not track
-          jump to "All disciplines": the discipline pills are track-first. */}
+      {/* Race type (Track / Indoor / Road / Cross country / Race walk / Mountain & trail), no
+          "all types": Track is the default, same as the old outdoor-only behaviour -- indoor is
+          its own context, so a championship held indoors never outranks the outdoor season unless
+          Indoor is picked. The kinds that are not track jump to "All disciplines": the discipline
+          pills are track-first. */}
       <div className="px-3 sm:px-4 pt-2 flex items-center justify-between gap-2">
         <Link href={viewAllHref} className="text-xs text-neutral-500 hover:text-orange-400">
           View all →
@@ -139,11 +139,8 @@ export default function RacesStatsWidget({ year }: { year: number }) {
             if (v && v !== "track" && v !== "indoor") setGroupKey("all");
           }}
           aria-label="Type"
-          className={`shrink-0 h-[26px] text-xs rounded px-1.5 border focus:outline-none focus:border-orange-500 ${
-            type ? "bg-orange-50 border-orange-300 text-orange-700" : "bg-neutral-800 border-neutral-700"
-          }`}
+          className="shrink-0 h-[26px] text-xs rounded px-1.5 border bg-neutral-800 border-neutral-700 focus:outline-none focus:border-orange-500"
         >
-          <option value="">All types</option>
           {RACE_TYPES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
