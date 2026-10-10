@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 type Option = { value: string; label: string; title?: string };
 
@@ -14,6 +15,11 @@ type Option = { value: string; label: string; title?: string };
 // horizontally scrolling row (overflow-x:auto clips anything absolutely
 // positioned) an `absolute` list would be cut off. It closes on scroll/resize
 // since a fixed list would otherwise stay behind while its button moves.
+//
+// Several options can be ticked while it stays open: the selection is applied
+// (the surrounding auto-submitting form is told via a bubbling `change`)
+// ONCE, when the list closes -- click outside, Escape, the button again, or
+// scroll/resize -- and only if it differs from what it was when opened.
 export default function MultiSelectDropdown({
   name,
   options,
@@ -33,13 +39,38 @@ export default function MultiSelectDropdown({
   const ref = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // latest selection (event handlers below outlive renders) and the one the list opened with
+  const selectedRef = useRef<string[]>(defaultSelected);
+  const openedWith = useRef<string[]>(defaultSelected);
+  const isOpen = useRef(false);
+
+  const sameSet = (x: string[], y: string[]) => x.length === y.length && x.every((v) => y.includes(v));
+
+  function closeMenu() {
+    if (!isOpen.current) return;
+    isOpen.current = false;
+    setOpen(false);
+    // the hidden inputs already hold the final selection: tell the form once
+    if (!sameSet(selectedRef.current, openedWith.current)) {
+      ref.current?.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
 
   useEffect(() => {
-    function onClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    function onDown(e: MouseEvent) {
+      const inside = (n: Node | null) => !!n && ((ref.current?.contains(n) ?? false) || (menuRef.current?.contains(n) ?? false));
+      if (!inside(e.target as Node)) closeMenu();
     }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closeMenu();
+    }
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -47,7 +78,7 @@ export default function MultiSelectDropdown({
     // scrolling the list itself must not close it
     const close = (e: Event) => {
       if (menuRef.current && e.target instanceof Node && menuRef.current.contains(e.target)) return;
-      setOpen(false);
+      closeMenu();
     };
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
@@ -55,29 +86,29 @@ export default function MultiSelectDropdown({
       window.removeEventListener("scroll", close, true);
       window.removeEventListener("resize", close);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const toggleOpen = () => {
-    if (!open && buttonRef.current) {
+    if (isOpen.current) {
+      closeMenu();
+      return;
+    }
+    if (buttonRef.current) {
       const r = buttonRef.current.getBoundingClientRect();
       setPos({ top: r.bottom + 4, left: r.left, minWidth: r.width });
     }
-    setOpen((o) => !o);
+    openedWith.current = selectedRef.current;
+    isOpen.current = true;
+    setOpen(true);
   };
 
-  const toggle = (v: string) => setSelected((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
-
-  // Tell a surrounding auto-submitting form that the selection changed (the
-  // hidden inputs below don't fire `change` themselves). Runs after render so
-  // the form reads the updated hidden inputs; skipped on mount.
-  const mounted = useRef(false);
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    ref.current?.dispatchEvent(new Event("change", { bubbles: true }));
-  }, [selected]);
+  const toggle = (v: string) =>
+    setSelected((prev) => {
+      const next = prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v];
+      selectedRef.current = next;
+      return next;
+    });
 
   const label =
     selected.length === 0
@@ -104,8 +135,9 @@ export default function MultiSelectDropdown({
       >
         {label}
       </button>
-      {open && pos && (
-        <div
+      {open && pos && typeof document !== "undefined" &&
+        createPortal(
+          <div
           ref={menuRef}
           style={{ top: pos.top, left: pos.left, minWidth: pos.minWidth }}
           className="fixed z-30 bg-neutral-800 border border-neutral-700 rounded shadow-lg p-1 max-h-60 overflow-y-auto whitespace-nowrap"
@@ -121,7 +153,7 @@ export default function MultiSelectDropdown({
             </label>
           ))}
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }
