@@ -1,4 +1,5 @@
 import Link from "next/link";
+import CountryKeyStats from "@/components/CountryKeyStats";
 import { Suspense } from "react";
 import Flag from "@/components/Flag";
 import YearSelect from "@/components/YearSelect";
@@ -173,7 +174,7 @@ export default async function CountryPage({
   ]);
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
-  const { athletes, lastWins, topResults, seasons, owMedals, careerTotals } = detail;
+  const { athletes, lastWins, topResults, seasons, owMedals, careerTotals, seasonMedals } = detail;
   const bestRankEver = seasons.length ? Math.min(...seasons.map((x) => x.rank)) : null;
   const goldSeasons = seasons.filter((x) => x.rank <= 8).length;
   const scoring = athletes.filter((a) => a.counts);
@@ -337,23 +338,25 @@ export default async function CountryPage({
 
           <section>
             <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
-            <div className="flex flex-col gap-1.5 text-sm">
-              {[
+            <CountryKeyStats
+              year={year}
+              allTime={[
                 { n: careerTotals.wins, label: "Wins", title: "All-time, this gender" },
                 { n: careerTotals.podiums, label: "Podiums", title: "All-time, this gender" },
                 { n: owMedals.olympic, label: "Olympic medals", title: "All-time, this gender" },
                 { n: owMedals.worlds, label: "World Championships medals", title: "All-time, this gender" },
                 { n: bestRankEver ? `#${bestRankEver}` : "—", label: "Best rank ever" },
                 { n: goldSeasons, label: "Seasons in Gold" },
-              ].map((k) => (
-                <div key={k.label} className="flex items-center gap-2" title={k.title}>
-                  <span className="w-14 shrink-0 text-center font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-orange-500 text-black">
-                    {k.n}
-                  </span>
-                  <span className="text-neutral-300">{k.label}</span>
-                </div>
-              ))}
-            </div>
+              ]}
+              season={[
+                { n: me?.wins ?? 0, label: "Wins", title: `${year} season` },
+                { n: me?.podiums ?? 0, label: "Podiums", title: `${year} season` },
+                { n: seasonMedals.olympic, label: "Olympic medals", title: `${year} season` },
+                { n: seasonMedals.worlds, label: "World Championships medals", title: `${year} season` },
+                { n: me ? `#${me.rank}` : "—", label: "Rank" },
+                { n: me ? me.points : 0, label: "Points" },
+              ]}
+            />
           </section>
         </div>
 

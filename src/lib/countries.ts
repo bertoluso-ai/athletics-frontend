@@ -185,7 +185,7 @@ async function _getCountryDetail(code: string, year: number, f: CountryFilters, 
   // Next's unstable_cache 2MB-per-item ceiling, so getCountryDetail
   // silently never cached at all (confirmed live: "items over 2MB can
   // not be cached", recomputing from scratch on every single request).
-  const [athletes, lastWins, topResults, seasons, owMedals, career] = await Promise.all([
+  const [athletes, lastWins, topResults, seasons, owMedals, career, owMedalsSeason] = await Promise.all([
     pgQuery<CountryAthleteRow>(
       `
       WITH athletes AS (
@@ -228,15 +228,28 @@ async function _getCountryDetail(code: string, year: number, f: CountryFilters, 
        FROM country_season_points WHERE code = $1 AND gender = $2 AND age_cat = $3`,
       [code, f.gender, f.age ?? ""]
     ),
+    // the same Olympic / Worlds medal count, restricted to the selected season
+    pgQuery<{ olympic: number; worlds: number }>(
+      `
+      SELECT
+        COUNT(DISTINCT CASE WHEN is_olympics THEN athletics_event || place::text END) AS olympic,
+        COUNT(DISTINCT CASE WHEN NOT is_olympics THEN athletics_event || place::text END) AS worlds
+      FROM country_results
+      WHERE nationality = $1 AND gender = $2 AND year = $3 AND division_key_resolved = 'OW'
+        AND counts_for_medals AND place BETWEEN 1 AND 3 AND is_final
+    `,
+      [code, f.gender, year]
+    ),
   ]);
 
   return {
     athletes, lastWins, topResults, seasons,
     owMedals: owMedals[0] ?? { olympic: 0, worlds: 0 },
     careerTotals: career[0] ?? { wins: 0, podiums: 0 },
+    seasonMedals: owMedalsSeason[0] ?? { olympic: 0, worlds: 0 },
   };
 }
-export const getCountryDetail = unstable_cache(_getCountryDetail, ["getCountryDetail-v2"], DAY_CACHE);
+export const getCountryDetail = unstable_cache(_getCountryDetail, ["getCountryDetail-v3"], DAY_CACHE);
 
 // The country's points and rank for every season (same rule as the ranking).
 // seasonEvent: one discipline only -- not precomputed (too many discipline
