@@ -6,6 +6,7 @@ export async function GET(req: NextRequest) {
   const event = searchParams.get("event") || undefined;
   const tier = searchParams.get("tier") || undefined;
 
-  const races = await getLatestRaces(15, { event, tier });
+  // "All categories" (no tier) needs far more candidates: tier F alone is ~10x the rest
+  const races = await getLatestRaces(tier ? 15 : 60, { event, tier });
   return NextResponse.json(races);
 }

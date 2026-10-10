@@ -535,7 +535,7 @@ async function _getLatestRaces(
 // exports run every 2 h).
 export const getLatestRaces = unstable_cache(
   _getLatestRaces,
-  ["latest-races-v2"],
+  ["latest-races-v3"],
   { revalidate: 300 }
 );
 
@@ -737,8 +737,10 @@ async function fetchWindow(
   // the same tier -- e.g. two Tier A meets on the same day, the one with
   // the stronger actual field shows first.
   const orderedGroups = Array.from(groups.values()).sort((a, b) => {
-    const fa = a.competition_level === "F" ? 1 : 0;
-    const fb = b.competition_level === "F" ? 1 : 0;
+    // Tier F only sinks when a tier filter is set (the Home default "B and above" never has
+    // any anyway); "All categories" (no filter) orders purely by recency, so F shows up.
+    const fa = tier && a.competition_level === "F" ? 1 : 0;
+    const fb = tier && b.competition_level === "F" ? 1 : 0;
     if (fa !== fb) return fa - fb;
     const da = a.races[0]?.date ?? "";
     const db = b.races[0]?.date ?? "";
