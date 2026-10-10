@@ -173,7 +173,7 @@ export default async function CountryPage({
   ]);
   const me = ranking.find((r) => r.code === code);
   const tier = me ? tierForRank(me.rank) : null;
-  const { athletes, lastWins, topResults, seasons, owMedals } = detail;
+  const { athletes, lastWins, topResults, seasons, owMedals, careerTotals } = detail;
   const bestRankEver = seasons.length ? Math.min(...seasons.map((x) => x.rank)) : null;
   const goldSeasons = seasons.filter((x) => x.rank <= 8).length;
   const scoring = athletes.filter((a) => a.counts);
@@ -339,8 +339,8 @@ export default async function CountryPage({
             <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
             <div className="flex flex-col gap-1.5 text-sm">
               {[
-                { n: me?.wins ?? 0, label: "Wins" },
-                { n: me?.podiums ?? 0, label: "Podiums" },
+                { n: careerTotals.wins, label: "Wins", title: "All-time, this gender" },
+                { n: careerTotals.podiums, label: "Podiums", title: "All-time, this gender" },
                 { n: owMedals.olympic, label: "Olympic medals", title: "All-time, this gender" },
                 { n: owMedals.worlds, label: "World Championships medals", title: "All-time, this gender" },
                 { n: bestRankEver ? `#${bestRankEver}` : "—", label: "Best rank ever" },
