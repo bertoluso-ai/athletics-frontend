@@ -337,7 +337,6 @@ export default async function CountryPage({
           </section>
 
           <section>
-            <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
             <CountryKeyStats
               year={year}
               allTime={[
