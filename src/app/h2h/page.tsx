@@ -33,7 +33,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
         <h2 className="text-lg font-semibold mt-4 mb-1">Head-to-head</h2>
         <p className="text-sm text-neutral-400 mb-3">Pick an athlete to compare results and careers.</p>
         <H2HPicker baseId={a} />
-        <h3 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mt-8 mb-2">Most frequent rivals</h3>
+        <h3 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mt-8 mb-2">Most frequent rivals</h3>
         <div className="max-w-xl border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
           <div className="grid grid-cols-[2rem_1fr_4rem_5rem] gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
             <span>#</span>
@@ -45,7 +45,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
             <Link
               key={s.athlete_id}
               href={`/h2h?a=${a}&b=${s.athlete_id}`}
-              className="grid grid-cols-[2rem_1fr_4rem_5rem] gap-x-2 items-center px-3 py-1.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+              className="grid grid-cols-[2rem_1fr_4rem_5rem] gap-x-2 items-center px-3 py-1.5 text-sm bg-neutral-950 hover:bg-neutral-800"
             >
               <span className="text-xs text-neutral-500">{i + 1}</span>
               <span className="flex items-center gap-2 min-w-0">
@@ -133,7 +133,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
       <div className="max-w-3xl mx-auto flex flex-col gap-8">
       {/* Key info */}
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Key info</h2>
+        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2 text-center">Key info</h2>
         <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
           {[
             { label: "Age", a: age(kA) ?? "—", b: age(kB) ?? "—" },
@@ -142,7 +142,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
             { label: "Last season", a: kA?.last_year ?? "—", b: kB?.last_year ?? "—" },
             { label: "Disciplines", a: kA?.events ?? "—", b: kB?.events ?? "—" },
           ].map((r) => (
-            <div key={r.label} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
+            <div key={r.label} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-950">
               <span className="text-right">{r.a}</span>
               <span className="text-center text-xs text-neutral-500 self-center">{r.label}</span>
               <span>{r.b}</span>
@@ -154,12 +154,12 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
       {/* Personal bests in common */}
       {commonPbs.length > 0 && (
         <section>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Personal bests</h2>
+          <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2 text-center">Personal bests</h2>
           <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
             {commonPbs.map(({ event, a: pa, b: pb }) => {
               const aBetter = (pa.all_time_rank ?? 1e9) < (pb.all_time_rank ?? 1e9);
               return (
-                <div key={event} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-900/40">
+                <div key={event} className="grid grid-cols-[1fr_8rem_1fr] px-3 py-1.5 bg-neutral-950">
                   <span className={`text-right font-mono ${aBetter ? "text-orange-400 font-semibold" : "text-neutral-400"}`}>
                     {pa.mark_display} <span className="text-[10px] text-neutral-500">({pa.year})</span>
                   </span>
@@ -176,13 +176,13 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 
       {/* Career KPIs: mirrored bars */}
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Career key performance indicators</h2>
+        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2 text-center">Career key performance indicators</h2>
         <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden text-sm">
           {kpiRows.map((r) => {
             const max = Math.max(r.a, r.b, 1e-9);
             const f = r.fmt ?? ((n: number) => String(Math.round(n)));
             return (
-              <div key={r.label} className="grid grid-cols-[3.5rem_1fr_9rem_1fr_3.5rem] items-center gap-x-2 px-3 py-1.5 bg-neutral-900/40">
+              <div key={r.label} className="grid grid-cols-[3.5rem_1fr_9rem_1fr_3.5rem] items-center gap-x-2 px-3 py-1.5 bg-neutral-950">
                 <span className={`text-right tabular-nums ${r.a >= r.b ? "font-semibold" : "text-neutral-400"}`}>{f(r.a)}</span>
                 <span className="h-2.5 rounded-sm bg-neutral-800 flex justify-end overflow-hidden">
                   <span className="h-full rounded-sm" style={{ width: `${(r.a / max) * 100}%`, background: COLOR_A }} />
@@ -200,19 +200,19 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 
       {/* Points per age */}
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Points per age</h2>
+        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2 text-center">Points per age</h2>
         <PointsChart seasons={seasons} a={a} b={b} nameA={infoA.display_name} nameB={infoB.display_name} />
       </section>
 
       {/* Shared races */}
       <section>
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2 text-center">Same race results</h2>
+        <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2 text-center">Same race results</h2>
         {shared.length === 0 ? (
           <p className="text-sm text-neutral-500">They never raced each other.</p>
         ) : (
           <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden max-h-[40rem] overflow-y-auto">
             {shared.map((r, i) => (
-              <div key={i} className="grid grid-cols-[4.5rem_1fr_2.5rem_2.5rem] items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40">
+              <div key={i} className="grid grid-cols-[4.5rem_1fr_2.5rem_2.5rem] items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-950">
                 <span className="text-xs text-neutral-500 tabular-nums">{r.date}</span>
                 <span className="min-w-0">
                   <span className="flex items-center gap-1.5 min-w-0">
@@ -262,7 +262,7 @@ export default async function H2HPage({ searchParams }: { searchParams: Promise<
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">{children}</main>
     </div>
   );
@@ -348,7 +348,7 @@ function PointsChart({ seasons, a, b, nameA, nameB }: { seasons: H2HSeasonPoint[
   const ticks = [];
   for (let v = minX; v <= maxX; v++) ticks.push(v);
   return (
-    <div className="border border-neutral-800 rounded-lg p-2 bg-neutral-900/40">
+    <div className="border border-neutral-800 rounded-lg p-2 bg-neutral-950">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {[0, 0.25, 0.5, 0.75, 1].map((f) => (
           <g key={f}>

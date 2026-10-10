@@ -166,9 +166,9 @@ export default async function MeetPage({
   const place = [first?.city, first?.country].filter(Boolean).join(", ") || null;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
-        <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap bg-tint rounded-lg px-3 sm:px-4 py-2">
           <div>
             {/* Itinerant series (World Champs, Grand Prix Final, ...) share
                 one display_series_name across editions hosted in different
@@ -215,7 +215,7 @@ export default async function MeetPage({
           </div>
           {statsEvent && statsGender && (
             <div>
-              <Suspense fallback={<div className="h-64 rounded-lg border border-neutral-800 bg-neutral-900/40 animate-pulse" />}>
+              <Suspense fallback={<div className="h-64 rounded-lg border border-neutral-800 bg-neutral-950 animate-pulse" />}>
                 <MeetEventStats
                 eventName={eventName}
                 event={statsEvent}

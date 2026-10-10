@@ -159,7 +159,7 @@ export default async function AthletePage({
   // table across the first two columns while the right column carries on
   // underneath (personal bests). On phones: one column in reading order.
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
           {info.nationality && (
@@ -180,7 +180,7 @@ export default async function AthletePage({
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start lg:[&>section:nth-child(-n+3)]:self-stretch">
           {/* Info */}
           <section className="lg:col-start-1 lg:row-start-1">
-            <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Bio</h2>
+            <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Bio</h2>
             {/* On desktop the photo takes no height of its own: it's absolutely
                 positioned in a wrapper that stretches to the row, so the
                 picture always matches the tallest of the three top cells
@@ -323,7 +323,7 @@ export default async function AthletePage({
           {/* Top results */}
           {bestResults.length > 0 && (
             <section className="lg:col-start-2 lg:row-start-1">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Best Results</h2>
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Best Results</h2>
               <div className="flex flex-col gap-1">
                 {bestResults.map((r, i) => {
                   const meetHref = (eventName: string, y: number) =>
@@ -358,7 +358,7 @@ export default async function AthletePage({
 
           {/* Key stats: third cell of the top band */}
           <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
                   // Jumps to the Results section, every discipline/year,
@@ -395,7 +395,7 @@ export default async function AthletePage({
           {/* Right column below the top band: seasons, personal bests */}
           <aside className="flex flex-col gap-8 lg:col-start-3 lg:row-start-2 order-last lg:order-none">
             <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Stats by Year</h2>
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Stats by Year</h2>
               <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
                 <div className="grid grid-cols-[2.75rem_1fr_2.75rem_3.5rem] gap-x-1.5 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500">
                   <span />
@@ -408,7 +408,7 @@ export default async function AthletePage({
                     key={y.year}
                     href={`/rankings?event=all&gender=${info.gender ?? ""}&year=${y.year}`}
                     className={`grid grid-cols-[2.75rem_1fr_2.75rem_3.5rem] items-center gap-x-1.5 px-3 py-1.5 hover:bg-neutral-800 ${
-                      y.year === year ? "bg-neutral-800" : "bg-neutral-900/40"
+                      y.year === year ? "bg-neutral-800" : "bg-neutral-950"
                     }`}
                   >
                     <span className="text-sm">{y.year}</span>
@@ -439,7 +439,7 @@ export default async function AthletePage({
 
             <section>
               <div className="flex items-baseline justify-between mb-1">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
+                <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1">
                   Personal Bests
                 </h2>
               </div>
@@ -502,7 +502,7 @@ export default async function AthletePage({
                   <Link
                     key={i}
                     href={`/disciplines/${eventSlug(pb.athletics_event)}?gender=${info.gender ?? ""}`}
-                    className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-900/40 hover:bg-neutral-800"
+                    className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-950 hover:bg-neutral-800"
                   >
                     {/* fixed columns so marks and ranks line up row to row */}
                     <span className="text-sm min-w-0 truncate">{eventLabel(pb.athletics_event)}</span>
@@ -527,7 +527,7 @@ export default async function AthletePage({
 
           {/* Results */}
           <section id="results" className="lg:col-start-1 lg:col-span-2 lg:row-start-2 scroll-mt-4">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Results</h2>
+            <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Results</h2>
             <ResultsList
               // ResultsList's sort/winsOnly state is seeded from
               // initialSort/initialWinsOnly via useState, which only

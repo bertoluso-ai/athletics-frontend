@@ -207,14 +207,14 @@ export default async function CountryPage({
   const nextYear = years[idx - 1];
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100">
+    <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <Link href={`/countries?${qs(year, f)}`} className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Countries
         </Link>
 
         {/* Header */}
-        <div className="flex flex-wrap items-center gap-3 mt-1 mb-3">
+        <div className="flex flex-wrap items-center gap-3 mt-2 mb-4 bg-tint rounded-lg px-3 sm:px-4 py-2">
           <h1 className="text-2xl lg:text-3xl font-bold flex items-center gap-3">
             <Flag code={code} className="w-7 h-5" />
             {name}
@@ -271,7 +271,7 @@ export default async function CountryPage({
             picture) | best results of the season | key stats */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1fr)] gap-6 mb-8 lg:[&>section]:self-stretch">
           <section>
-            <h2 className="hidden lg:block text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Info</h2>
+            <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Info</h2>
             <div className="flex items-stretch gap-4">
               {/* the flag fills the bio's height (object-cover), never taller */}
               <div className="flex flex-col gap-1.5 shrink-0 w-28 lg:w-40">
@@ -307,8 +307,8 @@ export default async function CountryPage({
           </section>
 
           <section>
-            <div className="flex items-baseline justify-between mb-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Best Results</h2>
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1">Best Results</h2>
               {topResults.length > 7 && (
                 <a href={`/countries/${code}?${qs(year, f, { list: "top", sort, dir })}#results`} className="text-xs text-orange-400 hover:underline">
                   View all →
@@ -336,7 +336,7 @@ export default async function CountryPage({
           </section>
 
           <section>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-3">Key Stats</h2>
+            <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
             <div className="flex flex-col gap-1.5 text-sm">
               {[
                 { n: me?.wins ?? 0, label: "Wins" },
@@ -396,7 +396,7 @@ export default async function CountryPage({
           {/* Right column: squad + seasons */}
           <aside className="flex flex-col gap-8">
             <section>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400 mb-2">Squad</h2>
+              <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-2">Squad</h2>
               <ViewAllList
                 noun="athletes"
                 initial={12}
@@ -419,7 +419,7 @@ export default async function CountryPage({
                   <Link
                     key={a.athlete_id}
                     href={athleteHref(a.athlete_id, athleteSlugs)}
-                    className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-900/40 hover:bg-neutral-800"
+                    className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-950 hover:bg-neutral-800"
                     title={a.counts ? `Scores for ${name} (#${a.rn_in_country} in the country)` : `#${a.rn_in_country} in the country, outside the best ${COUNTED_ATHLETES}`}
                   >
                     <span className={`text-xs tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-600"}`}>{a.rn_in_country}</span>
@@ -444,7 +444,7 @@ export default async function CountryPage({
 
             <section>
               <div className="flex items-center justify-between gap-2 mb-2">
-                <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">Seasons</h2>
+                <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1">Seasons</h2>
                 <LinkSelect
                   value={seasonEvent}
                   className="max-w-[10rem]"
@@ -483,7 +483,7 @@ export default async function CountryPage({
                       href={rankingHref}
                       title="Go to this season's ranking"
                       className={`grid grid-cols-[2.75rem_1fr_3rem] items-center gap-x-1.5 px-3 py-1.5 hover:bg-neutral-800 ${
-                        s.year === year ? "bg-neutral-800" : "bg-neutral-900/40"
+                        s.year === year ? "bg-neutral-800" : "bg-neutral-950"
                       }`}
                     >
                       <span className="text-sm">{s.year}</span>
@@ -530,7 +530,7 @@ function ResultsTable({
 function ResultRow({ r, showPoints, athleteSlugs }: { r: CountryResultRow; showPoints: boolean; athleteSlugs: Map<string, string> }) {
   return (
     <div
-      className={`grid ${showPoints ? "grid-cols-[3.25rem_1.75rem_1fr_3rem]" : "grid-cols-[3.25rem_1fr]"} items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-900/40`}
+      className={`grid ${showPoints ? "grid-cols-[3.25rem_1.75rem_1fr_3rem]" : "grid-cols-[3.25rem_1fr]"} items-center gap-x-2 px-3 py-1.5 text-sm bg-neutral-950`}
     >
       <span className="text-xs text-neutral-500 whitespace-nowrap">{formatDate(r.date)}</span>
       {showPoints && <span className="text-xs text-neutral-400 tabular-nums">{r.place}</span>}

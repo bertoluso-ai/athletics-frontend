@@ -167,7 +167,7 @@ export default async function DisciplinePage({
   const limit = sp.limit ? Number(sp.limit) : 10;
   const isRelay = isRelayEvent(event);
   const category = eventCategory(event);
-  const indoorEligible = category !== "Road" && category !== "Cross Country" && !isRelay;
+  const indoorEligible = category !== "Road" && category !== "Cross Country" && category !== "Trail" && !isRelay;
   // 60m/60mH are never contested outdoors as a serious event -- the
   // "outdoor" rows that exist for them are near-certainly indoor races a
   // source failed to flag as such (no "indoor" in the meet name, no
@@ -200,7 +200,7 @@ export default async function DisciplinePage({
   const typeHref = (ty: RaceType) => {
     const ev = eventMatchesType(event, ty) ? event : allEventOptions.find((e) => eventMatchesType(e, ty)) ?? event;
     const q = new URLSearchParams({ gender });
-    const eligible = eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && !isRelayEvent(ev);
+    const eligible = eventCategory(ev) !== "Road" && eventCategory(ev) !== "Cross Country" && eventCategory(ev) !== "Trail" && !isRelayEvent(ev);
     if (eligible) q.set("indoor", String(ty === "indoor"));
     if (yearParam != null) q.set("year", String(yearParam));
     return `/disciplines/${eventSlug(ev)}?${q.toString()}`;

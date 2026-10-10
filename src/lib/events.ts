@@ -149,6 +149,23 @@ export const EVENT_GROUPS = [
     } as Record<string, string>,
   },
   {
+    key: "trail", label: "Mountain & trail",
+    // 2026-10-10: ~84 races (20 modern ones from the European Off-Road Running Championships, plus the
+    // old World Trophy / European mountain running championships). "Mountain Running" is the generic
+    // name of those old ones (sports123, 1997-2011; formerly "Sin clasificar"). Lidingoloppet (30 km
+    // forest trail, tagged Cross Country by the source) lives here too.
+    events: {
+      Men: ["Mountain Running Up & Down", "Mountain Running Classic Hill", "Trail Running", "Mountain Running"],
+      Women: ["Mountain Running Up & Down", "Mountain Running Classic Hill", "Trail Running", "Mountain Running"],
+    },
+    names: {
+      "Mountain Running Up & Down": "Mountain Up & Down",
+      "Mountain Running Classic Hill": "Mountain Classic Hill",
+      "Trail Running": "Trail Running",
+      "Mountain Running": "Mountain Running",
+    } as Record<string, string>,
+  },
+  {
     key: "relays", label: "Relays",
     events: {
       Men: ["4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay"],
@@ -254,7 +271,7 @@ export function isWindAffected(event: string): boolean {
 const GROUP_KEY_TO_CATEGORY: Record<string, string> = {
   sprints: "Track", hurdles: "Track", middle: "Track", long: "Track",
   walk: "Race Walk", jumps: "Field", throws: "Field",
-  combined: "Combined", road: "Road", cross: "Cross Country", relays: "Relays",
+  combined: "Combined", road: "Road", cross: "Cross Country", trail: "Trail", relays: "Relays",
 };
 
 // Broad category for grouping/filtering an athlete's Personal Bests --
@@ -276,6 +293,7 @@ export function eventCategory(event: string): string {
   if (/heptathlon|pentathlon|decathlon|octathlon/.test(lower)) return "Combined";
   if (/walk/.test(lower)) return "Race Walk";
   if (/cross country/.test(lower)) return "Cross Country";
+  if (/mountain|trail|off-road/.test(lower)) return "Trail";
   if (/relay/.test(lower)) return "Relays";
   if (/marathon|\d+\s*(kilometres|kilometers|km)\b/.test(lower)) return "Road";
   if (/jump|vault|shot put|discus|javelin|hammer|throw/.test(lower)) return "Field";
