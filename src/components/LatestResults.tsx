@@ -101,6 +101,19 @@ export default function LatestResults({
       <div className={showFilters ? "mb-3" : "hidden"}>
         <div className="flex items-center gap-2 flex-wrap">
           <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            aria-label="Type"
+            className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">All types</option>
+            {RACE_TYPES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <select
             value={event}
             onChange={(e) => setEvent(e.target.value)}
             className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
@@ -122,19 +135,6 @@ export default function LatestResults({
             {TIERS.map((t) => (
               <option key={t} value={t}>
                 {t}
-              </option>
-            ))}
-          </select>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-            aria-label="Type"
-            className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
-          >
-            <option value="">All types</option>
-            {RACE_TYPES.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
               </option>
             ))}
           </select>

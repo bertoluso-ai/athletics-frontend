@@ -272,6 +272,14 @@ export default async function MeetsPage({
               defaultSelected={tierValues}
               options={TIER_ORDER.map((t) => ({ value: t, label: t, title: TIER_LABELS.find((x) => x.value === t)?.label ?? t }))}
             />
+            <select name="type" defaultValue={type ?? ""} aria-label="Type" className={`shrink-0 ${sc(!!type)}`}>
+                  <option value="">All types</option>
+                  {RACE_TYPES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
             <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${sc(!!discipline)}`}>
               <option value="">All disciplines</option>
               {sortEventsAlpha(ALL_EVENTS).map((ev) => (
@@ -296,14 +304,6 @@ export default async function MeetsPage({
                 </option>
               ))}
             </select>
-            <select name="type" defaultValue={type ?? ""} aria-label="Type" className={`shrink-0 ${sc(!!type)}`}>
-                  <option value="">All types</option>
-                  {RACE_TYPES.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
             {view === "races" && (
               <>
                 <select name="gender" defaultValue={gender ?? ""} aria-label="Gender" className={`shrink-0 ${sc(!!gender)}`}>

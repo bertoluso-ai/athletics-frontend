@@ -308,17 +308,17 @@ export default async function DisciplinePage({
                   </div>
                 )}
                 <LinkSelect
-                  value={currentType}
-                  className={selectClass}
-                  options={RACE_TYPES.map((o) => ({ value: o.value, label: o.label, href: typeHref(o.value) }))}
-                />
-                <LinkSelect
                   value={yearParam == null ? "all" : String(yearParam)}
                   className={selectClass}
                   options={[{ value: "all", label: "All-time", href: yearHref("all") }, ...years.map((y) => ({ value: String(y), label: String(y), href: yearHref(String(y)) }))]}
                 />
               </div>
               <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+                <LinkSelect
+                  value={currentType}
+                  className={selectClass}
+                  options={RACE_TYPES.map((o) => ({ value: o.value, label: o.label, href: typeHref(o.value) }))}
+                />
                 <LinkSelect
                   value={event}
                   className={selectClass}
