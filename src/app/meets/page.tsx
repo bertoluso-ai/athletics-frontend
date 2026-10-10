@@ -5,7 +5,7 @@ import CalendarAutoForm from "@/components/CalendarAutoForm";
 import DateField from "@/components/DateField";
 import NavIcon from "@/components/NavIcons";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, sortEventsAlpha } from "@/lib/events";
-import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
+import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, RACE_TYPES, type CalendarSort } from "@/lib/calendar";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
 
@@ -16,7 +16,8 @@ export const revalidate = 3600;
 // (the whole championship/meeting, with upcoming ones) or a single RACE
 // (one discipline+gender+round of it). One filter bar serves both; Nation and
 // Area are always the HOST country of the competition. Gender, age and
-// surface only exist per race, so they only show in the Races view.
+// type (track / indoor / road / cross country / race walk / mountain & trail)
+// only exist per race, so they only show in the Races view.
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const PAGE_SIZE = 100;
@@ -102,6 +103,7 @@ export default async function MeetsPage({
     to?: string;
     gender?: string;
     age?: string;
+    type?: string;
     surface?: string;
     sort?: string;
     dir?: string;
@@ -140,8 +142,9 @@ export default async function MeetsPage({
   const nation = sp.nationality && nationOptions.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
   const gender = sp.gender === "Men" || sp.gender === "Women" ? sp.gender : undefined;
   const age = AGES.find((a) => a === sp.age);
-  const surfaceParam = sp.surface ?? (sp.indoor === "true" ? "indoor" : undefined);
-  const surface = surfaceParam === "indoor" || surfaceParam === "outdoor" ? surfaceParam : undefined;
+  // legacy ?surface=indoor / ?indoor=true links keep working as type=indoor
+  const typeParam = sp.type ?? (sp.surface === "indoor" || sp.indoor === "true" ? "indoor" : undefined);
+  const type = RACE_TYPES.find((t) => t.value === typeParam)?.value;
 
   // "recent" is the old Races name for the date sort; races have no name sort
   const rawSort = sp.sort === "recent" ? "date" : sp.sort;
@@ -156,7 +159,7 @@ export default async function MeetsPage({
 
   const base = { year, months: selectedMonths, tiers: selectedTiers, discipline, area, nation, from, to, sort, dir, page, pageSize: PAGE_SIZE };
   const competitions = view === "competitions" ? await getCalendar(base) : null;
-  const races = view === "races" ? await getRaces({ ...base, gender, age, surface }) : null;
+  const races = view === "races" ? await getRaces({ ...base, gender, age, type }) : null;
   const rows = competitions?.rows ?? [];
   const raceRows = races?.rows ?? [];
   const total = competitions?.total ?? races?.total ?? 0;
@@ -185,7 +188,7 @@ export default async function MeetsPage({
     if (v === "races") {
       if (gender) q.set("gender", gender);
       if (age) q.set("age", age);
-      if (surface) q.set("surface", surface);
+      if (type) q.set("type", type);
     }
     if (!over.reset) {
       q.set("sort", over.sort ?? sort);
@@ -201,7 +204,7 @@ export default async function MeetsPage({
   const sortArrow = (col: CalendarSort) => (sort === col ? (dir === "asc" ? " ▲" : " ▼") : "");
   const selectClass = "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
   const sc = (on: boolean) => (on ? "bg-orange-50 text-orange-700 text-xs rounded px-2 py-1.5 border border-orange-300 focus:outline-none" : selectClass);
-  const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || surface);
+  const hasExtraFilters = !!(discipline || area || nation || ranged || gender || age || type);
   const GRID = "grid-cols-[6rem_minmax(0,1.1fr)_minmax(0,1.25fr)_5rem_3.75rem]";
 
   const raceLink = (r: (typeof raceRows)[number]) =>
@@ -307,10 +310,13 @@ export default async function MeetsPage({
                     </option>
                   ))}
                 </select>
-                <select name="surface" defaultValue={surface ?? ""} aria-label="Surface" className={`shrink-0 ${sc(!!surface)}`}>
-                  <option value="">Indoor &amp; outdoor</option>
-                  <option value="outdoor">Outdoor</option>
-                  <option value="indoor">Indoor</option>
+                <select name="type" defaultValue={type ?? ""} aria-label="Type" className={`shrink-0 ${sc(!!type)}`}>
+                  <option value="">All types</option>
+                  {RACE_TYPES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
                 </select>
               </>
             )}

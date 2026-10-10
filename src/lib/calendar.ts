@@ -178,6 +178,28 @@ export const getCalendarYears = unstable_cache(
 );
 
 // ---------------------------------------------------------------------
+// Kind of race, by what is run (not just where): Indoor is any indoor meet's race;
+// the rest classify the discipline (athletics_event_base). Race walk is its own
+// kind (it runs on track and on road); Track = outdoor track and field.
+export type RaceType = "track" | "indoor" | "road" | "cross" | "walk" | "trail";
+export const RACE_TYPES: { value: RaceType; label: string }[] = [
+  { value: "track", label: "Track" },
+  { value: "indoor", label: "Indoor" },
+  { value: "road", label: "Road" },
+  { value: "cross", label: "Cross country" },
+  { value: "walk", label: "Race walk" },
+  { value: "trail", label: "Mountain & trail" },
+];
+const NOT_SPECIAL = "r.athletics_event_base !~* '(road|marathon|cross|walk|mountain|trail|off-road)'";
+const RACE_TYPE_SQL: Record<RaceType, string> = {
+  indoor: "r.indoor",
+  track: `NOT r.indoor AND ${NOT_SPECIAL}`,
+  road: "r.athletics_event_base ~* '(road|marathon)' AND r.athletics_event_base !~* 'walk'",
+  cross: "r.athletics_event_base ILIKE 'cross country%'",
+  walk: "r.athletics_event_base ILIKE '%walk%'",
+  trail: "r.athletics_event_base ~* '(mountain|trail|off-road)'",
+};
+
 // "Races" view of /meets: one row per RACE (competition x discipline x
 // gender x round), from calendar_races (registry/27_materialize_calendar_races.sql).
 // Same filter bar as the competitions view -- Nation/Area are always the HOST
@@ -208,7 +230,7 @@ export type RaceFilters = {
   nation?: string; // host country
   gender?: "Men" | "Women";
   age?: string; // U23 | U20 | U18, by the winner's age
-  surface?: "indoor" | "outdoor";
+  type?: RaceType; // kind of race: replaces the old indoor/outdoor switch
   from?: string;
   to?: string;
   sort: CalendarSort;
@@ -239,8 +261,7 @@ async function _getRaces(f: RaceFilters): Promise<{ rows: RaceRow[]; total: numb
   if (f.gender) where.push(`r.gender = ${p(f.gender)}`);
   const ageMax = f.age ? AGE_MAX[f.age] : undefined;
   if (ageMax !== undefined) where.push(`r.top_birth_year IS NOT NULL AND (r.year - r.top_birth_year) <= ${p(ageMax)}`);
-  if (f.surface === "indoor") where.push(`r.indoor`);
-  else if (f.surface === "outdoor") where.push(`NOT r.indoor`);
+  if (f.type) where.push(RACE_TYPE_SQL[f.type]);
 
   const d = f.dir === "asc" ? "ASC" : "DESC";
   const raceKey = `COALESCE(r.date::text, 'Y' || r.year::text)`;
@@ -265,7 +286,7 @@ async function _getRaces(f: RaceFilters): Promise<{ rows: RaceRow[]; total: numb
   );
   return { rows, total: rows[0]?.total ?? 0 };
 }
-export const getRaces = unstable_cache(_getRaces, ["meets-races-pg-v1"], { revalidate: 3600 });
+export const getRaces = unstable_cache(_getRaces, ["meets-races-pg-v2"], { revalidate: 3600 });
 
 // Home "Upcoming races": next competitions on the calendar, optionally by
 // FINE discipline (the same list as Latest results). The scraped calendar only
