@@ -5,7 +5,8 @@ import CalendarAutoForm from "@/components/CalendarAutoForm";
 import DateField from "@/components/DateField";
 import NavIcon from "@/components/NavIcons";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, sortEventsAlpha } from "@/lib/events";
-import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, RACE_TYPES, type CalendarSort } from "@/lib/calendar";
+import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
+import { RACE_TYPES } from "@/lib/raceTypes";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
 
@@ -158,7 +159,7 @@ export default async function MeetsPage({
   const page = Math.max(1, Number(sp.page) || 1);
 
   const base = { year, months: selectedMonths, tiers: selectedTiers, discipline, area, nation, from, to, sort, dir, page, pageSize: PAGE_SIZE };
-  const competitions = view === "competitions" ? await getCalendar(base) : null;
+  const competitions = view === "competitions" ? await getCalendar({ ...base, type }) : null;
   const races = view === "races" ? await getRaces({ ...base, gender, age, type }) : null;
   const rows = competitions?.rows ?? [];
   const raceRows = races?.rows ?? [];
@@ -185,10 +186,10 @@ export default async function MeetsPage({
     if (discipline) q.set("discipline", discipline);
     if (area) q.set("area", area);
     if (nation) q.set("nationality", nation);
+    if (type) q.set("type", type);
     if (v === "races") {
       if (gender) q.set("gender", gender);
       if (age) q.set("age", age);
-      if (type) q.set("type", type);
     }
     if (!over.reset) {
       q.set("sort", over.sort ?? sort);
@@ -295,6 +296,14 @@ export default async function MeetsPage({
                 </option>
               ))}
             </select>
+            <select name="type" defaultValue={type ?? ""} aria-label="Type" className={`shrink-0 ${sc(!!type)}`}>
+                  <option value="">All types</option>
+                  {RACE_TYPES.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
             {view === "races" && (
               <>
                 <select name="gender" defaultValue={gender ?? ""} aria-label="Gender" className={`shrink-0 ${sc(!!gender)}`}>
@@ -310,14 +319,7 @@ export default async function MeetsPage({
                     </option>
                   ))}
                 </select>
-                <select name="type" defaultValue={type ?? ""} aria-label="Type" className={`shrink-0 ${sc(!!type)}`}>
-                  <option value="">All types</option>
-                  {RACE_TYPES.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
+                
               </>
             )}
             {(hasExtraFilters || tierValues.length > 0) && (

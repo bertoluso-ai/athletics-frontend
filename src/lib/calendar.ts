@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
 import { eventCategory } from "./events";
+import { raceTypeSql, type RaceType } from "./raceTypes";
 import type { UpcomingCompetition } from "./queries";
 
 // Season calendar: competitions already held (with their headline
@@ -47,6 +48,7 @@ export type CalendarFilters = {
   months: number[]; // empty = whole year
   tiers: string[];
   discipline?: string; // athletics_event_base
+  type?: RaceType; // kind of race: editions that held a race of this kind
   area?: string; // World Athletics area of the host country
   nation?: string; // host country code
   from?: string; // YYYY-MM-DD; a from/to range replaces year+months
@@ -129,6 +131,20 @@ async function _getCalendar(f: CalendarFilters): Promise<{ rows: CalendarRow[]; 
     upWhere.push(`u.disciplines ILIKE ${p(`%${cat}%`)}`);
   }
 
+  // Race type: past editions that held at least one race of that kind (calendar_races);
+  // upcoming ones only carry a coarse family, so they match by that.
+  if (f.type) {
+    pastWhere.push(
+      `EXISTS (SELECT 1 FROM calendar_races r WHERE r.event_name = e.event_name AND r.year = e.year AND ${raceTypeSql(f.type, "r.athletics_event_base", "r.indoor")})`
+    );
+    const FAMILY: Record<RaceType, string> = {
+      track: "Track and Field", indoor: "Track and Field", road: "Road Running",
+      cross: "Cross Country", walk: "Race Walking", trail: "Track and Field",
+    };
+    upWhere.push(`u.disciplines ILIKE ${p(`%${FAMILY[f.type]}%`)}`);
+    if (f.type === "indoor") upWhere.push(`u.name ILIKE '%indoor%'`);
+  }
+
   const desc = f.dir === "desc";
   const order: Record<CalendarSort, string> = {
     date: `date_start ${desc ? "DESC" : "ASC"} NULLS LAST, name`,
@@ -161,7 +177,7 @@ async function _getCalendar(f: CalendarFilters): Promise<{ rows: CalendarRow[]; 
   );
   return { rows, total: rows[0]?.total ?? 0 };
 }
-export const getCalendar = unstable_cache(_getCalendar, ["calendar-pg-v1"], { revalidate: 3600 });
+export const getCalendar = unstable_cache(_getCalendar, ["calendar-pg-v2"], { revalidate: 3600 });
 
 export const getCalendarYears = unstable_cache(
   async (): Promise<number[]> => {
@@ -178,27 +194,6 @@ export const getCalendarYears = unstable_cache(
 );
 
 // ---------------------------------------------------------------------
-// Kind of race, by what is run (not just where): Indoor is any indoor meet's race;
-// the rest classify the discipline (athletics_event_base). Race walk is its own
-// kind (it runs on track and on road); Track = outdoor track and field.
-export type RaceType = "track" | "indoor" | "road" | "cross" | "walk" | "trail";
-export const RACE_TYPES: { value: RaceType; label: string }[] = [
-  { value: "track", label: "Track" },
-  { value: "indoor", label: "Indoor" },
-  { value: "road", label: "Road" },
-  { value: "cross", label: "Cross country" },
-  { value: "walk", label: "Race walk" },
-  { value: "trail", label: "Mountain & trail" },
-];
-const NOT_SPECIAL = "r.athletics_event_base !~* '(road|marathon|cross|walk|mountain|trail|off-road)'";
-const RACE_TYPE_SQL: Record<RaceType, string> = {
-  indoor: "r.indoor",
-  track: `NOT r.indoor AND ${NOT_SPECIAL}`,
-  road: "r.athletics_event_base ~* '(road|marathon)' AND r.athletics_event_base !~* 'walk'",
-  cross: "r.athletics_event_base ILIKE 'cross country%'",
-  walk: "r.athletics_event_base ILIKE '%walk%'",
-  trail: "r.athletics_event_base ~* '(mountain|trail|off-road)'",
-};
 
 // "Races" view of /meets: one row per RACE (competition x discipline x
 // gender x round), from calendar_races (registry/27_materialize_calendar_races.sql).
@@ -261,7 +256,7 @@ async function _getRaces(f: RaceFilters): Promise<{ rows: RaceRow[]; total: numb
   if (f.gender) where.push(`r.gender = ${p(f.gender)}`);
   const ageMax = f.age ? AGE_MAX[f.age] : undefined;
   if (ageMax !== undefined) where.push(`r.top_birth_year IS NOT NULL AND (r.year - r.top_birth_year) <= ${p(ageMax)}`);
-  if (f.type) where.push(RACE_TYPE_SQL[f.type]);
+  if (f.type) where.push(raceTypeSql(f.type, "r.athletics_event_base", "r.indoor"));
 
   const d = f.dir === "asc" ? "ASC" : "DESC";
   const raceKey = `COALESCE(r.date::text, 'Y' || r.year::text)`;

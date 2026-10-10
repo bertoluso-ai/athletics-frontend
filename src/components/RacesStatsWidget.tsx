@@ -1,5 +1,6 @@
 "use client";
 
+import { RACE_TYPES } from "@/lib/raceTypes";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
@@ -51,7 +52,7 @@ function formatDate(iso: string | null, year: number | null) {
 export default function RacesStatsWidget({ year }: { year: number }) {
   const [mode, setMode] = useState<Mode>("quality");
   const [gender, setGender] = useState<Gender>("Men");
-  const [indoor, setIndoor] = useState(false);
+  const [type, setType] = useState<string>("");
   const [groupKey, setGroupKey] = useState<string>(EVENT_GROUPS[0].key);
   const group = GROUPS.find((g) => g.key === groupKey)!;
   const isAll = groupKey === "all";
@@ -71,7 +72,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     let cancelled = false;
     setLoading(true);
     const eventParam = isAll ? "all" : event;
-    const url = `/api/races?event=${encodeURIComponent(eventParam)}&gender=${gender}&year=${year}&sortBy=${mode}&indoor=${indoor}`;
+    const url = `/api/races?event=${encodeURIComponent(eventParam)}&gender=${gender}&year=${year}&sortBy=${mode}${type ? `&type=${type}` : ""}`;
     fetch(url)
       .then((r) => r.json())
       .then((data) => !cancelled && setRows(data))
@@ -79,7 +80,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     return () => {
       cancelled = true;
     };
-  }, [mode, event, gender, year, isAll, indoor]);
+  }, [mode, event, gender, year, isAll, type]);
 
   // Carries the widget's current filters over to the full /meets page (races view) --
   // landing there on whatever was actually being looked at here, not a
@@ -91,7 +92,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
     gender,
     ...(isAll ? {} : { discipline: event }),
     sort: mode === "recent" ? "date" : "quality",
-    surface: indoor ? "indoor" : "outdoor",
+    ...(type ? { type } : {}),
   }).toString()}`;
 
   return (
@@ -121,27 +122,34 @@ export default function RacesStatsWidget({ year }: { year: number }) {
         </div>
       </div>
 
-      {/* Indoor marks are a separate ranking context from outdoor (the
-          sport keeps separate world records for each), never blended --
-          same convention as the disciplines page's own toggle. Defaults to
-          outdoor: without an explicit choice here, a global championship
-          held indoors earlier in the year could otherwise always win the
-          Quality sort over the regular outdoor season just by being a
-          bigger meet, with no way to see outdoor-only results. */}
+      {/* Race type (Track / Indoor / Road / Cross country / Race walk / Mountain & trail).
+          Default "All types" keeps the old behaviour (outdoor races only): indoor
+          is its own context, so a championship held indoors never outranks the
+          outdoor season unless Indoor is picked. The kinds that are not track
+          jump to "All disciplines": the discipline pills are track-first. */}
       <div className="px-3 sm:px-4 pt-2 flex items-center justify-between gap-2">
         <Link href={viewAllHref} className="text-xs text-neutral-500 hover:text-orange-400">
           View all →
         </Link>
-        <button
-          type="button"
-          onClick={() => setIndoor((v) => !v)}
-          title="Indoor and outdoor marks are separate ranking contexts in the sport (separate world records exist) -- never blended together here"
-          className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-            indoor ? "bg-blue-500/20 border-blue-500/40 text-blue-400" : "border-neutral-700 text-neutral-400"
+        <select
+          value={type}
+          onChange={(e) => {
+            const v = e.target.value;
+            setType(v);
+            if (v && v !== "track" && v !== "indoor") setGroupKey("all");
+          }}
+          aria-label="Type"
+          className={`shrink-0 h-[26px] text-xs rounded px-1.5 border focus:outline-none focus:border-orange-500 ${
+            type ? "bg-orange-50 border-orange-300 text-orange-700" : "bg-neutral-800 border-neutral-700"
           }`}
         >
-          {indoor ? "Indoor" : "Outdoor"}
-        </button>
+          <option value="">All types</option>
+          {RACE_TYPES.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar

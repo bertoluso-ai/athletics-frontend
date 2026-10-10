@@ -8,6 +8,7 @@ import type { Race, LatestResultGroup } from "@/lib/queries";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
 import SectionIcon, { type IconName } from "./SectionIcon";
+import { RACE_TYPES } from "@/lib/raceTypes";
 
 const ALL_EVENTS = Array.from(
   new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
@@ -59,11 +60,12 @@ export default function LatestResults({
 }) {
   const [event, setEvent] = useState("");
   const [tier, setTier] = useState(defaultTier);
+  const [type, setType] = useState("");
   const [groups, setGroups] = useState<LatestResultGroup[]>(initialGroups);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!event && tier === defaultTier) {
+    if (!event && !type && tier === defaultTier) {
       setGroups(initialGroups);
       return;
     }
@@ -72,6 +74,7 @@ export default function LatestResults({
     const params = new URLSearchParams();
     if (event) params.set("event", event);
     if (tier) params.set("tier", tier);
+    if (type) params.set("type", type);
     fetch(`/api/latest-results?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => !cancelled && setGroups(data))
@@ -80,7 +83,7 @@ export default function LatestResults({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event, tier]);
+  }, [event, tier, type]);
 
   // The cap (3 on the Home) belongs to the default "B and above" view only; "All categories"
   // or a single tier shows the wider list (up to 10 competitions).
@@ -119,6 +122,19 @@ export default function LatestResults({
             {TIERS.map((t) => (
               <option key={t} value={t}>
                 {t}
+              </option>
+            ))}
+          </select>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value)}
+            aria-label="Type"
+            className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
+          >
+            <option value="">All types</option>
+            {RACE_TYPES.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
               </option>
             ))}
           </select>

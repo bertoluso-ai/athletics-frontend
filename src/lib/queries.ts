@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { raceTypeSql, type RaceType } from "./raceTypes";
 import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
 import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
@@ -504,9 +505,9 @@ export type LatestResultGroup = {
 
 async function _getLatestRaces(
   maxSlots = 10,
-  filters: { event?: string; tier?: string; from?: string; to?: string } = {}
+  filters: { event?: string; tier?: string; from?: string; to?: string; type?: RaceType } = {}
 ): Promise<LatestResultGroup[]> {
-  const { event, tier, from, to } = filters;
+  const { event, tier, from, to, type } = filters;
   // A short window (7 days) keeps "latest" meaningful, but a quiet week can
   // leave the feed with only 1-2 competitions -- widen the lookback until
   // there are at least 5 distinct competitions (not races: one meet can
@@ -516,7 +517,7 @@ async function _getLatestRaces(
   const windows = from || to ? [null] : [7, 14, 30, 90];
   let result: LatestResultGroup[] = [];
   for (const days of windows) {
-    result = await fetchWindow(maxSlots, { event, tier, from: days ? isoDaysAgo(days) : from, to });
+    result = await fetchWindow(maxSlots, { event, tier, type, from: days ? isoDaysAgo(days) : from, to });
     if (result.length >= MIN_COMPETITIONS) break;
   }
   return result;
@@ -535,7 +536,7 @@ async function _getLatestRaces(
 // exports run every 2 h).
 export const getLatestRaces = unstable_cache(
   _getLatestRaces,
-  ["latest-races-v3"],
+  ["latest-races-v4"],
   { revalidate: 300 }
 );
 
@@ -547,9 +548,9 @@ function isoDaysAgo(days: number) {
 
 async function fetchWindow(
   maxSlots: number,
-  filters: { event?: string; tier?: string; from?: string; to?: string }
+  filters: { event?: string; tier?: string; from?: string; to?: string; type?: RaceType }
 ): Promise<LatestResultGroup[]> {
-  const { event, tier, from, to } = filters;
+  const { event, tier, from, to, type } = filters;
   // Parametros opcionales construidos dinamicamente: Postgres infiere el
   // numero de parametros del placeholder $N mas alto REALMENTE referenciado
   // en el SQL, asi que un filtro que no aplica no puede dejar un $N "hueco"
@@ -606,6 +607,7 @@ async function fetchWindow(
         AND (mark_seconds IS NOT NULL OR ${safeMark} IS NOT NULL)
         ${event ? `AND athletics_event = ${eventPh}` : ""}
         ${tier ? `AND division_key_resolved = ANY(string_to_array(${tierPh}, ','))` : ""}
+        ${type ? `AND ${raceTypeSql(type, "athletics_event_base", INDOOR_EXPR)}` : ""}
     ),
     ranked AS (
       SELECT *,
@@ -2253,7 +2255,7 @@ export type TopRaceRow = {
   top_mark: string | null;
 };
 
-export type TopRaceFilters = { tier?: string; nationality?: string; area?: string; ageCategory?: string };
+export type TopRaceFilters = { tier?: string; nationality?: string; area?: string; ageCategory?: string; type?: RaceType };
 
 // Full reference list (not scoped to one discipline's current nationalities
 // like getAvailableNationalities above) -- Races filters across every
@@ -2273,11 +2275,14 @@ export const getAllNationalities = unstable_cache(_getAllNationalities, ["getAll
 // actually grouped.
 const RACE_KEY_SQL = `COALESCE(date::text, 'Y' || year::text)`;
 
-function racesCte(eventPh: string | null, genderPh: string, yearPh: string | null, indoor: boolean, tierPh?: string) {
+function racesCte(eventPh: string | null, genderPh: string, yearPh: string | null, indoor: boolean, tierPh?: string, type?: RaceType) {
   // registry.race_level has no track_key (events_enriched does -- see
   // INDOOR_EXPR above), so this is name-only, the weaker half of that
   // check; good enough here and avoids an extra join.
-  const indoorFilter = `AND ${indoor ? "" : "NOT "}LOWER(event_name) LIKE '%indoor%'`;
+  // A race type (Track / Indoor / Road ...) replaces the plain indoor/outdoor switch when given.
+  const indoorFilter = type
+    ? `AND ${raceTypeSql(type, "athletics_event", "LOWER(event_name) LIKE '%indoor%'")}`
+    : `AND ${indoor ? "" : "NOT "}LOWER(event_name) LIKE '%indoor%'`;
   // race_level is unique on (event_name, athletics_event, gender, race_key,
   // round): verified against the whole table -- 0 such duplicate groups. The
   // ROW_NUMBER()/`rn = 1` de-dupe that used to sit here therefore discarded
@@ -2352,7 +2357,7 @@ async function _getTopRaces(
   // ~30-50 event names on that page (index scan on event_name, <250ms).
   if (!winnerFiltered) {
     const races = await pgQuery<TopRaceRow & { race_key: string }>(`
-      WITH races AS (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh)})
+      WITH races AS (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh, filters.type)})
       SELECT event_name, athletics_event, gender, date, year, race_key, round, race_level, tier,
         CAST(NULL AS TEXT) AS top_athlete_id, CAST(NULL AS TEXT) AS top_athlete,
         CAST(NULL AS TEXT) AS top_nationality, CAST(NULL AS TEXT) AS top_mark
@@ -2399,7 +2404,7 @@ async function _getTopRaces(
   // race before the LIMIT can be applied -- one pass, as before (the
   // nationality/area/age predicates keep the events scan selective).
   return pgQuery<TopRaceRow>(`
-    WITH races AS (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh)}),
+    WITH races AS (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh, filters.type)}),
     winners AS (
       SELECT event_name, athletics_event, gender, race_key, round,
         athlete_id, display_name, nationality, mark_display FROM (
@@ -2425,7 +2430,7 @@ async function _getTopRaces(
     LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
   `, params);
 }
-export const getTopRaces = unstable_cache(_getTopRaces, ["getTopRaces"], DAY_CACHE);
+export const getTopRaces = unstable_cache(_getTopRaces, ["getTopRaces-v2"], DAY_CACHE);
 
 async function _getTopRacesCount(
   event: string,
@@ -2447,7 +2452,7 @@ async function _getTopRacesCount(
     if (event !== "all") { params.push(event); eventPh = `$${idx++}`; }
     if (tier) { params.push(tier); tierPh = `$${idx++}`; }
     const rows = await pgQuery<{ n: number }>(`
-      SELECT COUNT(*) AS n FROM (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh)}) zz
+      SELECT COUNT(*) AS n FROM (${racesCte(eventPh, genderPh, yearPh, indoor, tierPh, filters.type)}) zz
     `, params);
     return rows[0]?.n ?? 0;
   }
