@@ -1,6 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
-import { AGE_CATEGORIES } from "./queries";
+import { AGE_CATEGORIES, INDOOR_EXPR } from "./queries";
+import { EVENT_GROUPS } from "./events";
+import { eventMatchesType, eventRaceKind, isRaceType, type RaceType } from "./raceTypes";
 
 // Countries/[code] and Rankings' nation view both read searchParams,
 // which makes Next.js treat them as fully dynamic (no Full Route Cache --
@@ -32,7 +34,7 @@ export function tierForRank(rank: number) {
   return TIERS.find((t) => rank >= t.from && rank <= t.to) ?? null;
 }
 
-export type CountryFilters = { gender: CountryGender; age?: string };
+export type CountryFilters = { gender: CountryGender; age?: string; type?: RaceType; event?: string };
 
 function ageFilter(age: string | undefined, yearExpr = "year") {
   const max = age ? AGE_CATEGORIES[age] : undefined;
@@ -63,6 +65,10 @@ export type CountryRankingRow = {
 // clustering, so the only real fix was precomputing it once a day instead
 // of on every page view (139MB/1.7s -> 10MB/0.8s, measured live).
 async function _getCountryRanking(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
+  // One discipline or one race type: not precomputed (too many combinations), so the same
+  // "24 best athletes per country" rule runs live over `events`, which is stored sorted by
+  // discipline+gender+year and indexed on (athletics_event_base, gender, year).
+  if (f.event || f.type) return _getCountryRankingFiltered(year, f);
   return pgQuery<CountryRankingRow>(
     `
     SELECT c.code, COALESCE(n.name, c.code) AS name,
@@ -76,7 +82,51 @@ async function _getCountryRanking(year: number, f: CountryFilters): Promise<Coun
     [year, f.gender, f.age ?? ""]
   );
 }
-export const getCountryRanking = unstable_cache(_getCountryRanking, ["getCountryRanking"], DAY_CACHE);
+
+async function _getCountryRankingFiltered(year: number, f: CountryFilters): Promise<CountryRankingRow[]> {
+  const catalog = Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women] as string[])));
+  const events = f.event ? [f.event] : catalog.filter((ev) => !f.type || eventMatchesType(ev, f.type));
+  // Outdoor by default, like every other points ranking; Indoor is its own context.
+  const trackish = f.type ? f.type === "track" : f.event ? eventRaceKind(f.event) === "track" : false;
+  const indoorCond = f.type === "indoor" ? `AND ${INDOOR_EXPR}` : trackish ? `AND NOT ${INDOOR_EXPR}` : "";
+  return pgQuery<CountryRankingRow>(
+    `
+    WITH athletes AS (
+      SELECT athlete_id,
+        (ARRAY_AGG(nationality ORDER BY date DESC) FILTER (WHERE nationality IS NOT NULL))[1] AS nationality,
+        SUM(competition_score) AS points,
+        COUNT(*) FILTER (WHERE place = 1) AS wins,
+        COUNT(*) FILTER (WHERE place BETWEEN 1 AND 3) AS podiums
+      FROM events
+      WHERE year = $1 AND gender = $2 AND athletics_event_base = ANY($3::text[])
+        AND competition_score IS NOT NULL AND athlete_id IS NOT NULL
+        ${ageFilter(f.age)} ${indoorCond}
+      GROUP BY athlete_id
+    ),
+    ranked AS (
+      SELECT nationality AS code, points, wins, podiums,
+        ROW_NUMBER() OVER (PARTITION BY nationality ORDER BY points DESC) AS rn
+      FROM athletes WHERE nationality IS NOT NULL
+    ),
+    per_country AS (
+      SELECT code,
+        ROUND(SUM(points) FILTER (WHERE rn <= ${COUNTED_ATHLETES})::numeric, 0) AS points,
+        COUNT(*) FILTER (WHERE rn <= ${COUNTED_ATHLETES}) AS n_counted,
+        COUNT(*) AS n_athletes,
+        SUM(wins) AS wins, SUM(podiums) AS podiums
+      FROM ranked GROUP BY code
+    )
+    SELECT p.code, COALESCE(n.name, p.code) AS name,
+      RANK() OVER (ORDER BY p.points DESC) AS rank,
+      p.points, p.n_counted, p.n_athletes, p.wins, p.podiums
+    FROM per_country p LEFT JOIN countries n ON n.code = p.code
+    WHERE p.points > 0
+    ORDER BY rank
+  `,
+    [year, f.gender, events]
+  );
+}
+export const getCountryRanking = unstable_cache(_getCountryRanking, ["getCountryRanking-v2"], DAY_CACHE);
 
 export type CountryAthleteRow = {
   athlete_id: string;
@@ -240,10 +290,15 @@ async function _getCountryYears(): Promise<number[]> {
 }
 export const getCountryYears = unstable_cache(_getCountryYears, ["getCountryYears"], DAY_CACHE);
 
-export function parseCountryFilters(sp: { gender?: string; age?: string }): CountryFilters {
+export function parseCountryFilters(sp: { gender?: string; age?: string; type?: string; event?: string }): CountryFilters {
+  const type = isRaceType(sp.type) ? sp.type : undefined;
+  const catalog = EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women] as string[]);
+  const event = sp.event && catalog.includes(sp.event) && (!type || eventMatchesType(sp.event, type)) ? sp.event : undefined;
   return {
     gender: sp.gender === "Women" ? "Women" : "Men",
     age: sp.age && sp.age in AGE_CATEGORIES ? sp.age : undefined,
+    type,
+    event,
   };
 }
 

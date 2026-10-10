@@ -1,5 +1,8 @@
 import Link from "next/link";
 import PageBar from "@/components/PageBar";
+import LinkSelect from "@/components/LinkSelect";
+import { RACE_TYPES, eventMatchesType } from "@/lib/raceTypes";
+import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
 import Flag from "@/components/Flag";
 import { flagUrlWide } from "@/lib/flags";
 import {
@@ -20,12 +23,16 @@ export const revalidate = 3600;
 
 const AGES = ["", "U23", "U20", "U18"] as const;
 
-function hrefWith(year: number, f: CountryFilters, over: Partial<{ year: number; gender: string; age: string }>) {
+function hrefWith(year: number, f: CountryFilters, over: Partial<{ year: number; gender: string; age: string; type: string; event: string }>) {
   const qs = new URLSearchParams();
   qs.set("year", String(over.year ?? year));
   qs.set("gender", over.gender ?? f.gender);
   const age = over.age !== undefined ? over.age : f.age ?? "";
   if (age) qs.set("age", age);
+  const type = over.type !== undefined ? over.type : f.type ?? "";
+  if (type) qs.set("type", type);
+  const event = over.event !== undefined ? over.event : f.event ?? "";
+  if (event) qs.set("event", event);
   return `/countries?${qs.toString()}`;
 }
 
@@ -38,7 +45,7 @@ function countryHref(code: string, year: number, f: CountryFilters) {
 export default async function CountriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; gender?: string; age?: string }>;
+  searchParams: Promise<{ year?: string; gender?: string; age?: string; type?: string; event?: string }>;
 }) {
   const sp = await searchParams;
   const years = await getCountryYears();
@@ -46,8 +53,11 @@ export default async function CountriesPage({
   const f = parseCountryFilters(sp);
   const rows = await getCountryRanking(year, f);
 
-  const pill = (active: boolean) =>
-    `text-xs px-2.5 py-1 rounded-full border ${active ? "bg-orange-50 text-orange-700 border-orange-300" : "border-neutral-700 text-neutral-400 hover:text-neutral-200"}`;
+  const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  // Discipline list for the chosen gender, narrowed by the type (like Disciplines / Rankings).
+  const eventOptions = sortEventsAlpha(
+    Array.from(new Set(EVENT_GROUPS.flatMap((g) => [...g.events[f.gender]] as string[]))).filter((ev) => !f.type || eventMatchesType(ev, f.type))
+  );
 
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
@@ -58,43 +68,49 @@ export default async function CountriesPage({
           Silver, next 8 Bronze.
         </p>
 
-        {/* Filters: year, gender, category */}
-        <div className="flex flex-wrap items-center gap-2 mb-6 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
-          <form action="/countries" className="flex items-center gap-2">
-            <input type="hidden" name="gender" value={f.gender} />
-            {f.age && <input type="hidden" name="age" value={f.age} />}
-            <select
-              name="year"
-              defaultValue={year}
-              className="bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700"
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
+        {/* Filters, same two-row layout as Disciplines: gender + year, then type, discipline and age.
+            Every control navigates on change (no Go button). */}
+        <div className="flex flex-col gap-2 mb-6 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+            <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+              {(["Men", "Women"] as const).map((g) => (
+                <Link
+                  key={g}
+                  href={hrefWith(year, f, { gender: g, event: "" })}
+                  className={`px-3 py-1.5 rounded ${f.gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+                >
+                  {g}
+                </Link>
               ))}
-            </select>
-            <button className="text-xs px-2.5 py-1.5 rounded bg-neutral-800 border border-neutral-700 hover:border-neutral-500">
-              Go
-            </button>
-          </form>
-          <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
-            {(["Men", "Women"] as const).map((g) => (
-              <Link
-                key={g}
-                href={hrefWith(year, f, { gender: g })}
-                className={`px-2.5 py-1 rounded ${f.gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
-              >
-                {g}
-              </Link>
-            ))}
+            </div>
+            <LinkSelect
+              value={String(year)}
+              className={selectClass}
+              options={years.map((y) => ({ value: String(y), label: String(y), href: hrefWith(year, f, { year: y }) }))}
+            />
           </div>
-          <div className="flex gap-1">
-            {AGES.map((a) => (
-              <Link key={a || "all"} href={hrefWith(year, f, { age: a })} className={pill((f.age ?? "") === a)}>
-                {a || "All ages"}
-              </Link>
-            ))}
+          <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+            <LinkSelect
+              value={f.type ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All types", href: hrefWith(year, f, { type: "", event: "" }) },
+                ...RACE_TYPES.map((o) => ({ value: o.value, label: o.label, href: hrefWith(year, f, { type: o.value, event: "" }) })),
+              ]}
+            />
+            <LinkSelect
+              value={f.event ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All disciplines", href: hrefWith(year, f, { event: "" }) },
+                ...eventOptions.map((ev) => ({ value: ev, label: eventLabel(ev), href: hrefWith(year, f, { event: ev }) })),
+              ]}
+            />
+            <LinkSelect
+              value={f.age ?? ""}
+              className={selectClass}
+              options={AGES.map((a) => ({ value: a, label: a || "All ages", href: hrefWith(year, f, { age: a }) }))}
+            />
           </div>
         </div>
 
