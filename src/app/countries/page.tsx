@@ -3,6 +3,7 @@ import PageBar from "@/components/PageBar";
 import LinkSelect from "@/components/LinkSelect";
 import { RACE_TYPES, eventMatchesType } from "@/lib/raceTypes";
 import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
+import { AREAS } from "@/lib/country-data";
 import Flag from "@/components/Flag";
 import { flagUrlWide } from "@/lib/flags";
 import {
@@ -23,7 +24,7 @@ export const revalidate = 3600;
 
 const AGES = ["", "U23", "U20", "U18"] as const;
 
-function hrefWith(year: number, f: CountryFilters, over: Partial<{ year: number; gender: string; age: string; type: string; event: string }>) {
+function hrefWith(year: number, f: CountryFilters, over: Partial<{ year: number; gender: string; age: string; type: string; event: string; area: string }>) {
   const qs = new URLSearchParams();
   qs.set("year", String(over.year ?? year));
   qs.set("gender", over.gender ?? f.gender);
@@ -33,6 +34,8 @@ function hrefWith(year: number, f: CountryFilters, over: Partial<{ year: number;
   if (type) qs.set("type", type);
   const event = over.event !== undefined ? over.event : f.event ?? "";
   if (event) qs.set("event", event);
+  const area = over.area !== undefined ? over.area : f.area ?? "";
+  if (area) qs.set("area", area);
   return `/countries?${qs.toString()}`;
 }
 
@@ -45,7 +48,7 @@ function countryHref(code: string, year: number, f: CountryFilters) {
 export default async function CountriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string; gender?: string; age?: string; type?: string; event?: string }>;
+  searchParams: Promise<{ year?: string; gender?: string; age?: string; type?: string; event?: string; area?: string }>;
 }) {
   const sp = await searchParams;
   const years = await getCountryYears();
@@ -104,6 +107,14 @@ export default async function CountriesPage({
               options={[
                 { value: "", label: "All disciplines", href: hrefWith(year, f, { event: "" }) },
                 ...eventOptions.map((ev) => ({ value: ev, label: eventLabel(ev), href: hrefWith(year, f, { event: ev }) })),
+              ]}
+            />
+            <LinkSelect
+              value={f.area ?? ""}
+              className={selectClass}
+              options={[
+                { value: "", label: "All areas", href: hrefWith(year, f, { area: "" }) },
+                ...Object.entries(AREAS).map(([code, name]) => ({ value: code, label: name, href: hrefWith(year, f, { area: code }) })),
               ]}
             />
             <LinkSelect

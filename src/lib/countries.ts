@@ -2,6 +2,7 @@ import { unstable_cache } from "next/cache";
 import { pgQuery } from "./pg";
 import { AGE_CATEGORIES, INDOOR_EXPR } from "./queries";
 import { EVENT_GROUPS } from "./events";
+import { AREAS } from "./country-data";
 import { eventMatchesType, eventRaceKind, isRaceType, type RaceType } from "./raceTypes";
 
 // Countries/[code] and Rankings' nation view both read searchParams,
@@ -34,7 +35,7 @@ export function tierForRank(rank: number) {
   return TIERS.find((t) => rank >= t.from && rank <= t.to) ?? null;
 }
 
-export type CountryFilters = { gender: CountryGender; age?: string; type?: RaceType; event?: string };
+export type CountryFilters = { gender: CountryGender; age?: string; type?: RaceType; event?: string; area?: string };
 
 function ageFilter(age: string | undefined, yearExpr = "year") {
   const max = age ? AGE_CATEGORIES[age] : undefined;
@@ -68,7 +69,7 @@ async function _getCountryRanking(year: number, f: CountryFilters): Promise<Coun
   // One discipline or one race type: not precomputed (too many combinations), so the same
   // "24 best athletes per country" rule runs live over `events`, which is stored sorted by
   // discipline+gender+year and indexed on (athletics_event_base, gender, year).
-  if (f.event || f.type) return _getCountryRankingFiltered(year, f);
+  if (f.event || f.type) return _getCountryRankingFiltered(year, f);  // (area applies to both paths)
   return pgQuery<CountryRankingRow>(
     `
     SELECT c.code, COALESCE(n.name, c.code) AS name,
@@ -77,9 +78,10 @@ async function _getCountryRanking(year: number, f: CountryFilters): Promise<Coun
     FROM country_season_points c
     LEFT JOIN countries n USING (code)
     WHERE c.year = $1 AND c.gender = $2 AND c.age_cat = $3 AND c.points > 0
+      ${f.area ? "AND n.area = $4" : ""}
     ORDER BY rank
   `,
-    [year, f.gender, f.age ?? ""]
+    f.area ? [year, f.gender, f.age ?? "", f.area] : [year, f.gender, f.age ?? ""]
   );
 }
 
@@ -120,13 +122,13 @@ async function _getCountryRankingFiltered(year: number, f: CountryFilters): Prom
       RANK() OVER (ORDER BY p.points DESC) AS rank,
       p.points, p.n_counted, p.n_athletes, p.wins, p.podiums
     FROM per_country p LEFT JOIN countries n ON n.code = p.code
-    WHERE p.points > 0
+    WHERE p.points > 0 ${f.area ? "AND n.area = $4" : ""}
     ORDER BY rank
   `,
-    [year, f.gender, events]
+    f.area ? [year, f.gender, events, f.area] : [year, f.gender, events]
   );
 }
-export const getCountryRanking = unstable_cache(_getCountryRanking, ["getCountryRanking-v2"], DAY_CACHE);
+export const getCountryRanking = unstable_cache(_getCountryRanking, ["getCountryRanking-v3"], DAY_CACHE);
 
 export type CountryAthleteRow = {
   athlete_id: string;
@@ -290,7 +292,7 @@ async function _getCountryYears(): Promise<number[]> {
 }
 export const getCountryYears = unstable_cache(_getCountryYears, ["getCountryYears"], DAY_CACHE);
 
-export function parseCountryFilters(sp: { gender?: string; age?: string; type?: string; event?: string }): CountryFilters {
+export function parseCountryFilters(sp: { gender?: string; age?: string; type?: string; event?: string; area?: string }): CountryFilters {
   const type = isRaceType(sp.type) ? sp.type : undefined;
   const catalog = EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women] as string[]);
   const event = sp.event && catalog.includes(sp.event) && (!type || eventMatchesType(sp.event, type)) ? sp.event : undefined;
@@ -299,6 +301,7 @@ export function parseCountryFilters(sp: { gender?: string; age?: string; type?: 
     age: sp.age && sp.age in AGE_CATEGORIES ? sp.age : undefined,
     type,
     event,
+    area: sp.area && sp.area in AREAS ? sp.area : undefined,
   };
 }
 
