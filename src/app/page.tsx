@@ -63,7 +63,6 @@ export default async function Home() {
 
           {/* desktop only: phones keep athletes and nations (top 5) */}
           <section className="hidden lg:block">
-            <SectionBar title="Races" icon="bib" href="/meets?view=races" linkLabel="Meets →" />
             <RacesStatsWidget year={CURRENT_YEAR} />
           </section>
         </aside>

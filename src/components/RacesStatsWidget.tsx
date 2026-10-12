@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_GROUPS, eventLabel, sortEventsAlpha } from "@/lib/events";
 import Flag from "./Flag";
+import SectionBar from "./SectionBar";
 
 // Same shape as StatsWidget/NationsStatsWidget: gender + discipline group
 // filters, a mode toggle -- here "Quality" (field strength) vs "Recent"
@@ -93,6 +94,9 @@ export default function RacesStatsWidget({ year }: { year: number }) {
   }).toString()}`;
 
   return (
+    <div>
+    {/* "View all" lives in the section header (its link carries the widget's current filters) */}
+    <SectionBar title="Races" icon="bib" href={viewAllHref} linkLabel="View all →" />
     <div className="border border-neutral-800 rounded-lg overflow-hidden">
       <div className="px-3 sm:px-4 py-2 bg-neutral-900 flex items-center justify-between gap-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
@@ -117,12 +121,6 @@ export default function RacesStatsWidget({ year }: { year: number }) {
             </button>
           ))}
         </div>
-      </div>
-
-      <div className="px-3 sm:px-4 pt-2">
-        <Link href={viewAllHref} className="text-xs text-neutral-500 hover:text-orange-400">
-          View all →
-        </Link>
       </div>
 
       {/* Phones/tablets: swipeable pills. Desktop (lg+): a hidden-scrollbar
@@ -210,6 +208,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
           <div className="px-3 sm:px-4 py-4 text-xs text-neutral-500">No races yet{isAll ? "" : ` for ${eventLabel(event)}`}.</div>
         )}
       </div>
+    </div>
     </div>
   );
 }
