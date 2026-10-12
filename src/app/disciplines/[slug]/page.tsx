@@ -260,7 +260,7 @@ export default async function DisciplinePage({
   // continent): starts from the page's current filters, lets any one of
   // them be overridden -- so clicking "France" doesn't drop the selected
   // year, and changing the year doesn't drop "France".
-  const buildHref = (over: { year?: string; limit?: number; nationality?: string | null; area?: string | null; age?: string | null }) => {
+  const buildHref = (over: { year?: string; limit?: number; nationality?: string | null; area?: string | null; age?: string | null; indoor?: boolean }) => {
     const nextYear = over.year !== undefined ? over.year : yearParam != null ? String(yearParam) : "all";
     const q = new URLSearchParams({ gender });
     if (nextYear !== "all") q.set("year", nextYear);
@@ -268,7 +268,7 @@ export default async function DisciplinePage({
     if (nextAge) q.set("age", nextAge);
     const nextLimit = over.limit ?? limit;
     if (nextLimit !== 10) q.set("limit", String(nextLimit));
-    if (indoorEligible) q.set("indoor", String(indoor));
+    if (indoorEligible) q.set("indoor", String(over.indoor ?? indoor));
     const nextNationality = over.nationality === null ? undefined : over.nationality ?? nationality;
     if (nextNationality) q.set("nationality", nextNationality);
     const nextArea = over.area === null ? undefined : over.area ?? area;
@@ -303,6 +303,16 @@ export default async function DisciplinePage({
                     {(["Men", "Women"] as const).map((g) => (
                       <Link key={g} href={baseHref({ gender: g })} className={`px-3 py-1.5 rounded ${g === gender ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
                         {g}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {indoorEligible && (
+                  // explicit Outdoor / Indoor switch: they are separate ranking contexts (separate world records), never blended
+                  <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+                    {([false, true] as const).map((ind) => (
+                      <Link key={String(ind)} href={buildHref({ indoor: ind })} className={`px-3 py-1.5 rounded ${ind === indoor ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
+                        {ind ? "Indoor" : "Outdoor"}
                       </Link>
                     ))}
                   </div>
