@@ -361,7 +361,7 @@ export type OtherContextBest = { athletics_event: string; gender: string; mark_d
 // shows outdoor, and vice versa). Outdoor and indoor stay separate rankings, but a world record set in the other
 // context (e.g. Grant Fisher's indoor 3000m WR) must not be invisible on the athlete's page.
 export async function getAthleteOtherContextBests(athleteId: string, indoor = false): Promise<OtherContextBest[]> {
-  const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
+  const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
   return pgQuery<OtherContextBest>(
     `SELECT DISTINCT ON (athletics_event_base, gender)
        athletics_event_base AS athletics_event, gender, mark_display, NULLIF(record, '') AS record,
