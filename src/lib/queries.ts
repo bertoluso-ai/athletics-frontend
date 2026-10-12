@@ -1610,12 +1610,23 @@ export const normalizeSeries = (expr: string) => `
 // LETTER APOSTROPHE (U+02BC), GRAVE/ACUTE ACCENT (U+0060/U+00B4). They all
 // translate to a straight quote, so both sides of the fallback below compare
 // equal once translated.
+// Todas las series_key de los nombres de evento que comparten la clave dada (la canonica y sus hermanas).
+const seriesKeysSql = (ph: string) =>
+  `series_key IN (SELECT series_key FROM meet_series_key WHERE event_name IN (SELECT event_name FROM meet_series_key WHERE series_key = ${ph}))`;
+
 const APOSTROPHE_VARIANTS = "\u2019\u2018\u02bc`\u00b4";
 const APOSTROPHE_ASCII = "'''''";
 
 async function _getMeetSeriesKey(eventName: string): Promise<string | null> {
   const rows = await pgQuery<{ series_key: string }>(
-    `SELECT series_key FROM meet_series_key WHERE event_name = $1 LIMIT 1`,
+    // 645 nombres de evento tienen DOS series_key (p.ej. "Brussels AG Memorial Van Damme": 'memorial van damme'
+    // con 258 filas en 2013 y 'brussels ag memorial van damme' con 23). Sin ORDER BY, LIMIT 1 devolvia una al
+    // azar segun el orden fisico de la tabla -- tras recargar Postgres cambio y la edicion 2000 daba 404.
+    // Se elige la clave mas compartida (la de la serie amplia) y las consultas abren luego a todas las claves
+    // hermanas (SERIES_KEYS_SQL).
+    `SELECT k.series_key FROM meet_series_key k WHERE k.event_name = $1
+     ORDER BY (SELECT COUNT(*) FROM meet_series_key k2 WHERE k2.series_key = k.series_key) DESC, k.series_key
+     LIMIT 1`,
     [eventName]
   );
   if (rows[0]) return rows[0].series_key;
@@ -1646,7 +1657,7 @@ async function _getMeetAvailableYears(eventName: string, seriesKey?: string | nu
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
   if (!key) return [];
   const rows = await pgQuery<{ year: number }>(
-    `SELECT DISTINCT year FROM meet_results WHERE series_key = $1 AND year IS NOT NULL ORDER BY year DESC`,
+    `SELECT DISTINCT year FROM meet_results WHERE ${seriesKeysSql("$1")} AND year IS NOT NULL ORDER BY year DESC`,
     [key]
   );
   return rows.map((r) => r.year);
@@ -1680,7 +1691,7 @@ async function _getMeetEventMatrix(
   if (!key) return [];
   return pgQuery<MeetEventCount>(
     `SELECT athletics_event, gender, COUNT(*)::int AS n
-     FROM meet_results WHERE series_key = $1 AND year = $2
+     FROM meet_results WHERE ${seriesKeysSql("$1")} AND year = $2
      GROUP BY athletics_event, gender`,
     [key, year]
   );
@@ -1751,7 +1762,7 @@ async function _getMeetResults(
   // the page then groups and renders -- only ever touches the discipline
   // actually being shown.
   const params: unknown[] = [key, year];
-  const where = [`series_key = $1`, `year = $2`];
+  const where = [seriesKeysSql("$1"), `year = $2`];
   if (filter?.discipline) {
     params.push(filter.discipline);
     where.push(`athletics_event = $${params.length}`);
@@ -1838,7 +1849,7 @@ async function _getMeetResultsFromEvents(
 // searchParams so it is fully dynamic -- without these the page ran 5
 // uncached sequential round trips on every request (measured: ~2.1s even
 // on a repeat hit of /meets/Prefontaine%20Classic).
-export const getMeetSeriesKey = unstable_cache(_getMeetSeriesKey, ["getMeetSeriesKey-v1"], DAY_CACHE);
+export const getMeetSeriesKey = unstable_cache(_getMeetSeriesKey, ["getMeetSeriesKey-v2"], DAY_CACHE);
 export const getMeetAvailableYears = unstable_cache(_getMeetAvailableYears, ["getMeetAvailableYears-v1"], DAY_CACHE);
 export const getMeetEventMatrix = unstable_cache(_getMeetEventMatrix, ["getMeetEventMatrix-v1"], DAY_CACHE);
 export const getMeetEventMatrixFromEvents = unstable_cache(_getMeetEventMatrixFromEvents, ["getMeetEventMatrixFromEvents-v1"], DAY_CACHE);
