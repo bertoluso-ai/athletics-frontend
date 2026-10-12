@@ -6,7 +6,7 @@ import DateField from "@/components/DateField";
 import NavIcon from "@/components/NavIcons";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, sortEventsAlpha } from "@/lib/events";
 import { getCalendar, getRaces, getCalendarYears, TIER_ORDER, type CalendarSort } from "@/lib/calendar";
-import { RACE_TYPES } from "@/lib/raceTypes";
+import { RACE_TYPES, eventMatchesType } from "@/lib/raceTypes";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
 
@@ -137,7 +137,7 @@ export default async function MeetsPage({
     ? [thisMonth]
     : monthValues.map(Number).filter((m) => m >= 1 && m <= 12);
   const disciplineParam = sp.discipline ?? sp.event;
-  const discipline = disciplineParam && ALL_EVENTS.includes(disciplineParam) ? disciplineParam : undefined;
+  const disciplineRaw = disciplineParam && ALL_EVENTS.includes(disciplineParam) ? disciplineParam : undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   const nationOptions = area ? nations.filter((n) => n.area === area) : nations;
   const nation = sp.nationality && nationOptions.some((n) => n.code === sp.nationality) ? sp.nationality : undefined;
@@ -146,6 +146,8 @@ export default async function MeetsPage({
   // legacy ?surface=indoor / ?indoor=true links keep working as type=indoor
   const typeParam = sp.type ?? (sp.surface === "indoor" || sp.indoor === "true" ? "indoor" : undefined);
   const type = RACE_TYPES.find((t) => t.value === typeParam)?.value;
+  // the discipline combo follows the type combo: a discipline that does not fit the chosen type is dropped
+  const discipline = disciplineRaw && (!type || eventMatchesType(disciplineRaw, type)) ? disciplineRaw : undefined;
 
   // "recent" is the old Races name for the date sort; races have no name sort
   const rawSort = sp.sort === "recent" ? "date" : sp.sort;
@@ -282,7 +284,7 @@ export default async function MeetsPage({
                 </select>
             <select name="discipline" defaultValue={discipline ?? ""} aria-label="Discipline" className={`shrink-0 ${sc(!!discipline)}`}>
               <option value="">All disciplines</option>
-              {sortEventsAlpha(ALL_EVENTS).map((ev) => (
+              {sortEventsAlpha(ALL_EVENTS).filter((ev) => !type || eventMatchesType(ev, type)).map((ev) => (
                 <option key={ev} value={ev}>
                   {eventLabel(ev)}
                 </option>

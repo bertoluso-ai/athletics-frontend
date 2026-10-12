@@ -8,7 +8,7 @@ import type { Race, LatestResultGroup } from "@/lib/queries";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
 import SectionIcon, { type IconName } from "./SectionIcon";
-import { RACE_TYPES } from "@/lib/raceTypes";
+import { RACE_TYPES, eventMatchesType, type RaceType } from "@/lib/raceTypes";
 
 const ALL_EVENTS = Array.from(
   new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
@@ -102,7 +102,12 @@ export default function LatestResults({
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={type}
-            onChange={(e) => setType(e.target.value)}
+            onChange={(e) => {
+              const v = e.target.value;
+              setType(v);
+              // the discipline combo follows the type combo
+              if (event && v && !eventMatchesType(event, v as RaceType)) setEvent("");
+            }}
             aria-label="Type"
             className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
@@ -119,7 +124,7 @@ export default function LatestResults({
             className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
-            {sortEventsAlpha(ALL_EVENTS).map((ev) => (
+            {sortEventsAlpha(ALL_EVENTS).filter((ev) => !type || eventMatchesType(ev, type as RaceType)).map((ev) => (
               <option key={ev} value={ev}>
                 {eventLabel(ev)}
               </option>

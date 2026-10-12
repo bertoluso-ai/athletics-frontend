@@ -12,8 +12,8 @@
 export type RaceType = "track" | "indoor" | "road" | "cross" | "walk" | "trail";
 
 export const RACE_TYPES: { value: RaceType; label: string }[] = [
-  { value: "track", label: "Track" },
-  { value: "indoor", label: "Indoor" },
+  { value: "track", label: "Outdoor track" },
+  { value: "indoor", label: "Indoor track" },
   { value: "road", label: "Road" },
   { value: "cross", label: "Cross country" },
   { value: "walk", label: "Race walk" },
