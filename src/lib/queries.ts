@@ -2067,7 +2067,7 @@ async function _getDisciplineSideData(
       SELECT nationality, year, date, birth_year, athlete_id, display_name, mark_display,
         ${isField ? "(-fv)" : "mark_seconds"} AS sk,
         ${isField ? "fv" : "mark_seconds"} AS mv,
-        ${INDOOR_EXPR} AS is_indoor
+        COALESCE(${INDOOR_EXPR}, FALSE) AS is_indoor
       FROM base
       WHERE display_name IS NOT NULL
         AND ${isField ? "fv" : "mark_seconds"} IS NOT NULL
@@ -2094,6 +2094,8 @@ async function _getDisciplineSideData(
           ROW_NUMBER() OVER (PARTITION BY year ORDER BY sk ASC) AS rn
         FROM vals
         WHERE year IS NOT NULL
+          -- Outdoor / Indoor are separate contexts: the progression chart follows the page's toggle
+          AND ${indoor ? "is_indoor" : "NOT is_indoor"}
           ${ageMax !== undefined ? `AND birth_year IS NOT NULL AND (year - birth_year) <= ${ageMax}` : ""}
       ) z WHERE rn = 1
     ),
@@ -2101,7 +2103,7 @@ async function _getDisciplineSideData(
       SELECT date, athlete_id, display_name, nationality, mv FROM (
         SELECT date, athlete_id, display_name, nationality, mv,
           ROW_NUMBER() OVER (PARTITION BY date ORDER BY sk ASC) AS rn
-        FROM vals WHERE date IS NOT NULL
+        FROM vals WHERE date IS NOT NULL AND ${indoor ? "is_indoor" : "NOT is_indoor"}
       ) z WHERE rn = 1
     ),
     with_prior AS (
@@ -2168,7 +2170,7 @@ async function _getDisciplineSideData(
 }
 export const getDisciplineSideData = unstable_cache(
   _getDisciplineSideData,
-  ["getDisciplineSideData-v2"],
+  ["getDisciplineSideData-v3"],
   DAY_CACHE
 );
 
