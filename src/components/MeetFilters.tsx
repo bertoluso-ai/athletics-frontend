@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 export type DisciplineOption = { value: string; label: string };
@@ -25,20 +26,29 @@ export default function MeetFilters({
   year: number;
 }) {
   const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  // optimistic selection: the pill lights up the instant it is clicked (the page itself takes 1-2 s to load)
+  const [optCategory, setOptCategory] = useState<string | null>(null);
+  const [optGender, setOptGender] = useState<string | null>(null);
+  useEffect(() => { setOptCategory(null); setOptGender(null); }, [category, gender, discipline]);
+  const shownCategory = optCategory ?? category;
+  const shownGender = optGender ?? gender;
 
   function go(nextDiscipline: string, nextGender: string, nextCategory: string) {
     const params = new URLSearchParams({ year: String(year) });
     if (nextDiscipline) params.set("discipline", nextDiscipline);
     if (nextGender) params.set("gender", nextGender);
     if (nextCategory) params.set("category", nextCategory);
-    router.push(`${baseHref}?${params.toString()}`);
+    setOptCategory(nextCategory);
+    setOptGender(nextGender);
+    startTransition(() => router.push(`${baseHref}?${params.toString()}`));
   }
 
   const selectClass =
     "bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className={`flex flex-col gap-2 transition-opacity ${pending ? "opacity-60" : ""}`} aria-busy={pending}>
       {categories.length > 1 && (
         <div className="pill-row flex flex-nowrap overflow-x-auto gap-1 -mx-2 px-2 sm:mx-0 sm:px-0">
           {/* "All categories" clears the category + gender filters, dropping
@@ -47,7 +57,7 @@ export default function MeetFilters({
           <button
             onClick={() => go("", "", "")}
             className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-              !category && !discipline && !gender
+              !shownCategory
                 ? "bg-orange-50 text-orange-700 border-orange-300"
                 : "border-neutral-700 text-neutral-400"
             }`}
@@ -57,9 +67,9 @@ export default function MeetFilters({
           {categories.map((c) => (
             <button
               key={c.key}
-              onClick={() => go("", gender, category === c.key ? "" : c.key)}
+              onClick={() => go("", shownGender, shownCategory === c.key ? "" : c.key)}
               className={`shrink-0 text-[10px] px-2 py-1 rounded-full border ${
-                category === c.key
+                shownCategory === c.key
                   ? "bg-orange-50 text-orange-700 border-orange-300"
                   : "border-neutral-700 text-neutral-400"
               }`}
@@ -70,6 +80,7 @@ export default function MeetFilters({
         </div>
       )}
       <div className="flex items-center gap-2 flex-wrap">
+        {pending && <span className="text-[10px] text-neutral-500">Loading…</span>}
         <select value={discipline} onChange={(e) => go(e.target.value, gender, category)} className={selectClass}>
           {disciplines.map((d) => (
             <option key={d.value} value={d.value}>{d.label}</option>
@@ -78,7 +89,7 @@ export default function MeetFilters({
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
           <button
             onClick={() => go(discipline, "", category)}
-            className={`px-2 py-1 rounded ${gender === "" ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+            className={`px-2 py-1 rounded ${shownGender === "" ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
           >
             All
           </button>
@@ -86,7 +97,7 @@ export default function MeetFilters({
             <button
               key={g}
               onClick={() => go(discipline, g, category)}
-              className={`px-2 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              className={`px-2 py-1 rounded ${shownGender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
             >
               {g}
             </button>
