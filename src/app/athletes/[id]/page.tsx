@@ -73,7 +73,15 @@ export default async function AthletePage({
     // name for this id) -- fall through and try idParam as a raw id below
   } else {
     const resolved = await getAthleteIdBySlug(idParam);
-    if (!resolved) notFound();
+    if (!resolved) {
+      // 2026-10-11: al pasar el historico de World Athletics a V3 los atletas que antes estaban
+      // duplicados por variantes de nombre se fusionaron y ~9.000 slugs antiguos dejaron de existir.
+      // El mapa viejo -> nuevo (datos estaticos, solo se carga en este camino) evita 404s con SEO.
+      const map = (await import("@/data/athlete-slug-redirects.json")).default as Record<string, string>;
+      const target = map[idParam];
+      if (target) permanentRedirect(`/athletes/${target}`);
+      notFound();
+    }
     id = resolved;
   }
   // In-page filter links (year tabs, wind/indoor toggles) must build hrefs
