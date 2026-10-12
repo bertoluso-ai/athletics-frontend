@@ -256,20 +256,23 @@ function Chart({
           })}
           {h && <line x1={x(h.year)} x2={x(h.year)} y1={PAD.t} y2={H - PAD.b} stroke="#9ca3af" strokeDasharray="3 3" pointerEvents="none" />}
         </svg>
-        {h && (
-          <div
-            className="pointer-events-none absolute top-1 rounded-md border border-neutral-700 bg-neutral-900/95 px-2.5 py-1.5 text-xs shadow-lg"
-            style={{ left: `${Math.min(80, Math.max(0, (x(h.year) / W) * 100 - 10))}%` }}
-          >
-            <div className="font-semibold text-neutral-200">{h.year}</div>
-            <div>
+      </div>
+      {/* year detail BELOW the chart (fixed height, no layout jump): a floating tooltip over the plot covered the
+          other years' dots and made them impossible to hover */}
+      <div className="mt-1 min-h-[3.25rem] rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-xs">
+        {h ? (
+          <>
+            <div className="flex items-baseline gap-2">
+              <span className="font-semibold text-neutral-200">{h.year}</span>
               <span className="font-mono text-neutral-100">{h.mark_display}</span>
-              {h.athlete && <span className="text-neutral-400"> · {h.athlete}{h.nationality ? ` (${h.nationality})` : ""}</span>}
+              {h.athlete && <span className="truncate text-neutral-400">{h.athlete}{h.nationality ? ` (${h.nationality})` : ""}</span>}
             </div>
             <div className="text-neutral-500">
               best ever then: <span className="font-mono text-orange-400">{h.best.mark_display}</span>
             </div>
-          </div>
+          </>
+        ) : (
+          <div className="text-neutral-500 pt-2.5">Hover a year to see its best mark</div>
         )}
       </div>
       {recordPosition === "bottom" && recordCard}
