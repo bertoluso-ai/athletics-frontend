@@ -4,7 +4,6 @@ import StatsWidget from "@/components/StatsWidget";
 import NationsStatsWidget from "@/components/NationsStatsWidget";
 import RacesStatsWidget from "@/components/RacesStatsWidget";
 import LatestResults from "@/components/LatestResults";
-import { BASE_TIERS } from "@/lib/events";
 import UpcomingRaces from "@/components/UpcomingRaces";
 import SectionBar from "@/components/SectionBar";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
@@ -17,7 +16,7 @@ const TOP_TIERS = "OW,DF,GW"; // Olympics/Worlds, Diamond League Final and world
 export default async function Home() {
   const topSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const [races, topRaces, upcoming, progression] = await Promise.all([
-    getLatestRaces(15, { tier: BASE_TIERS }), // B and above by default; the filter widens it
+    getLatestRaces(60, {}), // all categories by default: the Quality+tier score ranks the feed, so strong low-tier races surface
     // the latest big competitions (GW and above): a quiet week of
     // small meets must not bury them for a visitor who only wants the headline event
     getLatestRaces(12, { tier: TOP_TIERS, from: topSince }),
@@ -38,7 +37,7 @@ export default async function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
-          <LatestResults initialGroups={races} defaultTier={BASE_TIERS} maxGroups={3} exclude={[...topNames]} />
+          <LatestResults initialGroups={races} defaultTier="" maxGroups={3} exclude={[...topNames]} />
           {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" headingIcon="trophy" showFilters={false} />}
         </div>
 
