@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
 import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
-import { tierPriority, isFieldEvent, EVENT_GROUPS } from "./events";
+import { tierPriority, tierScore, isFieldEvent, EVENT_GROUPS } from "./events";
 
 // Disciplines/Rankings/Countries pages read searchParams, which makes
 // them fully dynamic in Next.js (no Full Route Cache, no ISR -- `export
@@ -490,6 +490,7 @@ export type Race = {
   city: string | null;
   country: string | null;
   quality: number | null; // race_level (the Quality shown in Meets), when known
+  quality_pct: number | null; // race_level_percentile 0-100 (comparable across disciplines; used to rank the feed)
   top3: PodiumEntry[];
 };
 
@@ -502,6 +503,9 @@ export type LatestResultGroup = {
   races: Race[]; // most recent first, capped at 4
   total_races: number; // how many races this competition actually has in the window
 };
+
+// Peso de la calidad real de la carrera frente al tier de la competicion en "Last results" (0-1).
+const LATEST_QUALITY_WEIGHT = 0.6;
 
 async function _getLatestRaces(
   maxSlots = 10,
@@ -536,7 +540,7 @@ async function _getLatestRaces(
 // exports run every 2 h).
 export const getLatestRaces = unstable_cache(
   _getLatestRaces,
-  ["latest-races-v4"],
+  ["latest-races-v6"],
   { revalidate: 300 }
 );
 
@@ -686,6 +690,7 @@ async function fetchWindow(
         city: r.city,
         country: r.country,
         quality: null,
+        quality_pct: null,
         top3: [],
       };
       races.set(key, race);
@@ -709,47 +714,76 @@ async function fetchWindow(
   // Most recent first within a race group.
   list.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
+  // Calidad (race_level, el "Quality" de Meets) de TODAS las carreras de la ventana, no solo de las
+  // elegidas: ahora decide tambien que competiciones y que carrera de cada una se muestran.
+  const quality = new Map<string, { q: number; pct: number | null }>();
+  if (list.length > 0) {
+    const names = Array.from(new Set(list.map((r) => r.event_name)));
+    const since = list.reduce((m, r) => (r.date < m ? r.date : m), list[0].date);
+    try {
+      const q = await pgQuery<{ event_name: string; athletics_event: string; gender: string; date: string; q: number; pct: number | null }>(
+        `SELECT event_name, athletics_event, gender, date::text AS date, MAX(race_level)::float8 AS q, MAX(race_level_percentile)::float8 AS pct
+         FROM race_level
+         WHERE event_name = ANY($1::text[]) AND date >= $2::date
+         GROUP BY 1, 2, 3, 4`,
+        [names, since]
+      );
+      for (const r of q) quality.set(`${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}`, { q: r.q, pct: r.pct });
+    } catch {
+      // sin datos de calidad: cada carrera puntua solo por su tier
+    }
+  }
+  for (const race of list) {
+    const qq = quality.get(`${race.event_name}|${race.athletics_event}|${race.gender}|${race.date}`);
+    race.quality = qq?.q ?? null;
+    race.quality_pct = qq?.pct ?? null;
+  }
+
+  // Puntuacion de una carrera = 0,6 x Quality + 0,4 x tier normalizado (reputacion de la competicion, 0-100).
+  // Quality = race_level_percentile (0-100, comparable entre pruebas): race_level en bruto no tiene techo
+  // (mediana 31, p99 432, max 2.000) y aplastaria al tier. Sin Quality (relevos, carreras recien anadidas)
+  // puntua solo por su tier.
+  const raceScore = (r: Race) => {
+    const tn = tierScore(r.competition_level);
+    return r.quality_pct == null ? tn : LATEST_QUALITY_WEIGHT * r.quality_pct + (1 - LATEST_QUALITY_WEIGHT) * tn;
+  };
+
   // One competition (e.g. a multi-discipline championships) can produce a
-  // dozen races on the same day -- group them so the feed shows a handful
-  // of its latest results plus a link to the rest, instead of flooding the
+  // dozen races on the same day -- group them so the feed shows its
+  // headline race plus a link to the rest, instead of flooding the
   // whole list with one meet.
-  const groups = new Map<string, LatestResultGroup>();
+  const groups = new Map<string, LatestResultGroup & { score: number; best: Race }>();
   const allRaces = new Map<string, Race[]>();
   for (const race of list) {
     (allRaces.get(race.event_name) ?? allRaces.set(race.event_name, []).get(race.event_name)!).push(race);
+    const sc = raceScore(race);
     let g = groups.get(race.event_name);
     if (!g) {
-      g = { event_name: race.event_name, competition_level: race.competition_level, level: race.level, city: race.city, country: race.country, races: [], total_races: 0 };
+      g = { event_name: race.event_name, competition_level: race.competition_level, level: race.level, city: race.city, country: race.country, races: [], total_races: 0, score: sc, best: race };
       groups.set(race.event_name, g);
     }
     // keep the group's own tier at its best (lowest-priority-number) race
     if (tierPriority(race.competition_level) < tierPriority(g.competition_level)) g.competition_level = race.competition_level;
-    // ...and its own level at its best (highest-scoring) race, used as a
-    // tiebreak below when two competitions land on the same date
     if ((race.level ?? -1) > (g.level ?? -1)) g.level = race.level;
+    // la cabecera del grupo es su carrera de mayor puntuacion (a igualdad, la mas reciente: `list` va de reciente a antigua)
+    if (sc > g.score) { g.score = sc; g.best = race; }
     g.total_races++;
     if (g.races.length < 3) g.races.push(race);
   }
 
-  // Recency leads: a more recent competition always shows above an older
-  // one, tier breaks ties on the same date (EXCEPT tier F, which sinks to
-  // the bottom regardless of how recent, so a handful of parkrun-level
-  // results never bury a real -- if slightly older -- competition), and the
-  // race level (Lvl 0-100, field strength) breaks any remaining tie within
-  // the same tier -- e.g. two Tier A meets on the same day, the one with
-  // the stronger actual field shows first.
+  // Recency leads: a more recent competition always shows above an older one. Within the same
+  // date, the blended Quality+tier score of the competition's best race decides (tier F still
+  // sinks to the bottom when a tier filter is set, so a handful of parkrun-level results never
+  // bury a real -- if slightly older -- competition); the raw tier priority only breaks exact ties.
   const orderedGroups = Array.from(groups.values()).sort((a, b) => {
-    // Tier F only sinks when a tier filter is set (the Home default "B and above" never has
-    // any anyway); "All categories" (no filter) orders purely by recency, so F shows up.
     const fa = tier && a.competition_level === "F" ? 1 : 0;
     const fb = tier && b.competition_level === "F" ? 1 : 0;
     if (fa !== fb) return fa - fb;
     const da = a.races[0]?.date ?? "";
     const db = b.races[0]?.date ?? "";
     if (da !== db) return da < db ? 1 : -1;
-    const tierDiff = tierPriority(a.competition_level) - tierPriority(b.competition_level);
-    if (tierDiff !== 0) return tierDiff;
-    return (b.level ?? -1) - (a.level ?? -1);
+    if (b.score !== a.score) return b.score - a.score;
+    return tierPriority(a.competition_level) - tierPriority(b.competition_level);
   });
 
   const result: LatestResultGroup[] = [];
@@ -761,31 +795,12 @@ async function fetchWindow(
     if (slots >= maxSlots) break;
   }
 
-  // One race per competition: the one with the best Quality (race_level), so a
-  // visitor sees each competition's headline race instead of its last heat or
-  // a minor final. Ties (and races without a score) fall back to the most recent.
-  if (result.length > 0) {
-    const names = result.map((g) => g.event_name);
-    const since = list.reduce((m, r) => (r.date < m ? r.date : m), list[0].date);
-    const quality = new Map<string, number>();
-    try {
-      const q = await pgQuery<{ event_name: string; athletics_event: string; gender: string; date: string; q: number }>(
-        `SELECT event_name, athletics_event, gender, date::text AS date, MAX(race_level)::float8 AS q
-         FROM race_level
-         WHERE event_name = ANY($1::text[]) AND date >= $2::date
-         GROUP BY 1, 2, 3, 4`,
-        [names, since]
-      );
-      for (const r of q) quality.set(`${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}`, r.q);
-    } catch {
-      // no quality data: every competition keeps its most recent race
-    }
-    for (const g of result) {
-      const cands = allRaces.get(g.event_name) ?? g.races;
-      for (const r of cands) r.quality = quality.get(`${r.event_name}|${r.athletics_event}|${r.gender}|${r.date}`) ?? null;
-      const best = cands.reduce((b, r) => ((r.quality ?? -1) > (b.quality ?? -1) ? r : b), cands[0]);
-      g.races = [best];
-    }
+  // One race per competition: the best-scoring one (Quality blended with tier), so a visitor sees each
+  // competition's headline race instead of its last heat or a minor final.
+  for (const g of result as (LatestResultGroup & { best?: Race; score?: number })[]) {
+    g.races = [g.best!];
+    delete g.best; // campos internos del ordenado: no deben viajar en el JSON
+    delete g.score;
   }
 
   const ids = result.flatMap((g) => g.races.flatMap((race) => race.top3.flatMap((e) => e.athletes.map((a) => a.athlete_id))));

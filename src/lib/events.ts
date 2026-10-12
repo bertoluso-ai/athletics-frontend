@@ -199,6 +199,12 @@ export const TIER_PRIORITY: Record<string, number> = {
   OW: 0, DF: 1, GW: 2, GL: 3, A: 4, B: 5, C: 6, D: 7, E: 8, F: 9,
 };
 
+// Puntos base de cada tier (los mismos de competition_tier_points en BigQuery) y su escala 0-100.
+const TIER_BASE_POINTS: Record<string, number> = { OW: 300, DF: 250, GW: 200, GL: 170, A: 140, B: 120, C: 100, D: 80, E: 60, F: 40 };
+export function tierScore(tier: string | null | undefined): number {
+  return tier && TIER_BASE_POINTS[tier] ? (TIER_BASE_POINTS[tier] / 300) * 100 : 0;
+}
+
 export function tierPriority(tier: string | null | undefined): number {
   if (!tier) return 99;
   return TIER_PRIORITY[tier] ?? 50;
