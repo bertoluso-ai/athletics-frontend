@@ -9,7 +9,6 @@ import {
   getAthleteEvents,
   getAthleteBestResults,
   getAthletePersonalBests,
-  getAthleteOtherContextBests,
   getAthleteYearlyPoints,
   getAthleteResultsForYear,
   getAthleteChampionships,
@@ -114,10 +113,9 @@ export default async function AthletePage({
   // field was long since ready from BigQuery. It's fetched by the
   // <AthletePhoto>/<AthletePhotoToast> Server Components below instead,
   // each wrapped in <Suspense> so they stream in independently.
-  const [bestResults, personalBests, otherBests, yearlyPoints, championships, recordStats, natHistory, results] = await Promise.all([
+  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results] = await Promise.all([
     getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
-    getAthleteOtherContextBests(id, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
     getAthleteChampionships(id),
     getAthleteRecordStats(id),
@@ -130,8 +128,6 @@ export default async function AthletePage({
   // Personal Bests: filter by broad category (Track/Road/Cross Country/...)
   // so road and track marks over similar distances (10km vs 10,000m) don't
   // get conflated -- only offered when the athlete actually spans more than one.
-  // best mark of the opposite context (indoor <-> outdoor) per discipline, shown as a chip when it is better or a world record
-  const otherByEvent = new Map(otherBests.map((o) => [`${o.athletics_event}|${o.gender}`, o]));
   const availableCategories = Array.from(new Set(personalBests.map((pb) => eventCategory(pb.athletics_event))));
   const category = categoryParam && availableCategories.includes(categoryParam) ? categoryParam : "";
   const filteredPersonalBests = category
@@ -509,26 +505,7 @@ export default async function AthletePage({
                     className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-950 hover:bg-neutral-800"
                   >
                     {/* fixed columns so marks and ranks line up row to row */}
-                    {(() => {
-                      const o = otherByEvent.get(`${pb.athletics_event}|${pb.gender}`);
-                      const better =
-                        o && o.sort_val != null && pb.sort_val != null && (o.is_track ? o.sort_val < pb.sort_val : o.sort_val > pb.sort_val);
-                      const chip = o && (better || o.record === "WR");
-                      return (
-                        <span className="text-sm min-w-0 truncate">
-                          {eventLabel(pb.athletics_event)}
-                          {chip && o && (
-                            <span
-                              className="ml-2 inline-flex items-center gap-1 text-[10px] text-neutral-500"
-                              title={`Best ${indoor ? "outdoor" : "indoor"} mark (separate ranking context)`}
-                            >
-                              {indoor ? "outdoor" : "indoor"} <span className="font-mono text-orange-400">{o.mark_display}</span>
-                              {o.record === "WR" && <span className="rounded bg-yellow-400 px-1 font-bold text-black">WR</span>}
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })()}
+                    <span className="text-sm min-w-0 truncate">{eventLabel(pb.athletics_event)}</span>
                     {/* wrapper keeps the grid cell even when WindBadge renders nothing */}
                     <span><WindBadge wind={pb.wind} windLegal={pb.wind_legal} /></span>
                     <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{pb.mark_display}</span>

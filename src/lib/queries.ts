@@ -238,8 +238,6 @@ export type PersonalBestRow = {
   all_time_rank: number | null;
   wind: string | null;
   wind_legal: boolean | null;
-  sort_val: number | null; // mark as a number (seconds for track, distance/height for field)
-  is_track: boolean; // true: lower is better; false: higher is better
 };
 
 // Personal bests, each annotated with the athlete's all-time world rank in
@@ -278,18 +276,18 @@ export async function getAthletePersonalBests(
     return pgQuery<PersonalBestRow>(
       `
       WITH my_pbs AS (
-        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val, TRUE AS is_track,
+        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
           ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY mark_seconds ASC) AS rk
         FROM events
         WHERE athlete_id = $1 AND mark_seconds IS NOT NULL ${windFilter} ${indoorFilter}
         UNION ALL
-        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val, FALSE AS is_track,
+        SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
           ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY ${safeMark} DESC) AS rk
         FROM events
         WHERE athlete_id = $1 AND mark_seconds IS NULL AND ${safeMark} IS NOT NULL ${windFilter} ${indoorFilter}
       )
       SELECT p.athletics_event_base AS athletics_event, p.gender, p.mark_display, p.event_name, p.year,
-        p.wind, p.wind_legal, p.sort_val, p.is_track, r.rnk AS all_time_rank
+        p.wind, p.wind_legal, r.rnk AS all_time_rank
       FROM my_pbs p
       LEFT JOIN athlete_discipline_rank r
         ON r.athletics_event_base = p.athletics_event_base AND r.gender = p.gender AND r.athlete_id = $1
@@ -303,12 +301,12 @@ export async function getAthletePersonalBests(
   return pgQuery<PersonalBestRow>(
     `
     WITH my_pbs AS (
-      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val, TRUE AS is_track,
+      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, mark_seconds AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY mark_seconds ASC) AS rk
       FROM events
       WHERE athlete_id = $1 AND mark_seconds IS NOT NULL ${windFilter} ${indoorFilter}
       UNION ALL
-      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val, FALSE AS is_track,
+      SELECT athletics_event_base, gender, mark_display, event_name, year, wind, wind_legal, ${safeMark} AS sort_val,
         ROW_NUMBER() OVER (PARTITION BY athletics_event_base ORDER BY ${safeMark} DESC) AS rk
       FROM events
       WHERE athlete_id = $1 AND mark_seconds IS NULL AND ${safeMark} IS NOT NULL ${windFilter} ${indoorFilter}
@@ -344,33 +342,13 @@ export async function getAthletePersonalBests(
       FROM global_best
     )
     SELECT p.athletics_event_base AS athletics_event, p.gender, p.mark_display, p.event_name, p.year,
-      p.wind, p.wind_legal, p.sort_val, p.is_track, r.rnk AS all_time_rank
+      p.wind, p.wind_legal, r.rnk AS all_time_rank
     FROM my_pbs p
     LEFT JOIN ranked r
       ON r.athletics_event_base = p.athletics_event_base AND r.gender = p.gender AND r.athlete_id = $1
     WHERE p.rk = 1
     ORDER BY r.rnk ASC NULLS LAST
   `,
-    [athleteId]
-  );
-}
-
-export type OtherContextBest = { athletics_event: string; gender: string; mark_display: string; record: string | null; sort_val: number | null; is_track: boolean };
-
-// Best mark per discipline in the OPPOSITE context to the one the Personal Bests table is showing (indoor when it
-// shows outdoor, and vice versa). Outdoor and indoor stay separate rankings, but a world record set in the other
-// context (e.g. Grant Fisher's indoor 3000m WR) must not be invisible on the athlete's page.
-export async function getAthleteOtherContextBests(athleteId: string, indoor = false): Promise<OtherContextBest[]> {
-  const safeMark = `CASE WHEN mark ~ '^-?[0-9]+(\.[0-9]+)?$' THEN mark::double precision ELSE NULL END`;
-  return pgQuery<OtherContextBest>(
-    `SELECT DISTINCT ON (athletics_event_base, gender)
-       athletics_event_base AS athletics_event, gender, mark_display, NULLIF(record, '') AS record,
-       (mark_seconds IS NOT NULL) AS is_track, COALESCE(mark_seconds, ${safeMark}) AS sort_val
-     FROM events
-     WHERE athlete_id = $1 AND (mark_seconds IS NOT NULL OR ${safeMark} IS NOT NULL)
-       AND (wind_legal IS NULL OR wind_legal = TRUE)
-       AND ${indoor ? "NOT " : ""}${INDOOR_EXPR}
-     ORDER BY athletics_event_base, gender, CASE WHEN mark_seconds IS NOT NULL THEN mark_seconds ELSE -${safeMark} END ASC`,
     [athleteId]
   );
 }
