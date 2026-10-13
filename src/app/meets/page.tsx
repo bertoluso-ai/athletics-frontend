@@ -115,7 +115,7 @@ export default async function MeetsPage({
   }>;
 }) {
   const sp = await searchParams;
-  const view: View = sp.view === "races" ? "races" : "competitions";
+  const view: View = sp.view === "competitions" ? "competitions" : "races"; // Races por defecto: ultimas carreras disputadas
   const [years, nations] = await Promise.all([getCalendarYears(), getAllNationalities()]);
   const thisYear = new Date().getFullYear();
   const year = sp.year && years.includes(Number(sp.year)) ? Number(sp.year) : years.includes(thisYear) ? thisYear : years[0];
@@ -175,7 +175,7 @@ export default async function MeetsPage({
   const href = (over: { view?: View; sort?: CalendarSort; dir?: string; page?: number; reset?: boolean }) => {
     const v = over.view ?? view;
     const q = new URLSearchParams();
-    if (v === "races") q.set("view", "races");
+    if (v === "competitions") q.set("view", "competitions");
     if (ranged) {
       if (from) q.set("from", from);
       if (to) q.set("to", to);
@@ -325,7 +325,7 @@ export default async function MeetsPage({
               </>
             )}
             {(hasExtraFilters || tierValues.length > 0) && (
-              <Link href={view === "races" ? "/meets?view=races" : "/meets"} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
+              <Link href={view === "races" ? "/meets" : "/meets?view=competitions"} className="shrink-0 text-xs text-neutral-500 hover:text-neutral-300">
                 clear
               </Link>
             )}
