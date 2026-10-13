@@ -2,7 +2,7 @@ import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
 import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
-import { tierPriority, tierScore, isFieldEvent, EVENT_GROUPS } from "./events";
+import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS } from "./events";
 
 // Disciplines/Rankings/Countries pages read searchParams, which makes
 // them fully dynamic in Next.js (no Full Route Cache, no ISR -- `export
@@ -246,6 +246,48 @@ export type PersonalBestRow = {
 // a join to only the handful of disciplines this athlete has a PB in, so it
 // doesn't rank the entire table.
 export async function getAthletePersonalBests(
+  athleteId: string,
+  includeIllegalWind = false,
+  indoor = false
+): Promise<PersonalBestRow[]> {
+  const rows = await _getAthletePersonalBestsBase(athleteId, includeIllegalWind, indoor);
+  // The individual all-time rank tables exclude relays by design, so a relay
+  // PB came back without a "#". Rank it here as a team performance: 1 + the
+  // number of distinct team performances (same event+gender, same
+  // indoor/outdoor kind) with a better time -- same notion the meet page
+  // uses for "#N performance of all time".
+  if (!rows.some((r) => r.all_time_rank == null && isRelayEvent(r.athletics_event))) return rows;
+  const indoorFilter = `AND ${indoor ? "" : "NOT "}${INDOOR_EXPR}`;
+  const relayRanks = await pgQuery<{ athletics_event: string; gender: string; rnk: number }>(
+    `
+    WITH mine AS (
+      SELECT athletics_event_base AS eb, gender, MIN(mark_seconds) AS ms
+      FROM events
+      WHERE athlete_id = $1 AND athletics_discipline = 'Relays' AND mark_seconds IS NOT NULL ${indoorFilter}
+      GROUP BY athletics_event_base, gender
+    )
+    SELECT m.eb AS athletics_event, m.gender,
+      1 + (
+        SELECT COUNT(*) FROM (
+          SELECT DISTINCT event_name, date, nationality, mark_seconds
+          FROM events e
+          WHERE e.athletics_event_base = m.eb AND e.gender = m.gender
+            AND e.nationality IS NOT NULL AND e.mark_seconds < m.ms ${indoorFilter}
+        ) better
+      ) AS rnk
+    FROM mine m
+  `,
+    [athleteId]
+  );
+  const byKey = new Map(relayRanks.map((r) => [`${r.athletics_event}|${r.gender}`, Number(r.rnk)]));
+  return rows.map((r) =>
+    r.all_time_rank == null && isRelayEvent(r.athletics_event)
+      ? { ...r, all_time_rank: byKey.get(`${r.athletics_event}|${r.gender}`) ?? null }
+      : r
+  );
+}
+
+async function _getAthletePersonalBestsBase(
   athleteId: string,
   includeIllegalWind = false,
   indoor = false
