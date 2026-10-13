@@ -45,6 +45,58 @@ function looksLikeAthlete(text: string | undefined) {
   return ATHLETICS_KEYWORDS.some((kw) => t.includes(kw));
 }
 
+
+// Un candidato solo vale si su titulo/etiqueta ES el mismo nombre que el atleta: la busqueda de Wikipedia/
+// Wikidata es difusa y devolvia al "mas parecido" ("Jaxier Sotomayor" -> la foto de Javier Sotomayor).
+function nameTokens(s: string): string[] {
+  return s
+    .replace(/\s*\([^)]*\)\s*$/, "") // "Carlos Lopes (athlete)" -> "Carlos Lopes"
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function sameName(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  const ta = nameTokens(a);
+  const tb = nameTokens(b);
+  if (ta.length === 0 || tb.length === 0) return false;
+  const sa = new Set(ta);
+  const sb = new Set(tb);
+  const [small, big] = sa.size <= sb.size ? [sa, sb] : [sb, sa];
+  if (small.size < 2) return small.size === big.size && [...small].every((t) => big.has(t));
+  return [...small].every((t) => big.has(t));
+}
+
+
+function editDistance(a: string, b: string): number {
+  const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)] as number[]);
+  for (let j = 0; j <= b.length; j++) dp[0][j] = j;
+  for (let i = 1; i <= a.length; i++)
+    for (let j = 1; j <= b.length; j++)
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return dp[a.length][b.length];
+}
+
+// Variante de ortografia/transliteracion ("Mariya"/"Maria", "Gebrselassie"/"Gebreselassie"): mismos tokens salvo UNO
+// con distancia de edicion <= 2. Solo se acepta cuando ademas el año de nacimiento de Wikidata COINCIDE con el del atleta.
+function nearName(a: string | undefined, b: string): boolean {
+  if (!a) return false;
+  const ta = nameTokens(a).sort();
+  const tb = nameTokens(b).sort();
+  if (ta.length < 2 || ta.length !== tb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ta.length; i++) {
+    if (ta[i] === tb[i]) continue;
+    if (editDistance(ta[i], tb[i]) > 2) return false;
+    diff++;
+  }
+  return diff === 1;
+}
+
 export type AthletePhoto = {
   url: string;
   author: string | null;
@@ -104,7 +156,7 @@ async function fromWikipedia(name: string): Promise<AthletePhoto | null> {
     `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(name)}&limit=1&namespace=0&format=json&origin=*`
   );
   const title = search?.[1]?.[0];
-  if (!title) return null;
+  if (!title || !sameName(title, name)) return null;
   type R = { query?: { pages?: Record<string, { pageimage?: string; extract?: string }> } };
   const data = await getJson<R>(
     `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}` +
@@ -117,12 +169,14 @@ async function fromWikipedia(name: string): Promise<AthletePhoto | null> {
 
 // 2. Wikidata entity image (P18)
 async function fromWikidata(name: string, birthYear?: number | null): Promise<AthletePhoto | null> {
-  type Search = { search?: { id: string; description?: string }[] };
+  type Search = { search?: { id: string; label?: string; description?: string }[] };
   const found = await getJson<Search>(
     `https://www.wikidata.org/w/api.php?action=wbsearchentities&search=${encodeURIComponent(name)}` +
       `&language=en&type=item&limit=5&format=json&origin=*`
   );
-  const candidates = (found?.search ?? []).filter((c) => looksLikeAthlete(c.description));
+  const candidates = (found?.search ?? [])
+    .filter((c) => looksLikeAthlete(c.description) && (sameName(c.label, name) || (!!birthYear && nearName(c.label, name))))
+    .map((c) => ({ ...c, exact: sameName(c.label, name) }));
   if (candidates.length === 0) return null;
 
   type Entities = {
@@ -142,6 +196,7 @@ async function fromWikidata(name: string, birthYear?: number | null): Promise<At
       const dob = claims?.P569?.[0]?.mainsnak?.datavalue?.value as { time?: string } | undefined;
       const y = dob?.time ? Number(dob.time.slice(1, 5)) : null;
       if (y && y !== birthYear) continue; // homonym
+      if (!c.exact && y !== birthYear) continue; // variante de nombre: solo con año de nacimiento confirmado
     }
     const photo = await commonsFile(image);
     if (photo) return photo;

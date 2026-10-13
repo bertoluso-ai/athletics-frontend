@@ -186,7 +186,7 @@ export default async function AthletePage({
                 picture always matches the tallest of the three top cells
                 (bio, top results, key stats) instead of pushing it. */}
             <div className="flex items-start lg:items-stretch gap-4 lg:h-[calc(100%-2rem)]">
-              <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
+              <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 lg:max-h-72 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
                 <Suspense
                   fallback={
                     <span className="absolute inset-0">
