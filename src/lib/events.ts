@@ -12,8 +12,8 @@ export const EVENT_GROUPS = [
   },
   {
     key: "hurdles", label: "Hurdles",
-    events: { Men: ["60 Metres Hurdles", "110 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles"], Women: ["60 Metres Hurdles", "100 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles"] },
-    names: { "60 Metres Hurdles": "60mH", "110 Metres Hurdles": "110mH", "100 Metres Hurdles": "100mH", "400 Metres Hurdles": "400mH", "300 Metres Hurdles": "300mH" } as Record<string, string>,
+    events: { Men: ["60 Metres Hurdles", "110 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles"], Women: ["60 Metres Hurdles", "100 Metres Hurdles", "400 Metres Hurdles", "300 Metres Hurdles", "80 Metres Hurdles"] },
+    names: { "60 Metres Hurdles": "60mH", "110 Metres Hurdles": "110mH", "100 Metres Hurdles": "100mH", "400 Metres Hurdles": "400mH", "300 Metres Hurdles": "300mH", "80 Metres Hurdles": "80mH" } as Record<string, string>,
   },
   {
     key: "middle", label: "Middle Distance",
@@ -23,10 +23,13 @@ export const EVENT_GROUPS = [
   {
     key: "long", label: "Long Distance",
     events: {
-      Men: ["3000 Metres", "3000 Metres Steeplechase", "5000 Metres", "10000 Metres"],
-      Women: ["3000 Metres", "3000 Metres Steeplechase", "5000 Metres", "10000 Metres"],
+      Men: ["3000 Metres", "3000 Metres Steeplechase", "2000 Metres Steeplechase", "1500 Metres Steeplechase", "5000 Metres", "10000 Metres"],
+      Women: ["3000 Metres", "3000 Metres Steeplechase", "2000 Metres Steeplechase", "1500 Metres Steeplechase", "5000 Metres", "10000 Metres"],
     },
-    names: { "3000 Metres": "3000m", "3000 Metres Steeplechase": "3000m SC", "5000 Metres": "5000m", "10000 Metres": "10000m" } as Record<string, string>,
+    names: {
+      "3000 Metres": "3000m", "3000 Metres Steeplechase": "3000m SC", "2000 Metres Steeplechase": "2000m SC", "1500 Metres Steeplechase": "1500m SC",
+      "5000 Metres": "5000m", "10000 Metres": "10000m",
+    } as Record<string, string>,
   },
   {
     key: "walk", label: "Race Walk",
@@ -75,18 +78,18 @@ export const EVENT_GROUPS = [
     // Men's Heptathlon is the standard indoor combined event for men (real,
     // not a data error -- thousands of results), so it's offered alongside
     // Decathlon rather than only under Women.
-    events: { Men: ["Decathlon", "Heptathlon"], Women: ["Heptathlon"] },
-    names: { Decathlon: "Decathlon", Heptathlon: "Heptathlon" } as Record<string, string>,
+    events: { Men: ["Decathlon", "Heptathlon", "Pentathlon"], Women: ["Heptathlon", "Pentathlon"] },
+    names: { Decathlon: "Decathlon", Heptathlon: "Heptathlon", Pentathlon: "Pentathlon" } as Record<string, string>,
   },
   {
     key: "road", label: "Road",
     events: {
-      Men: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "10 Miles Road", "Mile Road"],
-      Women: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "10 Miles Road", "Mile Road"],
+      Men: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "15 Kilometres Road", "20 Kilometres Road", "10 Miles Road", "Mile Road"],
+      Women: ["Marathon", "Half Marathon", "10 Kilometres Road", "5 Kilometres Road", "15 Kilometres Road", "20 Kilometres Road", "10 Miles Road", "Mile Road"],
     },
     names: {
       Marathon: "Marathon", "Half Marathon": "Half Marathon",
-      "10 Kilometres Road": "10km", "5 Kilometres Road": "5km", "10 Miles Road": "10 Miles", "Mile Road": "Mile Road",
+      "10 Kilometres Road": "10km", "5 Kilometres Road": "5km", "15 Kilometres Road": "15km", "20 Kilometres Road": "20km", "10 Miles Road": "10 Miles", "Mile Road": "Mile Road",
     } as Record<string, string>,
   },
   {
