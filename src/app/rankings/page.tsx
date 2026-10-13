@@ -196,12 +196,19 @@ async function AllTimeRanking({ sp }: { sp: SP }) {
   const nationality = sp.nationality || undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const nationalities = await getRankingNationalities(gender);
-  const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
+  const area = sp.area && sp.area in AREAS ? sp.area : undefined;
+  // al elegir un area, el desplegable de paises se limita a ella y, sin pais concreto, se filtra por todos sus paises
+  const nationalityOptions = area ? nationalities.filter((n) => n.area === area) : nationalities;
+  const nationalityCodes = nationality
+    ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality]
+    : area
+    ? nationalityOptions.flatMap((n) => n.codes ?? [n.code])
+    : undefined;
   const { rows, total } = await getAllTimeRanking({ gender, nationalityCodes, page, pageSize: PAGE_SIZE });
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const href = (over: Partial<SP>) => {
     const q = new URLSearchParams();
-    const merged = { view: "alltime", gender, nationality: nationality ?? "", page: "1", ...over };
+    const merged = { view: "alltime", gender, area: area ?? "", nationality: nationality ?? "", page: "1", ...over };
     for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
     return `/rankings?${q.toString()}`;
   };
@@ -222,11 +229,19 @@ async function AllTimeRanking({ sp }: { sp: SP }) {
             ))}
           </div>
           <LinkSelect
+            value={area ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All areas", href: href({ area: "", nationality: "" }) },
+              ...Object.entries(AREAS).map(([k, v]) => ({ value: k, label: v, href: href({ area: k, nationality: "" }) })),
+            ]}
+          />
+          <LinkSelect
             value={nationality ?? ""}
             className={selectClass}
             options={[
               { value: "", label: "All nations", href: href({ nationality: "" }) },
-              ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
+              ...nationalityOptions.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
             ]}
           />
         </div>
