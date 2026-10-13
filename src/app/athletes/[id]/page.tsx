@@ -23,6 +23,7 @@ import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventCategory, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
+import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
 
 export const revalidate = 3600;
 
@@ -181,7 +182,7 @@ export default async function AthletePage({
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start">
           {/* Info */}
-          <section className="lg:col-start-1 lg:row-start-1 lg:h-[14.5rem] lg:overflow-hidden">
+          <section className="lg:col-start-1 lg:row-start-1 lg:h-[15.5rem] lg:overflow-hidden">
             <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Bio</h2>
             {/* Foto de tamaño fijo (lg:w-32 x lg:h-44), igual para todos los atletas: no depende de la altura de
                 las celdas vecinas (best results, key stats). */}
@@ -198,6 +199,20 @@ export default async function AthletePage({
                 </Suspense>
               </div>
               <dl className="text-sm space-y-1">
+                {globalIndex && (
+                  <div className="flex gap-2 items-center">
+                    <dt className="text-neutral-500 w-20 shrink-0">Level</dt>
+                    <dd
+                      className="flex items-center gap-1.5"
+                      title={`Global index ${globalIndex.idx.toFixed(1)}/100 · #${globalIndex.rnk.toLocaleString("en-US")} of ${globalIndex.n_pop.toLocaleString("en-US")} ${info.gender === "Women" ? "women" : "men"} with 5+ scored results. 60% best personal-best percentile${globalIndex.best_event ? ` (${eventLabel(globalIndex.best_event)})` : ""}, 25% best-season points, 15% medals at Olympic/World/Diamond-final level.`}
+                    >
+                      <span className={`text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tierFor(percentileFromTop(globalIndex.top_pct)).className}`}>
+                        {tierFor(percentileFromTop(globalIndex.top_pct)).label}
+                      </span>
+                      <span className="font-mono text-xs text-neutral-300">{formatPercentile(percentileFromTop(globalIndex.top_pct))}%</span>
+                    </dd>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <dt className="text-neutral-500 w-20 shrink-0">Nationality</dt>
                   <dd className="flex items-center gap-1.5 text-neutral-300">
@@ -322,7 +337,7 @@ export default async function AthletePage({
 
           {/* Top results */}
           {bestResults.length > 0 && (
-            <section className="lg:col-start-2 lg:row-start-1 lg:h-[14.5rem] lg:overflow-hidden">
+            <section className="lg:col-start-2 lg:row-start-1 lg:h-[15.5rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Best Results</h2>
               <div className="flex flex-col gap-1 lg:h-[calc(100%-3rem)] lg:overflow-y-auto lg:pr-1">
                 {bestResults.map((r, i) => {
@@ -357,24 +372,13 @@ export default async function AthletePage({
           )}
 
           {/* Key stats: third cell of the top band */}
-          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[14.5rem] lg:overflow-hidden">
+          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[15.5rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
                   // Jumps to the Results section, every discipline/year,
                   // filtered to place === 1 only (ResultsList's winsOnly
                   // toggle) and sorted by finishing place.
-                  // Percentil historico (indice global): solo atletas con >= 5 resultados puntuados
-                  ...(globalIndex
-                    ? [
-                        {
-                          n: `${globalIndex.top_pct < 1 ? globalIndex.top_pct.toFixed(2) : globalIndex.top_pct.toFixed(1)}%`,
-                          label: "Top all-time",
-                          href: undefined as string | undefined,
-                          title: `Global index ${globalIndex.idx.toFixed(1)}/100 · #${globalIndex.rnk.toLocaleString("en-US")} of ${globalIndex.n_pop.toLocaleString("en-US")} ${info.gender === "Women" ? "women" : "men"} with 5+ scored results. 60% best personal-best percentile${globalIndex.best_event ? ` (${eventLabel(globalIndex.best_event)})` : ""}, 25% best-season points, 15% medals at Olympic/World/Diamond-final level.`,
-                        },
-                      ]
-                    : []),
                   { n: totalWins, label: "Wins", href: `/athletes/${hrefId}?event=all&year=all&sort=pos&wins=1#results` },
                   { n: yearlyPoints.length, label: "Seasons" },
                   { n: bestSeasonRank ? `#${bestSeasonRank}` : "—", label: "Best season rank" },

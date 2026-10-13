@@ -11,7 +11,7 @@ import { AGE_CATEGORIES } from "./queries";
 // days before the latest result in the data -- only meaningful for rolling
 // and for the current season.
 
-export type RankingView = "season" | "rolling" | "wins";
+export type RankingView = "season" | "rolling" | "wins" | "alltime";
 
 export type IndividualRankingRow = {
   rank: number;
@@ -293,3 +293,42 @@ export const getRankingYears = unstable_cache(
   ["ranking-years-v2"],
   { revalidate: 3600 }
 );
+
+
+// ---------------------------------------------------------------------
+// All-time ranking: ordenado por el indice global (athlete_global_index, ver athletics-database/serving/athlete_global_index.sql)
+// ---------------------------------------------------------------------
+export type AllTimeRankingRow = {
+  rank: number;
+  athlete_id: string;
+  slug: string | null;
+  display_name: string;
+  nationality: string | null;
+  idx: number;
+  top_pct: number;
+  best_event: string | null;
+};
+
+type AllTimeParams = { gender: string; nationalityCodes?: string[]; page: number; pageSize: number };
+
+async function fetchAllTimeRanking(p: AllTimeParams) {
+  const params: unknown[] = [p.gender];
+  let natFilter = "";
+  if (p.nationalityCodes?.length) {
+    natFilter = "AND s.nationality = ANY($2)";
+    params.push(p.nationalityCodes);
+  }
+  const rows = await pgQuery<AllTimeRankingRow & { total: number }>(
+    `SELECT g.rnk::int AS rank, g.athlete_id, s.slug, s.display_name, s.nationality, g.idx::float8 AS idx, g.top_pct::float8 AS top_pct,
+            g.best_event, COUNT(*) OVER ()::int AS total
+     FROM athlete_global_index g
+     JOIN athlete_slugs s USING (athlete_id)
+     WHERE g.gender = $1 ${natFilter}
+     ORDER BY g.rnk, s.display_name
+     LIMIT ${Number(p.pageSize)} OFFSET ${(p.page - 1) * Number(p.pageSize)}`,
+    params
+  );
+  return { rows, total: rows[0]?.total ?? 0 };
+}
+
+export const getAllTimeRanking = unstable_cache(async (p: AllTimeParams) => fetchAllTimeRanking(p), ["alltime-ranking-v1"], { revalidate: 3600 });

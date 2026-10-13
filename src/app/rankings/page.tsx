@@ -9,6 +9,7 @@ import RankingsExplorer from "@/components/RankingsExplorer";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import ViewAllList from "@/components/ViewAllList";
+import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
 import { getEventYearlyProgression, getAthleteSlugs, athleteHref } from "@/lib/queries";
 import { isFieldEvent, sortEventsAlpha } from "@/lib/events";
 import { getNationRanking, getCountryYears, tierForRank, COUNTED_ATHLETES, type NationView } from "@/lib/countries";
@@ -19,6 +20,7 @@ import { eventLabel } from "@/lib/events";
 import { getAthletePhotoInfo, getAthletePhotosBatch, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import {
   getIndividualRanking,
+  getAllTimeRanking,
   getRankingNationalities,
   getRankingYears,
   hasMovement,
@@ -44,6 +46,7 @@ const MENU: { title: string; items: { label: string; view: string; help: string 
       { label: "Season", view: "season", help: "Points scored in the selected season" },
       { label: "Rolling 12 months", view: "rolling", help: "Points over the last 365 days" },
       { label: "Wins", view: "wins", help: "Most wins, points as tie-break" },
+      { label: "All-time", view: "alltime", help: "All-time ranking by the global index (percentile of the whole history)" },
     ],
   },
   {
@@ -84,7 +87,7 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
   // now a filter of every view)
   const requested =
     sp.view === "nations" || sp.view === "n-discipline" ? "n-season" : sp.view === "discipline" ? "season" : sp.view;
-  const view = (["season", "rolling", "wins", "discipline", ...NATION_VIEWS].includes(requested ?? "")
+  const view = (["season", "rolling", "wins", "alltime", "discipline", ...NATION_VIEWS].includes(requested ?? "")
     ? requested
     : sp.event
     ? "discipline"
@@ -105,6 +108,8 @@ export default async function RankingsPage({ searchParams }: { searchParams: Pro
             </div>
             {view.startsWith("n-") ? (
               <NationsRanking view={view.slice(2) as NationView} sp={sp} />
+            ) : view === "alltime" ? (
+              <AllTimeRanking sp={sp} />
             ) : (
               <IndividualRanking view={view as RankingView} sp={sp} />
             )}
@@ -181,6 +186,94 @@ function SideMenu({ view }: { view: string }) {
           </section>
         ))}
       </aside>
+    </>
+  );
+}
+
+// All-time: lista por el indice global (percentil historico); sin temporada ni movimiento.
+async function AllTimeRanking({ sp }: { sp: SP }) {
+  const gender = sp.gender === "Women" ? "Women" : "Men";
+  const nationality = sp.nationality || undefined;
+  const page = Math.max(1, Number(sp.page) || 1);
+  const nationalities = await getRankingNationalities(gender);
+  const nationalityCodes = nationality ? nationalities.find((n) => n.code === nationality)?.codes ?? [nationality] : undefined;
+  const { rows, total } = await getAllTimeRanking({ gender, nationalityCodes, page, pageSize: PAGE_SIZE });
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const href = (over: Partial<SP>) => {
+    const q = new URLSearchParams();
+    const merged = { view: "alltime", gender, nationality: nationality ?? "", page: "1", ...over };
+    for (const [k, v] of Object.entries(merged)) if (v) q.set(k, String(v));
+    return `/rankings?${q.toString()}`;
+  };
+  const selectClass = "shrink-0 bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700";
+  return (
+    <>
+      <div className="flex flex-col gap-2 mb-4 bg-neutral-950 border border-neutral-800 rounded-lg p-2 sm:p-3">
+        <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
+          <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
+            {(["Men", "Women"] as const).map((g) => (
+              <Link
+                key={g}
+                href={href({ gender: g, nationality: "" })}
+                className={`px-3 py-1.5 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
+              >
+                {g}
+              </Link>
+            ))}
+          </div>
+          <LinkSelect
+            value={nationality ?? ""}
+            className={selectClass}
+            options={[
+              { value: "", label: "All nations", href: href({ nationality: "" }) },
+              ...nationalities.map((n) => ({ value: n.code, label: n.name, href: href({ nationality: n.code }) })),
+            ]}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-neutral-500 mb-3">
+        All-time ranking by the global index: 60% best personal-best percentile, 25% best season, 15% medals. Athletes with 5+ scored results.
+      </p>
+      <div className="border border-neutral-800 rounded-lg divide-y divide-neutral-800 overflow-hidden">
+        {rows.map((r) => {
+          const pct = percentileFromTop(r.top_pct);
+          const tier = tierFor(pct);
+          return (
+            <Link key={r.athlete_id} href={`/athletes/${r.slug ?? r.athlete_id}`} className="flex items-center justify-between px-4 py-2 hover:bg-neutral-800">
+              <span className="text-sm flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-neutral-500 font-mono text-xs w-10 shrink-0">{r.rank}</span>
+                <Flag code={r.nationality} />
+                <span className="truncate">
+                  {r.display_name}
+                  {r.best_event && <span className="text-neutral-500 font-normal ml-2 text-xs">{eventLabel(r.best_event)}</span>}
+                </span>
+              </span>
+              <span className="flex items-center gap-3 shrink-0">
+                <span className={`hidden sm:inline text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tier.className}`}>{tier.label}</span>
+                <span className="font-mono text-sm text-neutral-200 w-14 text-right">{formatPercentile(pct)}%</span>
+              </span>
+            </Link>
+          );
+        })}
+        {rows.length === 0 && <div className="px-4 py-4 text-sm text-neutral-500">No data.</div>}
+      </div>
+      {pages > 1 && (
+        <div className="flex items-center justify-center gap-2 mt-4 text-sm">
+          {page > 1 && (
+            <Link href={href({ page: String(page - 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+              ← Prev
+            </Link>
+          )}
+          <span className="text-neutral-500">
+            {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+          </span>
+          {page < pages && (
+            <Link href={href({ page: String(page + 1) })} className="px-3 py-1 rounded border border-neutral-700 hover:border-neutral-500">
+              Next →
+            </Link>
+          )}
+        </div>
+      )}
     </>
   );
 }
