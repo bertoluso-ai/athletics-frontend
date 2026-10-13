@@ -208,6 +208,14 @@ export default async function MeetPage({
           />
         </div>
 
+        {/* Ediciones historicas de las que solo se conoce el podio (tabla Event|Gold|Silver|Bronze de Wikipedia):
+            todas las carreras mostradas tienen como mucho 3 resultados. Se avisa para que no parezca un dato incompleto por error. */}
+        {groups.length >= 2 && groups.every((g) => g.rows.length <= 3) && (
+          <p className="mt-3 text-xs text-neutral-400 bg-neutral-900/60 border border-neutral-800 rounded-lg px-3 py-2">
+            Podium only: for this edition the source lists just the top three of each event, so full results (heats, finalists) are not available.
+          </p>
+        )}
+
         {/* results | history of the selected event at this meet */}
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2.8fr)_minmax(0,1fr)] gap-6 items-start">
           <div className="min-w-0">
