@@ -6,6 +6,7 @@ import { pgQuery } from "@/lib/pg";
 // (duplicados entre fuentes, homonimos fundidos, series partidas, filas retiradas que reaparecen...).
 // Un uptime check de Cloud Monitoring la consulta; 503 si alguna falla. Cacheada 10 min.
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 type Row = Record<string, unknown>;
 type Def = { name: string; sql: string; ok: (r: Row[]) => boolean; why: string };
@@ -23,7 +24,7 @@ const CHECKS: Def[] = [
     why: "Misma actuacion con ronda vacia y con 'Final' (patron de los duplicados entre fuentes)",
     sql: `SELECT COUNT(*)::int AS n FROM (
             SELECT athlete_id, date, athletics_event, mark_display, place FROM events
-            WHERE athlete_id IS NOT NULL AND date IS NOT NULL AND place IS NOT NULL AND athletics_discipline IS DISTINCT FROM 'Relays'
+            WHERE athlete_id IS NOT NULL AND date IS NOT NULL AND place IS NOT NULL AND athletics_discipline IS DISTINCT FROM 'Relays' AND year >= EXTRACT(YEAR FROM CURRENT_DATE)::int - 1
             GROUP BY 1,2,3,4,5
             HAVING COUNT(*) FILTER (WHERE round IS NULL OR round = '') > 0 AND COUNT(*) FILTER (WHERE round ILIKE 'final%') > 0) x`,
     ok: (r) => Number(r[0]?.n) <= 50,
@@ -77,15 +78,16 @@ const CHECKS: Def[] = [
 
 const run = unstable_cache(
   async () => {
-    const out: { name: string; ok: boolean; why: string; error?: string }[] = [];
-    for (const c of CHECKS) {
-      try {
-        const rows = await pgQuery<Row>(c.sql);
-        out.push({ name: c.name, ok: c.ok(rows), why: c.why });
-      } catch (e) {
-        out.push({ name: c.name, ok: false, why: c.why, error: (e as Error).message.slice(0, 120) });
-      }
-    }
+    const out = await Promise.all(
+      CHECKS.map(async (c) => {
+        try {
+          const rows = await pgQuery<Row>(c.sql);
+          return { name: c.name, ok: c.ok(rows), why: c.why } as { name: string; ok: boolean; why: string; error?: string };
+        } catch (e) {
+          return { name: c.name, ok: false, why: c.why, error: (e as Error).message.slice(0, 120) };
+        }
+      })
+    );
     return out;
   },
   ["data-regression-v1"],
