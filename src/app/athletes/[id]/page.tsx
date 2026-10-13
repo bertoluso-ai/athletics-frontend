@@ -128,6 +128,9 @@ export default async function AthletePage({
   // earlier countries the athlete competed for (URS -> UKR, transfers...)
   const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
   // Tooltip del nivel (el porcentaje exacto solo se ve en Rankings > All-time)
+  const levelHref = globalIndex
+    ? `/rankings?view=alltime&gender=${info.gender === "Women" ? "Women" : "Men"}&page=${Math.ceil(globalIndex.rnk / 50)}#a-${id}`
+    : "/rankings?view=alltime";
   const levelTitle = globalIndex
     ? `Level from the all-time global index (#${globalIndex.rnk.toLocaleString("en-US")} of ${globalIndex.n_pop.toLocaleString("en-US")} ${info.gender === "Women" ? "women" : "men"}). See Rankings > All-time.`
     : undefined;
@@ -190,12 +193,13 @@ export default async function AthletePage({
             <h2 className="hidden lg:flex items-center justify-between bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">
               Bio
               {globalIndex && (
-                <span
-                  className={`text-[11px] font-bold tracking-wide px-1.5 py-0.5 rounded ${tierFor(percentileFromTop(globalIndex.top_pct)).className}`}
+                <Link
+                  href={levelHref}
+                  className={`text-[11px] font-bold tracking-wide px-1.5 py-0.5 rounded hover:opacity-80 ${tierFor(percentileFromTop(globalIndex.top_pct)).className}`}
                   title={levelTitle}
                 >
                   {tierFor(percentileFromTop(globalIndex.top_pct)).label.toUpperCase()}
-                </span>
+                </Link>
               )}
             </h2>
             {/* Foto de tamaño fijo (lg:w-32 x lg:h-44), igual para todos los atletas: no depende de la altura de
@@ -217,9 +221,12 @@ export default async function AthletePage({
                   <div className="flex gap-2 items-center lg:hidden">
                     <dt className="text-neutral-500 w-20 shrink-0">Level</dt>
                     <dd title={levelTitle}>
-                      <span className={`text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tierFor(percentileFromTop(globalIndex.top_pct)).className}`}>
+                      <Link
+                        href={levelHref}
+                        className={`text-[11px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ${tierFor(percentileFromTop(globalIndex.top_pct)).className}`}
+                      >
                         {tierFor(percentileFromTop(globalIndex.top_pct)).label}
-                      </span>
+                      </Link>
                     </dd>
                   </div>
                 )}
