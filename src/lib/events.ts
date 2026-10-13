@@ -168,11 +168,21 @@ export const EVENT_GROUPS = [
   {
     key: "relays", label: "Relays",
     events: {
-      Men: ["4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay"],
-      Women: ["4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay"],
+      // Los relevos menos habituales tambien deben ser alcanzables: sin entrada aqui
+      // eventFromSlug() devuelve null y /disciplines/<slug> daba 404 (p.ej. Sprint Medley 1000m).
+      Men: [
+        "4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay", "4x800 Metres Relay", "4x1500 Metres Relay",
+        "Distance Medley Relay", "Sprint Medley Relay 1000m", "Sprint Medley Relay 1600m", "4xMile Relay",
+      ],
+      Women: [
+        "4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay", "4x800 Metres Relay", "4x1500 Metres Relay",
+        "Distance Medley Relay", "Sprint Medley Relay 1000m", "Sprint Medley Relay 1600m",
+      ],
     },
     names: {
       "4x100 Metres Relay": "4x100m", "4x200 Metres Relay": "4x200m", "4x400 Metres Relay": "4x400m",
+      "4x800 Metres Relay": "4x800m", "4x1500 Metres Relay": "4x1500m", "Distance Medley Relay": "Distance Medley",
+      "Sprint Medley Relay 1000m": "Sprint Medley 1000m", "Sprint Medley Relay 1600m": "Sprint Medley 1600m", "4xMile Relay": "4xMile",
     } as Record<string, string>,
   },
 ] as const;
