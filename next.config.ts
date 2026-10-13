@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/calendar", destination: "/meets", permanent: true },
+      { source: "/competitions", destination: "/meets", permanent: false },
       { source: "/races", destination: "/meets?view=races", permanent: true },
     ];
   },
