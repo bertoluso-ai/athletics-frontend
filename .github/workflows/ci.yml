@@ -12,6 +12,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
       - run: npx tsc --noEmit
       - run: npx eslint src --quiet
