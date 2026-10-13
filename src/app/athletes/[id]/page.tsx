@@ -181,12 +181,10 @@ export default async function AthletePage({
           {/* Info */}
           <section className="lg:col-start-1 lg:row-start-1">
             <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Bio</h2>
-            {/* On desktop the photo takes no height of its own: it's absolutely
-                positioned in a wrapper that stretches to the row, so the
-                picture always matches the tallest of the three top cells
-                (bio, top results, key stats) instead of pushing it. */}
-            <div className="flex items-start lg:items-stretch gap-4 lg:h-[calc(100%-2rem)]">
-              <div className="relative w-20 h-20 lg:w-32 lg:h-auto lg:min-h-36 lg:max-h-72 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
+            {/* Foto de tamaño fijo (lg:w-32 x lg:h-44), igual para todos los atletas: no depende de la altura de
+                las celdas vecinas (best results, key stats). */}
+            <div className="flex items-start gap-4">
+              <div className="relative w-20 h-20 lg:w-32 lg:h-44 shrink-0 rounded-full lg:rounded-md overflow-hidden border border-neutral-800 bg-neutral-800">
                 <Suspense
                   fallback={
                     <span className="absolute inset-0">
