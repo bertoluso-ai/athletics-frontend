@@ -14,6 +14,7 @@ import {
   getAthleteChampionships,
   getAthleteRecordStats,
   getAthleteNationalityHistory,
+  getAthleteGlobalIndex,
   getAthleteSlug,
   getAthleteIdBySlug,
 } from "@/lib/queries";
@@ -113,7 +114,7 @@ export default async function AthletePage({
   // field was long since ready from BigQuery. It's fetched by the
   // <AthletePhoto>/<AthletePhotoToast> Server Components below instead,
   // each wrapped in <Suspense> so they stream in independently.
-  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results] = await Promise.all([
+  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results, globalIndex] = await Promise.all([
     getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
@@ -121,6 +122,7 @@ export default async function AthletePage({
     getAthleteRecordStats(id),
     getAthleteNationalityHistory(id),
     event ? getAthleteResultsForYear(id, year, event) : Promise.resolve([]),
+    getAthleteGlobalIndex(id),
   ]);
   // earlier countries the athlete competed for (URS -> UKR, transfers...)
   const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
@@ -179,7 +181,7 @@ export default async function AthletePage({
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start">
           {/* Info */}
-          <section className="lg:col-start-1 lg:row-start-1 lg:h-[14rem] lg:overflow-hidden">
+          <section className="lg:col-start-1 lg:row-start-1 lg:h-[14.5rem] lg:overflow-hidden">
             <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Bio</h2>
             {/* Foto de tamaño fijo (lg:w-32 x lg:h-44), igual para todos los atletas: no depende de la altura de
                 las celdas vecinas (best results, key stats). */}
@@ -320,7 +322,7 @@ export default async function AthletePage({
 
           {/* Top results */}
           {bestResults.length > 0 && (
-            <section className="lg:col-start-2 lg:row-start-1 lg:h-[14rem] lg:overflow-hidden">
+            <section className="lg:col-start-2 lg:row-start-1 lg:h-[14.5rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Best Results</h2>
               <div className="flex flex-col gap-1 lg:h-[calc(100%-3rem)] lg:overflow-y-auto lg:pr-1">
                 {bestResults.map((r, i) => {
@@ -355,13 +357,24 @@ export default async function AthletePage({
           )}
 
           {/* Key stats: third cell of the top band */}
-          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[14rem] lg:overflow-hidden">
+          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[14.5rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
                   // Jumps to the Results section, every discipline/year,
                   // filtered to place === 1 only (ResultsList's winsOnly
                   // toggle) and sorted by finishing place.
+                  // Percentil historico (indice global): solo atletas con >= 5 resultados puntuados
+                  ...(globalIndex
+                    ? [
+                        {
+                          n: `${globalIndex.top_pct < 1 ? globalIndex.top_pct.toFixed(2) : globalIndex.top_pct.toFixed(1)}%`,
+                          label: "Top all-time",
+                          href: undefined as string | undefined,
+                          title: `Global index ${globalIndex.idx.toFixed(1)}/100 · #${globalIndex.rnk.toLocaleString("en-US")} of ${globalIndex.n_pop.toLocaleString("en-US")} ${info.gender === "Women" ? "women" : "men"} with 5+ scored results. 60% best personal-best percentile${globalIndex.best_event ? ` (${eventLabel(globalIndex.best_event)})` : ""}, 25% best-season points, 15% medals at Olympic/World/Diamond-final level.`,
+                        },
+                      ]
+                    : []),
                   { n: totalWins, label: "Wins", href: `/athletes/${hrefId}?event=all&year=all&sort=pos&wins=1#results` },
                   { n: yearlyPoints.length, label: "Seasons" },
                   { n: bestSeasonRank ? `#${bestSeasonRank}` : "—", label: "Best season rank" },

@@ -395,6 +395,34 @@ async function _getAthletePersonalBestsBase(
   );
 }
 
+export type GlobalIndexRow = {
+  idx: number;
+  rnk: number;
+  n_pop: number;
+  top_pct: number;
+  best_event: string | null;
+  comp_a: number;
+  comp_b: number;
+  comp_c: number;
+};
+
+// Indice global del atleta y su percentil historico (tabla athlete_global_index, ver
+// athletics-database/serving/athlete_global_index.sql). Null si el atleta no entra en la poblacion
+// (menos de 5 resultados puntuados) o si la tabla aun no existe.
+export async function getAthleteGlobalIndex(athleteId: string): Promise<GlobalIndexRow | null> {
+  try {
+    const rows = await pgQuery<GlobalIndexRow>(
+      `SELECT idx::float8 AS idx, rnk::int AS rnk, n_pop::int AS n_pop, top_pct::float8 AS top_pct, best_event,
+              comp_a::float8 AS comp_a, comp_b::float8 AS comp_b, comp_c::float8 AS comp_c
+       FROM athlete_global_index WHERE athlete_id = $1`,
+      [athleteId]
+    );
+    return rows[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export type YearPointsRow = { year: number; points: number; n_results: number; wins: number; rank: number | null };
 
 // Total points per year (summed across every discipline), each annotated
