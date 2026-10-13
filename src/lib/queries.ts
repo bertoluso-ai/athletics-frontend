@@ -1,6 +1,5 @@
 import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
-import { runQuery } from "./bigquery";
 import { pgQuery } from "./pg";
 import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS } from "./events";
 
@@ -932,55 +931,6 @@ export type UpcomingCompetition = {
   past_event_name: string | null;
 };
 
-export async function getUpcomingCompetitions(
-  limit = 10,
-  category?: string,
-  discipline?: string
-): Promise<UpcomingCompetition[]> {
-  // No category filter ("All categories"): OW-B all weigh the same (not a
-  // strict tier hierarchy among themselves) -- a nearer B shows ahead of a
-  // later A, exactly like a nearer A shows ahead of a later OW. Only the
-  // OW-B bucket as a whole outranks C-F, so a flood of small club meets
-  // can't crowd the real ones out of the 10 slots, but a C-F race still
-  // gets through when there's room (e.g. a quiet week with nothing bigger
-  // nearby). An explicit category filter cares only about date.
-  // Stays on BigQuery: joining upcoming_competitions (~10 rows) against
-  // events by a regex-normalized series match has no indexable scope --
-  // even a 1-year date prefilter still leaves 660k+ candidate rows for the
-  // regex join, which took 90s+ on Postgres's single node (fine on
-  // BigQuery's distributed engine). Same lesson as calendar.ts.
-  const orderBy = category
-    ? "date_start ASC"
-    : "IF(category IN ('OW','DF','GW','GL','A','B'), 0, 1) ASC, date_start ASC";
-  return runQuery<UpcomingCompetition>(`
-    WITH up AS (
-      SELECT row_key, date_start, date_end, name, venue, country, category, disciplines
-      FROM \`athletics-database.tablasauxiliares.upcoming_competitions\`
-      WHERE date_start >= CURRENT_DATE()
-        ${category ? "AND category = @category" : ""}
-        ${discipline ? "AND disciplines LIKE CONCAT('%', @discipline, '%')" : ""}
-      ORDER BY ${orderBy}
-      LIMIT ${limit}
-    ),
-    matches AS (
-      SELECT up.row_key, e.event_name, e.date,
-        ROW_NUMBER() OVER (PARTITION BY up.row_key ORDER BY e.date DESC) AS rn
-      FROM up
-      JOIN \`athletics-database.athletics_all.events_enriched\` e
-        ON ${normalizeSeries("e.event_name")} = ${normalizeSeries("up.name")}
-      WHERE e.date IS NOT NULL
-    )
-    SELECT
-      CAST(up.date_start AS STRING) AS date_start,
-      CAST(up.date_end AS STRING) AS date_end,
-      up.name, up.venue, up.country, up.category, up.disciplines,
-      m.event_name AS past_event_name
-    FROM up
-    LEFT JOIN (SELECT row_key, event_name FROM matches WHERE rn = 1) m USING (row_key)
-    ORDER BY up.date_start ASC
-  `, { ...(category ? { category } : {}), ...(discipline ? { discipline } : {}) });
-}
-
 // ---------------------------------------------------------------------
 // Year ranking, for a single event + gender (points-based, our scoring).
 // ---------------------------------------------------------------------
@@ -1661,27 +1611,6 @@ export const displaySeriesPg = (expr: string) => `
       '(championships),\\s+.*$', '\\1', 'i'
     ),
     '(championships)\\s+in athletics$', '\\1', 'i'
-  ))
-`;
-
-// BigQuery version of the same normalization -- still needed by
-// getUpcomingCompetitions above, which stays on BigQuery (see its comment).
-export const normalizeSeries = (expr: string) => `
-  TRIM(REGEXP_REPLACE(
-    REGEXP_REPLACE(
-      REGEXP_REPLACE(
-        REGEXP_REPLACE(
-          REGEXP_REPLACE(
-            REGEXP_REPLACE(LOWER(TRIM(${expr})), r'\\biaaf\\b\\s*', ''),
-            r'^world athletics\\s+', ''
-          ),
-          r'^world\\s+', ''
-        ),
-        r'\\s+meeting$', ''
-      ),
-      r'(championships),\\s+.*$', r'\\1'
-    ),
-    r'(?i)(championships)\\s+in athletics$', r'\\1'
   ))
 `;
 
