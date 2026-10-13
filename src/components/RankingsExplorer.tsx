@@ -5,12 +5,12 @@ import Link from "next/link";
 import YearlyProgressionChart from "./YearlyProgressionChart";
 import type { YearProgressionPoint } from "@/lib/queries";
 import { useSearchParams } from "next/navigation";
-import { EVENT_GROUPS, eventLabel, isRelayEvent, isFieldEvent, sortEventsAlpha } from "@/lib/events";
+import { EVENT_GROUPS, eventLabel, isRelayEvent, isFieldEvent, sortEventsAlpha, groupEvents } from "@/lib/events";
 import Avatar from "./Avatar";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
 
-type Gender = "Men" | "Women";
+type Gender = "Men" | "Women" | "Mixed";
 type AgeCategory = "" | "U18" | "U20" | "U23";
 type SortBy = "mark" | "points";
 
@@ -58,7 +58,7 @@ const AGE_CATEGORIES: { value: AgeCategory; label: string }[] = [
 function findGroupKeyForEvent(ev: string | null, gender: Gender): string {
   if (ev === "all") return GLOBAL_KEY;
   if (ev) {
-    const g = EVENT_GROUPS.find((g) => (g.events[gender] as readonly string[]).includes(ev));
+    const g = EVENT_GROUPS.find((g) => groupEvents(g, gender).includes(ev));
     if (g) return g.key;
   }
   return EVENT_GROUPS[0].key;
@@ -67,7 +67,8 @@ function findGroupKeyForEvent(ev: string | null, gender: Gender): string {
 export default function RankingsExplorer() {
   const searchParams = useSearchParams();
   const initialEvent = searchParams.get("event");
-  const initialGender: Gender = searchParams.get("gender") === "Women" ? "Women" : "Men";
+  const gParam = searchParams.get("gender");
+  const initialGender: Gender = gParam === "Women" ? "Women" : gParam === "Mixed" ? "Mixed" : "Men";
   const initialYearParam = searchParams.get("year");
 
   const [gender, setGender] = useState<Gender>(initialGender);
@@ -76,7 +77,7 @@ export default function RankingsExplorer() {
   const group = isGlobal ? null : EVENT_GROUPS.find((g) => g.key === groupKey)!;
   const [event, setEvent] = useState<string>(() => {
     if (isGlobal) return "all";
-    const options = group!.events[gender] as readonly string[];
+    const options = groupEvents(group!, gender);
     return initialEvent && options.includes(initialEvent) ? initialEvent : options[0];
   });
   const [year, setYear] = useState<number | "all">(() =>
@@ -112,7 +113,12 @@ export default function RankingsExplorer() {
       setEvent("all");
       return;
     }
-    const options = group!.events[gender] as readonly string[];
+    // "Mixed" solo existe en relevos: al pasar a otro grupo se vuelve a Men
+    if (gender === "Mixed" && groupEvents(group!, "Mixed").length === 0) {
+      setGender("Men");
+      return;
+    }
+    const options = groupEvents(group!, gender);
     if (!options.includes(event)) setEvent(options[0]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupKey, gender]);
@@ -210,7 +216,7 @@ export default function RankingsExplorer() {
           onChange={(e) => setEvent(e.target.value)}
           className={`${selectClass} w-full mb-4`}
         >
-          {sortEventsAlpha(group!.events[gender] as readonly string[]).map((ev) => (
+          {sortEventsAlpha(groupEvents(group!, gender)).map((ev) => (
             <option key={ev} value={ev}>{eventLabel(ev)}</option>
           ))}
         </select>
@@ -218,7 +224,7 @@ export default function RankingsExplorer() {
 
       <div className="flex flex-wrap items-center gap-2 mb-2">
         <div className="flex rounded bg-neutral-800 p-0.5 text-xs">
-          {(["Men", "Women"] as Gender[]).map((g) => (
+          {(["Men", "Women", "Mixed"] as Gender[]).filter((g) => g !== "Mixed" || isGlobal === false && groupEvents(group!, "Mixed").length > 0).map((g) => (
             <button
               key={g}
               onClick={() => setGender(g)}
