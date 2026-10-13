@@ -11,6 +11,7 @@ import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
 
 const CURRENT_YEAR = new Date().getFullYear();
+const RECENT_TOP_DAYS = 7; // una top competition cuenta como "reciente" (va arriba) durante estos dias
 const TOP_TIERS = "OW,DF,GW"; // Olympics/Worlds, Diamond League Final and world-level championships
 
 export default async function Home() {
@@ -24,10 +25,15 @@ export default async function Home() {
     getEventYearlyProgression("100 Metres", "Men"),
   ]);
 
-  // Top block = the 3 latest top competitions, each with its best race; the feed
-  // above skips them so nothing shows twice
-  const top = topRaces.slice(0, 3);
+  // Una competicion top (GW o superior) RECIENTE sube al principio del feed principal (mismo orden que el resto); cuando deja de ser
+  // reciente baja al bloque "Top competitions results". Asi el feed conserva su orden y la top no queda enterrada la semana que se disputa.
+  const recentCut = new Date(Date.now() - RECENT_TOP_DAYS * 86400000).toISOString().slice(0, 10);
+  const latestDate = (g: (typeof topRaces)[number]) => g.races.reduce((m, r) => (r.date > m ? r.date : m), "");
+  const recentTop = topRaces.filter((g) => latestDate(g) >= recentCut);
+  const recentNames = new Set(recentTop.map((g) => g.event_name));
+  const top = topRaces.filter((g) => !recentNames.has(g.event_name)).slice(0, 3);
   const topNames = new Set(top.map((g) => g.event_name));
+  const feed = [...recentTop, ...races.filter((g) => !recentNames.has(g.event_name))];
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -37,8 +43,8 @@ export default async function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px_320px] gap-10 lg:gap-6">
         {/* Latest results -- flexible column, never shrinks the fixed side columns */}
         <div className="min-w-0 flex flex-col gap-8">
+          <LatestResults initialGroups={feed} defaultTier="" maxGroups={3} exclude={[...topNames]} />
           {top.length > 0 && <LatestResults initialGroups={top} heading="Top competitions results" headingIcon="trophy" showFilters={false} />}
-          <LatestResults initialGroups={races} defaultTier="" maxGroups={3} exclude={[...topNames]} />
         </div>
 
         {/* Upcoming races, then a compact best-mark progression chart */}
