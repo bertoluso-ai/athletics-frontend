@@ -15,12 +15,14 @@ import {
   getAthleteRecordStats,
   getAthleteNationalityHistory,
   getAthleteGlobalIndex,
+  getAthleteHomonyms,
   getAthleteSlug,
   getAthleteIdBySlug,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
+import AthleteChooser from "@/components/AthleteChooser";
 import { eventCategory, eventLabel } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
@@ -75,7 +77,13 @@ export default async function AthletePage({
     // name for this id) -- fall through and try idParam as a raw id below
   } else {
     const resolved = await getAthleteIdBySlug(idParam);
-    if (!resolved) notFound();
+    if (!resolved) {
+      // varios atletas con ese nombre: pagina para elegir (con uno solo, redireccion a su URL)
+      const homonyms = await getAthleteHomonyms(idParam);
+      if (homonyms.length === 1) permanentRedirect(`/athletes/${homonyms[0].slug}`);
+      if (homonyms.length > 1) return <AthleteChooser name={homonyms[0].display_name} candidates={homonyms} />;
+      notFound();
+    }
     id = resolved;
   }
   // In-page filter links (year tabs, wind/indoor toggles) must build hrefs

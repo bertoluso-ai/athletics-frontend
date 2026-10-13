@@ -116,6 +116,38 @@ export async function getAthleteSlug(athleteId: string): Promise<string | null> 
   return rows[0]?.slug ?? null;
 }
 
+export type AthleteHomonym = {
+  athlete_id: string;
+  slug: string;
+  display_name: string;
+  nationality: string | null;
+  y1: number;
+  y2: number;
+  birth_year: number | null;
+  n: number;
+  main_event: string | null;
+};
+
+// Atletas que comparten nombre (la URL base "/athletes/jose-de-assis" no existe cuando hay varios: cada uno lleva pais y año de
+// nacimiento, o primer año activo si no se conoce, en su slug). Devuelve los candidatos para que el visitante elija.
+export async function getAthleteHomonyms(base: string): Promise<AthleteHomonym[]> {
+  if (!/^[a-z0-9-]{3,}$/.test(base)) return [];
+  return pgQuery<AthleteHomonym>(
+    `SELECT s.athlete_id, s.slug, s.display_name, s.nationality,
+            MIN(e.year)::int AS y1, MAX(e.year)::int AS y2,
+            (PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY e.birth_year))::int AS birth_year,
+            COUNT(*)::int AS n, MODE() WITHIN GROUP (ORDER BY e.athletics_event_base) AS main_event
+     FROM athlete_slugs s
+     JOIN events e ON e.athlete_id = s.athlete_id
+     WHERE s.slug LIKE $1 || '-%'
+       AND TRIM(BOTH '-' FROM REGEXP_REPLACE(LOWER(public.immutable_unaccent(s.display_name)), '[^a-z0-9]+', '-', 'g')) = $1
+     GROUP BY s.athlete_id, s.slug, s.display_name, s.nationality
+     ORDER BY y1 NULLS LAST, s.slug
+     LIMIT 12`,
+    [base]
+  );
+}
+
 export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
   const rows = await pgQuery<{ athlete_id: string }>(`SELECT athlete_id FROM athlete_slugs WHERE slug = $1`, [slug]);
   return rows[0]?.athlete_id ?? null;
