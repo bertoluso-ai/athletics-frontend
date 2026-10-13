@@ -1,7 +1,7 @@
-import { EVENT_GROUPS } from "./events";
+import { EVENT_GROUPS, groupEvents } from "./events";
 
 const ALL_EVENTS = Array.from(
-  new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women]))
+  new Set(EVENT_GROUPS.flatMap((g) => [...g.events.Men, ...g.events.Women, ...groupEvents(g, "Mixed")]))
 );
 
 export function eventSlug(event: string): string {

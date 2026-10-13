@@ -178,14 +178,24 @@ export const EVENT_GROUPS = [
         "4x100 Metres Relay", "4x200 Metres Relay", "4x400 Metres Relay", "4x800 Metres Relay", "4x1500 Metres Relay",
         "Distance Medley Relay", "Sprint Medley Relay 1000m", "Sprint Medley Relay 1600m",
       ],
+      // Relevos mixtos (genero "Mixed" en la BD): solo los hay en relevos.
+      Mixed: ["4x100 Metres Relay", "4x400 Metres Relay", "Cross Country Relay", "Marathon Race Walk Relay"],
     },
     names: {
+      "Cross Country Relay": "Cross Country Relay", "Marathon Race Walk Relay": "Marathon Race Walk Relay",
       "4x100 Metres Relay": "4x100m", "4x200 Metres Relay": "4x200m", "4x400 Metres Relay": "4x400m",
       "4x800 Metres Relay": "4x800m", "4x1500 Metres Relay": "4x1500m", "Distance Medley Relay": "Distance Medley",
       "Sprint Medley Relay 1000m": "Sprint Medley 1000m", "Sprint Medley Relay 1600m": "Sprint Medley 1600m", "4xMile Relay": "4xMile",
     } as Record<string, string>,
   },
 ] as const;
+
+export type EventGender = "Men" | "Women" | "Mixed";
+
+// Disciplinas de un grupo para un genero ("Mixed" solo existe en relevos; en el resto de grupos es vacio).
+export function groupEvents(g: { events: object }, gender: EventGender): readonly string[] {
+  return ((g.events as Record<string, readonly string[] | undefined>)[gender] ?? []) as readonly string[];
+}
 
 // Disciplines that no longer exist on their own because they were folded
 // into another (regroup_cross_country.sql): old /disciplines/<slug> links

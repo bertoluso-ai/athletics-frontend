@@ -15,7 +15,7 @@ import {
   getAthleteSlugs, athleteHref,
   type MarkRow, type RelayMarkRow, type NationalityOption, type DisciplineSideData,
 } from "@/lib/queries";
-import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory, sortEventsAlpha } from "@/lib/events";
+import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory, sortEventsAlpha, groupEvents, type EventGender } from "@/lib/events";
 import { eventSlug, eventFromSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
@@ -155,12 +155,10 @@ export default async function DisciplinePage({
 
   const group = findGroup(event);
   const sp = await searchParams;
-  const availableGenders = group
-    ? (((group.events.Men as readonly string[]).includes(event) ? ["Men"] : []).concat(
-        (group.events.Women as readonly string[]).includes(event) ? ["Women"] : []
-      ) as ("Men" | "Women")[])
-    : (["Men", "Women"] as const);
-  const gender = (sp.gender as "Men" | "Women") && availableGenders.includes(sp.gender as "Men" | "Women") ? (sp.gender as "Men" | "Women") : availableGenders[0] ?? "Men";
+  const availableGenders: EventGender[] = group
+    ? (["Men", "Women", "Mixed"] as EventGender[]).filter((g) => groupEvents(group, g).includes(event))
+    : ["Men", "Women"];
+  const gender: EventGender = availableGenders.includes(sp.gender as EventGender) ? (sp.gender as EventGender) : availableGenders[0] ?? "Men";
 
   const yearParam = sp.year === "all" ? null : sp.year ? Number(sp.year) : null;
   const ageCategory = sp.age ?? "";
@@ -191,7 +189,10 @@ export default async function DisciplinePage({
   // Country, Relays never have indoor results) -- otherwise the dropdown
   // offered "Marathon"/"Cross Country" while Indoor was active, which
   // always rendered empty since no row of those ever has an indoor mark.
-  const allEventOptions = Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[])));
+  const allEventOptions =
+    gender === "Mixed"
+      ? Array.from(new Set(EVENT_GROUPS.flatMap((g) => groupEvents(g, "Mixed"))))
+      : Array.from(new Set(EVENT_GROUPS.flatMap((g) => (g.events[gender].length ? g.events[gender] : g.events.Men) as readonly string[])));
   // Kind of the discipline on screen: Indoor when the indoor view is on, else by the discipline's own
   // name. The discipline list is narrowed to that kind (Road lists road runs, Track lists track events...).
   const currentType: RaceType = indoor ? "indoor" : eventRaceKind(event);
@@ -300,7 +301,7 @@ export default async function DisciplinePage({
               <div className="pill-row flex flex-nowrap overflow-x-auto items-center gap-2 -mx-2 px-2 sm:mx-0 sm:px-0">
                 {availableGenders.length > 1 && (
                   <div className="shrink-0 flex rounded bg-neutral-800 p-0.5 text-xs">
-                    {(["Men", "Women"] as const).map((g) => (
+                    {availableGenders.map((g) => (
                       <Link key={g} href={baseHref({ gender: g })} className={`px-3 py-1.5 rounded ${g === gender ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}>
                         {g}
                       </Link>
