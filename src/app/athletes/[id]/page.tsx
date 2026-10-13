@@ -179,7 +179,7 @@ export default async function AthletePage({
 
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.5fr)_minmax(0,1fr)] lg:grid-rows-[auto_1fr] gap-6 items-start">
           {/* Info */}
-          <section className="lg:col-start-1 lg:row-start-1 lg:h-[17.5rem] lg:overflow-hidden">
+          <section className="lg:col-start-1 lg:row-start-1 lg:h-[14rem] lg:overflow-hidden">
             <h2 className="hidden lg:block bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Bio</h2>
             {/* Foto de tamaño fijo (lg:w-32 x lg:h-44), igual para todos los atletas: no depende de la altura de
                 las celdas vecinas (best results, key stats). */}
@@ -320,7 +320,7 @@ export default async function AthletePage({
 
           {/* Top results */}
           {bestResults.length > 0 && (
-            <section className="lg:col-start-2 lg:row-start-1 lg:h-[17.5rem] lg:overflow-hidden">
+            <section className="lg:col-start-2 lg:row-start-1 lg:h-[14rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Best Results</h2>
               <div className="flex flex-col gap-1 lg:h-[calc(100%-3rem)] lg:overflow-y-auto lg:pr-1">
                 {bestResults.map((r, i) => {
@@ -355,7 +355,7 @@ export default async function AthletePage({
           )}
 
           {/* Key stats: third cell of the top band */}
-          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[17.5rem] lg:overflow-hidden">
+          <section className="lg:col-start-3 lg:row-start-1 order-2 lg:order-none lg:h-[14rem] lg:overflow-hidden">
               <h2 className="bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg flex-1 mb-3">Key Stats</h2>
               <div className="flex flex-col gap-1.5 text-sm">
                 {[
