@@ -327,15 +327,15 @@ export default async function AthletePage({
                   const meetHref = (eventName: string, y: number) =>
                     `/meets/${encodeURIComponent(eventName)}?year=${y}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${r.gender}`;
                   return (
-                    <div key={i} className="text-sm flex items-baseline gap-1 min-w-0" title={`${r.n}x ${["gold", "silver", "bronze"][r.place - 1]} - ${r.series_name}`}>
-                      <span className="text-neutral-500 shrink-0">{r.n}x</span>
-                      <span className="shrink-0">{MEDAL[r.place - 1]}</span>
-                      <Link href={meetHref(r.editions[0].event_name, r.editions[0].year)} className="font-medium hover:text-orange-400 truncate min-w-0">
+                    <div key={i} className="text-sm" title={`${r.n}x ${["gold", "silver", "bronze"][r.place - 1]}`}>
+                      <span className="text-neutral-500">{r.n}x </span>
+                      <span className="mr-1">{MEDAL[r.place - 1]}</span>
+                      <Link href={meetHref(r.editions[0].event_name, r.editions[0].year)} className="font-medium hover:text-orange-400">
                         {r.series_name}
-                      </Link>
-                      <span className="text-neutral-400 shrink-0 whitespace-nowrap">{eventLabel(r.athletics_event)}</span>
+                      </Link>{" "}
+                      <span className="text-neutral-400">{eventLabel(r.athletics_event)}</span>{" "}
                       {/* each year opens that year's edition */}
-                      <span className="text-neutral-500 truncate min-w-0 max-w-[45%]">
+                      <span className="text-neutral-500">
                         (
                         {r.editions.map((e, j) => (
                           <span key={e.year}>
