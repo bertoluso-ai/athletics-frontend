@@ -16,7 +16,6 @@ import {
   getAthleteNationalityHistory,
   getAthleteGlobalIndex,
   getAthleteHomonyms,
-  getAthleteSlug,
   getAthleteIdBySlug,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
@@ -64,35 +63,19 @@ export default async function AthletePage({
   const includeIllegalWind = windParam === "all";
   const indoor = indoorParam === "true";
 
-  // SEO: canonical URL is the name-based slug (v_athlete_slugs), not the
-  // raw athlete_id hash. Existing links/bookmarks using the hash still
-  // work -- they resolve here and redirect once to the slug -- while the
-  // slug itself resolves directly, no extra round trip.
-  let id = idParam;
-  const isRawHashId = /^[0-9a-f]{20,}$/i.test(idParam);
-  if (isRawHashId) {
-    const slug = await getAthleteSlug(idParam);
-    if (slug) permanentRedirect(`/athletes/${slug}`);
-    // no slug available (e.g. no events_enriched rows carry a display
-    // name for this id) -- fall through and try idParam as a raw id below
-  } else {
-    const resolved = await getAthleteIdBySlug(idParam);
-    if (!resolved) {
-      // varios atletas con ese nombre: pagina para elegir (con uno solo, redireccion a su URL)
-      const homonyms = await getAthleteHomonyms(idParam);
-      if (homonyms.length === 1) permanentRedirect(`/athletes/${homonyms[0].slug}`);
-      if (homonyms.length > 1) return <AthleteChooser name={homonyms[0].display_name} candidates={homonyms} />;
-      notFound();
-    }
-    id = resolved;
+  // La URL canonica es el slug (nombre + pais + año de nacimiento, v_athlete_slugs). Ya no se aceptan los antiguos
+  // /athletes/<hash> ni slugs viejos: si el slug no existe se muestra la pagina para elegir entre homonimos o un 404.
+  const resolved = await getAthleteIdBySlug(idParam);
+  if (!resolved) {
+    // varios atletas con ese nombre: pagina para elegir (con uno solo, redireccion a su URL)
+    const homonyms = await getAthleteHomonyms(idParam);
+    if (homonyms.length === 1) permanentRedirect(`/athletes/${homonyms[0].slug}`);
+    if (homonyms.length > 1) return <AthleteChooser name={homonyms[0].display_name} candidates={homonyms} />;
+    notFound();
   }
-  // In-page filter links (year tabs, wind/indoor toggles) must build hrefs
-  // from the slug, not the internal hash `id` used for DB queries -- a link
-  // to the raw-hash URL hits the isRawHashId branch above on the next
-  // request and permanentRedirect()s back to the slug URL, which drops the
-  // query string entirely (caught live: clicking a year tab bounced back to
-  // the default year every time, since the redirect target has no ?year=).
-  const hrefId = isRawHashId ? id : idParam;
+  const id = resolved;
+  // los enlaces de filtros (año, viento, pista cubierta) se construyen siempre desde el slug
+  const hrefId = idParam;
 
   // info and athleteEvents are the only two things everything else below
   // needs to compute (info.gender/birth_year/display_name for several
