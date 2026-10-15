@@ -26,12 +26,16 @@ export default function MultiSelectDropdown({
   defaultSelected,
   placeholder,
   className = "",
+  allOption = false,
 }: {
   name: string;
   options: Option[];
   defaultSelected: string[];
   placeholder: string;
   className?: string;
+  // Adds a first "everything" entry (labelled with the placeholder). It is ticked while nothing
+  // else is, and clicking it clears the selection: an empty selection already means "all".
+  allOption?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
@@ -142,6 +146,20 @@ export default function MultiSelectDropdown({
           style={{ top: pos.top, left: pos.left, minWidth: pos.minWidth }}
           className="fixed z-30 bg-neutral-800 border border-neutral-700 rounded shadow-lg p-1 max-h-60 overflow-y-auto whitespace-nowrap"
         >
+          {allOption && (
+            <label className="flex items-center gap-1.5 px-1.5 py-1 text-xs font-semibold hover:bg-neutral-700 rounded cursor-pointer border-b border-neutral-700 mb-0.5">
+              <input
+                type="checkbox"
+                checked={selected.length === 0}
+                onChange={() => {
+                  selectedRef.current = [];
+                  setSelected([]);
+                }}
+                className="accent-orange-500"
+              />
+              {placeholder}
+            </label>
+          )}
           {options.map((o) => (
             <label
               key={o.value}

@@ -260,6 +260,7 @@ export default async function MeetsPage({
               name="month"
               className={`shrink-0 w-[4.75rem] ${ranged ? "opacity-40 pointer-events-none" : ""}`}
               placeholder="All year"
+              allOption
               defaultSelected={selectedMonths.map(String)}
               options={MONTHS.map((m, i) => ({ value: String(i + 1), label: m }))}
             />
