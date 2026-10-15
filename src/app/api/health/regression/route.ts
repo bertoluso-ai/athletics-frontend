@@ -69,6 +69,12 @@ const CHECKS: Def[] = [
     ok: (r) => Number(r[0]?.dup) === 0,
   },
   {
+    name: "atletas_con_nombre",
+    why: "Filas con atleta pero sin nombre mostrado (el atleta no esta en el registro): el ganador desaparece de la pagina de la reunion",
+    sql: `SELECT COUNT(*)::int AS n FROM events WHERE athlete_id IS NOT NULL AND athlete_display_name IS NULL AND athletics_discipline IS DISTINCT FROM 'Relays' AND year >= 2023`,
+    ok: (r) => Number(r[0]?.n) <= 500,
+  },
+  {
     name: "nombres_de_relevo_pegados",
     why: "Plantillas de relevos sin separar en un solo 'atleta' (4 nombres juntos)",
     sql: `SELECT COUNT(*)::int AS n FROM events WHERE athletics_discipline = 'Relays' AND year >= 2023 AND LENGTH(athlete_display_name) > 60`,
