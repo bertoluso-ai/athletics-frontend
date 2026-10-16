@@ -521,7 +521,7 @@ export async function getAthleteResultsForYear(
   return pgQuery<AthleteYearResultRow>(
     `
     SELECT e.date::text AS date, e.year, e.event_name, e.athletics_event, e.round, e.place, e.mark_display,
-      e.division_key_resolved AS competition_level, ROUND(e.competition_score::numeric, 0) AS competition_score, rl.race_level,
+      e.division_key_resolved AS competition_level, ROUND(e.competition_score::numeric, 0) AS competition_score, COALESCE(rs.race_level, rl.race_level) AS race_level,
       NULLIF(e.record, '') AS record, e.wind, e.wind_legal,
       -- Per-row, not per the query's event filter -- "all" mixes track and
       -- field rows in the same result set, and mark_seconds is NULL for
@@ -532,7 +532,8 @@ export async function getAthleteResultsForYear(
       COALESCE(e.mark_seconds, ${safeMark}) AS mark_value
     FROM events e
     -- Same race_level join as getMeetResults -- keyed by RAW event_name,
-    -- round NULL-safe (see its comment there).
+    -- round NULL-safe (see its comment there). rs: Quality propio de una seccion paralela de la misma ronda (registry/16b).
+    LEFT JOIN race_section_rows rs ON rs.event_row_key = e.event_row_key
     LEFT JOIN race_level rl
       ON rl.event_name = e.event_name AND rl.athletics_event = e.athletics_event
      AND rl.gender = e.gender AND rl.date = e.date
@@ -1967,8 +1968,9 @@ export async function getCompetitionResults(eventName: string, year: number): Pr
       CASE WHEN e.athletics_discipline IN ('Jumps','Throws') THEN ${safeMarkEvents.replace(/\bmark\b/g, "e.mark")} ELSE e.mark_seconds END AS mark_value,
       e.nationality,
       NULLIF(e.record, '') AS record, e.city, e.country, e.date::text AS date, e.wind, e.wind_legal,
-      e.division_key_resolved, e.is_shadow_result, rl.race_level
+      e.division_key_resolved, e.is_shadow_result, COALESCE(rs.race_level, rl.race_level) AS race_level
     FROM events e
+    LEFT JOIN race_section_rows rs ON rs.event_row_key = e.event_row_key
     LEFT JOIN (
       SELECT event_name AS rl_event_name, athletics_event AS rl_athletics_event,
         gender AS rl_gender, date AS rl_date, round AS rl_round, race_level
