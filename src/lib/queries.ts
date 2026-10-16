@@ -29,7 +29,7 @@ const DAY_CACHE = { revalidate: 3600 };
 // substitute for the missing column). Everything else defaults to
 // outdoor, since that's the far more common case and the source gives no
 // signal either way.
-export const INDOOR_EXPR = `(track_key = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
+export const INDOOR_EXPR = `(COALESCE(track_key, '') = 'Short Track' OR LOWER(event_name) LIKE '%indoor%')`;
 
 // Dataset-wide dedup convention (DB pipeline: matchAthletesIncremental/
 // registry/11_flag_shadow_races.sql, 12_flag_numbered_finals.sql,
@@ -2081,7 +2081,7 @@ async function _getDisciplineSideData(
   const isField = isFieldEvent(event);
   const windFiltered = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"].includes(event);
   const safeMarkE = `CASE WHEN e.mark ~ '^-?[0-9]+(\\.[0-9]+)?$' THEN e.mark::double precision ELSE NULL END`;
-  const indoorExprE = `(e.track_key = 'Short Track' OR LOWER(e.event_name) LIKE '%indoor%')`;
+  const indoorExprE = `(COALESCE(e.track_key, '') = 'Short Track' OR LOWER(e.event_name) LIKE '%indoor%')`;
   const ageMax = ageCategory ? AGE_CATEGORIES[ageCategory] : undefined;
   const bestAgg = isField ? "MAX" : "MIN";
   const better = isField ? "mv > prior_best" : "mv < prior_best";
