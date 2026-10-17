@@ -1,7 +1,8 @@
 import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
 import { pgQuery } from "./pg";
-import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS } from "./events";
+import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS, UNRANKABLE_EVENTS } from "./events";
+import { eventSlug, eventFromSlug } from "./slugs";
 
 // Disciplines/Rankings/Countries pages read searchParams, which makes
 // them fully dynamic in Next.js (no Full Route Cache, no ISR -- `export
@@ -2744,4 +2745,20 @@ export async function getAthleteNationalityHistory(athleteId: string): Promise<N
     HAVING SUM(n_results) >= 3
     ORDER BY first_year
   `, [athleteId]);
+}
+
+// Pruebas con datos que el catalogo de Disciplinas (EVENT_GROUPS) no lista (25 km de ruta, Weight Throw, 600 yardas...): la ficha de un atleta
+// enlaza a /disciplines/<prueba> para todas sus marcas, asi que el slug tambien se resuelve contra las pruebas que existen en los datos.
+const knownEventBases = unstable_cache(
+  async () =>
+    (await pgQuery<{ b: string }>(`SELECT DISTINCT athletics_event_base AS b FROM events WHERE athletics_event_base IS NOT NULL`)).map((r) => r.b),
+  ["known-event-bases"],
+  { revalidate: 3600 }
+);
+
+export async function resolveEventSlug(slug: string): Promise<string | null> {
+  const fromCatalog = eventFromSlug(slug);
+  if (fromCatalog) return fromCatalog;
+  const hit = (await knownEventBases()).find((b) => eventSlug(b) === slug);
+  return hit && !UNRANKABLE_EVENTS.has(hit) ? hit : null;
 }

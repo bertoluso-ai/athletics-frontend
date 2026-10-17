@@ -22,7 +22,7 @@ import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import AthleteChooser from "@/components/AthleteChooser";
-import { eventCategory, eventLabel } from "@/lib/events";
+import { eventCategory, eventLabel, UNRANKABLE_EVENTS } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
 
@@ -521,25 +521,33 @@ export default async function AthletePage({
                   <span className="text-right">Mark</span>
                   <span className="text-right" title="All-time world rank">#</span>
                 </div>
-                {filteredPersonalBests.map((pb, i) => (
-                  <Link
-                    key={i}
-                    href={`/disciplines/${eventSlug(pb.athletics_event)}?gender=${info.gender ?? ""}`}
-                    className="grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-950 hover:bg-neutral-800"
-                  >
-                    {/* fixed columns so marks and ranks line up row to row */}
-                    <span className="text-sm min-w-0 truncate">{eventLabel(pb.athletics_event)}</span>
-                    {/* wrapper keeps the grid cell even when WindBadge renders nothing */}
-                    <span><WindBadge wind={pb.wind} windLegal={pb.wind_legal} /></span>
-                    <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{pb.mark_display}</span>
-                    <span
-                      className="font-mono text-sm text-neutral-500 text-right tabular-nums"
-                      title={pb.all_time_rank ? `All-time world rank: ${pb.all_time_rank}` : undefined}
-                    >
-                      {pb.all_time_rank ? `(#${pb.all_time_rank})` : ""}
-                    </span>
-                  </Link>
-                ))}
+                {filteredPersonalBests.map((pb, i) => {
+                  // cajon generico sin distancia ("Road Race"): ni pagina de disciplina ni ranking historico (compararia distancias distintas)
+                  const unrankable = UNRANKABLE_EVENTS.has(pb.athletics_event);
+                  const rowClass = "grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-950";
+                  const cells = (
+                    <>
+                      {/* fixed columns so marks and ranks line up row to row */}
+                      <span className="text-sm min-w-0 truncate">{eventLabel(pb.athletics_event)}</span>
+                      {/* wrapper keeps the grid cell even when WindBadge renders nothing */}
+                      <span><WindBadge wind={pb.wind} windLegal={pb.wind_legal} /></span>
+                      <span className="font-mono text-sm text-orange-400 text-right tabular-nums">{pb.mark_display}</span>
+                      <span
+                        className="font-mono text-sm text-neutral-500 text-right tabular-nums"
+                        title={pb.all_time_rank && !unrankable ? `All-time world rank: ${pb.all_time_rank}` : undefined}
+                      >
+                        {pb.all_time_rank && !unrankable ? `(#${pb.all_time_rank})` : ""}
+                      </span>
+                    </>
+                  );
+                  return unrankable ? (
+                    <div key={i} className={rowClass}>{cells}</div>
+                  ) : (
+                    <Link key={i} href={`/disciplines/${eventSlug(pb.athletics_event)}?gender=${info.gender ?? ""}`} className={`${rowClass} hover:bg-neutral-800`}>
+                      {cells}
+                    </Link>
+                  );
+                })}
                 {filteredPersonalBests.length === 0 && (
                   <div className="px-4 py-4 text-sm text-neutral-500">No marks recorded.</div>
                 )}

@@ -12,11 +12,11 @@ import {
   getEventAllTimeBest, getEventYearBestMarks,
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
   getDisciplineSideData, getRelaySideData,
-  getAthleteSlugs, athleteHref,
+  getAthleteSlugs, athleteHref, resolveEventSlug,
   type MarkRow, type RelayMarkRow, type NationalityOption, type DisciplineSideData,
 } from "@/lib/queries";
 import { eventLabel, EVENT_GROUPS, LEGACY_EVENT_ALIASES, isRelayEvent, isFieldEvent, eventCategory, sortEventsAlpha, groupEvents, type EventGender } from "@/lib/events";
-import { eventSlug, eventFromSlug } from "@/lib/slugs";
+import { eventSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
@@ -143,7 +143,7 @@ export default async function DisciplinePage({
   searchParams: Promise<{ gender?: string; year?: string; age?: string; limit?: string; indoor?: string; nationality?: string; area?: string }>;
 }) {
   const { slug } = await params;
-  const event = eventFromSlug(slug);
+  const event = await resolveEventSlug(slug);
   if (!event) {
     const legacy = Object.keys(LEGACY_EVENT_ALIASES).find((name) => eventSlug(name) === slug);
     if (legacy) {

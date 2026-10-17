@@ -339,3 +339,7 @@ export function sortEventsAlpha(events: readonly string[]): string[] {
 
 // Home "Latest results" opens on B and above; the category filter widens it.
 export const BASE_TIERS = "OW,DF,GW,GL,A,B";
+
+// Cajones genericos sin distancia conocida ("Road Race": carreras de ruta cuyo nombre no dice la distancia). Compararlas por tiempo en un
+// ranking mezclaria 5 km con 15 km, asi que no tienen pagina de disciplina ni ranking historico; el resto de pruebas con datos si.
+export const UNRANKABLE_EVENTS = new Set<string>(["Road Race"]);
