@@ -184,6 +184,7 @@ export default function LatestResults({
                   {group.races.map((race, ri) => {
                     const raceHref = `/meets/${encodeURIComponent(group.event_name)}?${new URLSearchParams({
                       year: race.date.slice(0, 4),
+                      date: race.date.slice(0, 10),
                       discipline: race.athletics_event,
                       gender: race.gender,
                     }).toString()}`;

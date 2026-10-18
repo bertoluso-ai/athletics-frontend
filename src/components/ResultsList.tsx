@@ -188,7 +188,7 @@ export default function ResultsList({
             <span className="min-w-0 text-sm">
               <div>
                 <Link
-                  href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${gender}`}
+                  href={`/meets/${encodeURIComponent(r.event_name)}?year=${r.year}${r.date ? `&date=${r.date.slice(0, 10)}` : ""}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${gender}`}
                   className="font-medium hover:text-orange-400"
                 >
                   {r.event_name}

@@ -15,6 +15,7 @@ export default function MeetFilters({
   gender,
   baseHref,
   year,
+  edition,
 }: {
   disciplines: DisciplineOption[];
   categories: CategoryOption[];
@@ -24,6 +25,7 @@ export default function MeetFilters({
   gender: string;
   baseHref: string;
   year: number;
+  edition?: string; // fecha de la edicion elegida cuando la reunion se repite en fechas separadas el mismo año
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -36,6 +38,7 @@ export default function MeetFilters({
 
   function go(nextDiscipline: string, nextGender: string, nextCategory: string) {
     const params = new URLSearchParams({ year: String(year) });
+    if (edition) params.set("date", edition);
     if (nextDiscipline) params.set("discipline", nextDiscipline);
     if (nextGender) params.set("gender", nextGender);
     if (nextCategory) params.set("category", nextCategory);

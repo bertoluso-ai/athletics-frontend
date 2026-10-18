@@ -180,7 +180,7 @@ export default function RacesStatsWidget({ year }: { year: number }) {
           rows.map((r, i) => (
             <Link
               key={i}
-              href={`/meets/${encodeURIComponent(r.event_name)}?year=${year}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${gender}`}
+              href={`/meets/${encodeURIComponent(r.event_name)}?year=${year}${r.date ? `&date=${r.date.slice(0, 10)}` : ""}&discipline=${encodeURIComponent(r.athletics_event)}&gender=${gender}`}
               className="flex items-center justify-between px-3 sm:px-4 py-2 hover:bg-neutral-800 gap-2"
             >
               <span className="text-sm flex items-center gap-2 min-w-0">

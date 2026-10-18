@@ -213,6 +213,7 @@ export default async function MeetsPage({
   const raceLink = (r: (typeof raceRows)[number]) =>
     `/meets/${encodeURIComponent(r.event_name)}?${new URLSearchParams({
       year: (r.date ?? String(r.year ?? year)).slice(0, 4),
+      ...(r.date ? { date: r.date.slice(0, 10) } : {}),
       discipline: r.athletics_event,
       gender: r.gender,
     }).toString()}`;
@@ -381,6 +382,7 @@ export default async function MeetsPage({
                 r.kind === "past"
                   ? `/meets/${encodeURIComponent(r.name)}?${new URLSearchParams({
                       year: (r.date_start ?? String(year)).slice(0, 4),
+                      ...(r.date_start ? { date: r.date_start.slice(0, 10) } : {}),
                       ...(r.top_event ? { discipline: r.top_event } : {}),
                       ...(r.top_gender ? { gender: r.top_gender } : {}),
                     }).toString()}`

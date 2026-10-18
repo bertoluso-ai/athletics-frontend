@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import YearSelect from "@/components/YearSelect";
 import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
-import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getMeetYearsFromEvents, getMeetResultsFromEvents, getMeetEventMatrix, getMeetEventMatrixFromEvents, getAthleteSlugs } from "@/lib/queries";
+import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getMeetYearsFromEvents, getMeetResultsFromEvents, getMeetEventMatrix, getMeetEventMatrixFromEvents, getMeetEditions, getAthleteSlugs } from "@/lib/queries";
 import MeetEventStats from "@/components/MeetEventStats";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
@@ -25,11 +25,11 @@ export default async function MeetPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ year?: string; discipline?: string; gender?: string; category?: string }>;
+  searchParams: Promise<{ year?: string; discipline?: string; gender?: string; category?: string; date?: string }>;
 }) {
   const { name } = await params;
   const eventName = decodeURIComponent(name);
-  const { year: yearParam, discipline: disciplineParam, gender: genderParam, category: categoryParam } = await searchParams;
+  const { year: yearParam, discipline: disciplineParam, gender: genderParam, category: categoryParam, date: dateParam } = await searchParams;
 
   // series_key is resolved once and shared with every query below instead
   // of each re-resolving it (that used to be two identical round trips).
@@ -57,9 +57,17 @@ export default async function MeetPage({
   // every filter control below and decides which single discipline this
   // page actually loads -- see getMeetEventMatrix for why the options are
   // built from it rather than from the results themselves.
+  // Una misma reunion puede repetirse en fechas separadas el mismo año (las citas de una liga: ACNW League 24 feb y 9 may): son
+  // competiciones distintas y cada una tiene su pagina. ?date= es cualquier fecha de la edicion; sin ella, la mas reciente.
+  const editions = combinedEventsOnly ? [] : await getMeetEditions(eventName, year, seriesKey);
+  const edition = editions.length > 1
+    ? (editions.find((e) => dateParam && dateParam >= e.from && dateParam <= e.to) ?? editions[editions.length - 1])
+    : null;
+  const range = edition ? { from: edition.from, to: edition.to } : {};
+
   const matrix = combinedEventsOnly
     ? await getMeetEventMatrixFromEvents(eventName, year)
-    : await getMeetEventMatrix(eventName, year, seriesKey);
+    : await getMeetEventMatrix(eventName, year, seriesKey, range.from, range.to);
   const gendersByDiscipline = new Map<string, Set<string>>();
   for (const row of matrix) {
     const set = gendersByDiscipline.get(row.athletics_event) ?? new Set<string>();
@@ -110,7 +118,7 @@ export default async function MeetPage({
   // applied to a fully-fetched meet afterwards.
   const results = combinedEventsOnly
     ? await getMeetResultsFromEvents(eventName, year, { discipline, gender: gender || undefined })
-    : await getMeetResults(eventName, year, seriesKey, { discipline, gender: gender || undefined });
+    : await getMeetResults(eventName, year, seriesKey, { discipline, gender: gender || undefined, ...range });
   const athleteSlugs = await getAthleteSlugs(results.map((r) => r.athlete_id).filter((id): id is string => !!id));
   const allGroups = groupResults(results).sort(
     (a, b) => a.athletics_event.localeCompare(b.athletics_event) || (a.round ?? "").localeCompare(b.round ?? "") || a.section - b.section
@@ -195,6 +203,25 @@ export default async function MeetPage({
           <YearSelect years={years} year={year} baseHref={`/meets/${encodeURIComponent(eventName)}`} />
         </div>
 
+        {edition && (
+          <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Editions">
+            <span className="text-xs text-neutral-500">{editions.length} dates in {year}:</span>
+            {editions.map((e) => {
+              const active = e.from === edition.from;
+              const label = `${formatDate(e.from)?.replace(/ \d{4}$/, "")}${e.to !== e.from ? `–${formatDate(e.to)?.replace(/ \d{4}$/, "")}` : ""}${e.city ? ` · ${e.city}` : ""}`;
+              return (
+                <a
+                  key={e.from}
+                  href={`/meets/${encodeURIComponent(eventName)}?year=${year}&date=${e.from}`}
+                  className={`text-xs px-2.5 py-1 rounded-full border ${active ? "bg-orange-50 border-orange-300 text-orange-700" : "bg-neutral-800 border-neutral-700 text-neutral-300 hover:border-orange-500"}`}
+                >
+                  {label}
+                </a>
+              );
+            })}
+          </div>
+        )}
+
         <div className="mt-4">
           <MeetFilters
             disciplines={visibleDisciplineOptions}
@@ -204,6 +231,7 @@ export default async function MeetPage({
             discipline={discipline}
             gender={gender}
             year={year}
+            edition={edition?.from}
             baseHref={`/meets/${encodeURIComponent(eventName)}`}
           />
         </div>
@@ -231,6 +259,7 @@ export default async function MeetPage({
                 genders={statsGenders}
                 genderHref={(g) => {
                   const q = new URLSearchParams({ year: String(year), discipline: statsEvent, gender: g });
+                  if (edition) q.set("date", edition.from);
                   if (category) q.set("category", category);
                   return `/meets/${encodeURIComponent(eventName)}?${q.toString()}`;
                 }}

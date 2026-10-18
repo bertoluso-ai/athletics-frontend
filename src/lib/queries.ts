@@ -1700,7 +1700,7 @@ async function _getMeetAvailableYears(eventName: string, seriesKey?: string | nu
 // shows one discipline (+ gender) at a time and pushes the choice into the
 // SQL here instead of fetching the whole meet and filtering afterwards --
 // see getMeetResults for why.
-export type MeetResultsFilter = { discipline?: string; gender?: string };
+export type MeetResultsFilter = { discipline?: string; gender?: string; from?: string; to?: string };
 
 // The (athletics_event, gender) pairs a meet actually has rows for in one
 // year, each with its row count -- the cheap fact the meet page's filter
@@ -1718,14 +1718,41 @@ export type MeetResultsFilter = { discipline?: string; gender?: string };
 export type MeetEventCount = { athletics_event: string; gender: string; n: number };
 
 async function _getMeetEventMatrix(
-  eventName: string, year: number, seriesKey?: string | null
+  eventName: string, year: number, seriesKey?: string | null, from?: string, to?: string
 ): Promise<MeetEventCount[]> {
   const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
   if (!key) return [];
+  // from/to: una EDICION concreta cuando la misma reunion se repite en fechas separadas el mismo año (ver getMeetEditions)
+  const params: unknown[] = [key, year];
+  let range = "";
+  if (from && to) {
+    params.push(from, to);
+    range = ` AND date BETWEEN $3::date AND $4::date`;
+  }
   return pgQuery<MeetEventCount>(
     `SELECT athletics_event, gender, COUNT(*)::int AS n
-     FROM meet_results WHERE ${seriesKeysSql("$1")} AND year = $2
+     FROM meet_results WHERE ${seriesKeysSql("$1")} AND year = $2${range}
      GROUP BY athletics_event, gender`,
+    params
+  );
+}
+
+// Ediciones de una reunion en un año. Una misma reunion puede repetirse en fechas separadas el mismo año (las citas de una liga: ACNW League
+// 24 feb y 9 may; Strive Program A cada mes): son competiciones distintas aunque compartan nombre, asi que no deben mezclarse en una sola
+// pagina. Una reunion de varios dias son fechas seguidas; una cita nueva empieza cuando hay mas de 7 dias de hueco.
+export type MeetEdition = { from: string; to: string; city: string | null; n: number };
+
+async function _getMeetEditions(eventName: string, year: number, seriesKey?: string | null): Promise<MeetEdition[]> {
+  const key = seriesKey !== undefined ? seriesKey : await getMeetSeriesKey(eventName);
+  if (!key) return [];
+  return pgQuery<MeetEdition>(
+    `WITH d AS (
+       SELECT date, (ARRAY_AGG(city ORDER BY city) FILTER (WHERE city IS NOT NULL))[1] AS city, COUNT(*)::int AS n
+       FROM meet_results WHERE ${seriesKeysSql("$1")} AND year = $2 AND date IS NOT NULL GROUP BY date),
+     g AS (SELECT *, CASE WHEN date - LAG(date) OVER (ORDER BY date) > 7 THEN 1 ELSE 0 END AS nueva FROM d),
+     e AS (SELECT *, SUM(nueva) OVER (ORDER BY date) AS ed FROM g)
+     SELECT MIN(date)::text AS "from", MAX(date)::text AS "to", (ARRAY_AGG(city ORDER BY n DESC) FILTER (WHERE city IS NOT NULL))[1] AS city, SUM(n)::int AS n
+     FROM e GROUP BY ed ORDER BY MIN(date)`,
     [key, year]
   );
 }
@@ -1803,6 +1830,10 @@ async function _getMeetResults(
   if (filter?.gender) {
     params.push(filter.gender);
     where.push(`gender = $${params.length}`);
+  }
+  if (filter?.from && filter?.to) {
+    params.push(filter.from, filter.to);
+    where.push(`date BETWEEN $${params.length - 1}::date AND $${params.length}::date`);
   }
   // mark_value, race_level and the athlete_display_name/combined-round
   // filters are all precomputed in meet_results itself now (see
@@ -1884,9 +1915,10 @@ async function _getMeetResultsFromEvents(
 // on a repeat hit of /meets/Prefontaine%20Classic).
 export const getMeetSeriesKey = unstable_cache(_getMeetSeriesKey, ["getMeetSeriesKey-v2"], DAY_CACHE);
 export const getMeetAvailableYears = unstable_cache(_getMeetAvailableYears, ["getMeetAvailableYears-v1"], DAY_CACHE);
-export const getMeetEventMatrix = unstable_cache(_getMeetEventMatrix, ["getMeetEventMatrix-v1"], DAY_CACHE);
+export const getMeetEventMatrix = unstable_cache(_getMeetEventMatrix, ["getMeetEventMatrix-v2"], DAY_CACHE);
+export const getMeetEditions = unstable_cache(_getMeetEditions, ["getMeetEditions-v1"], DAY_CACHE);
 export const getMeetEventMatrixFromEvents = unstable_cache(_getMeetEventMatrixFromEvents, ["getMeetEventMatrixFromEvents-v1"], DAY_CACHE);
-export const getMeetResults = unstable_cache(_getMeetResults, ["getMeetResults-v1"], DAY_CACHE);
+export const getMeetResults = unstable_cache(_getMeetResults, ["getMeetResults-v2"], DAY_CACHE);
 export const getMeetYearsFromEvents = unstable_cache(_getMeetYearsFromEvents, ["getMeetYearsFromEvents-v1"], DAY_CACHE);
 export const getMeetResultsFromEvents = unstable_cache(_getMeetResultsFromEvents, ["getMeetResultsFromEvents-v1"], DAY_CACHE);
 
