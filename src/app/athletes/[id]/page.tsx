@@ -22,7 +22,7 @@ import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import AthleteChooser from "@/components/AthleteChooser";
-import { eventCategory, eventLabel, UNRANKABLE_EVENTS } from "@/lib/events";
+import { eventCategory, eventLabel, isUnrankableEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
 
@@ -523,7 +523,7 @@ export default async function AthletePage({
                 </div>
                 {filteredPersonalBests.map((pb, i) => {
                   // cajon generico sin distancia ("Road Race"): ni pagina de disciplina ni ranking historico (compararia distancias distintas)
-                  const unrankable = UNRANKABLE_EVENTS.has(pb.athletics_event);
+                  const unrankable = isUnrankableEvent(pb.athletics_event);
                   const rowClass = "grid grid-cols-[1fr_auto_4.75rem_4.5rem] items-center gap-x-1.5 px-4 py-2 bg-neutral-950";
                   const cells = (
                     <>

@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
 import { pgQuery } from "./pg";
-import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS, UNRANKABLE_EVENTS } from "./events";
+import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS, isUnrankableEvent } from "./events";
 import { eventSlug, eventFromSlug } from "./slugs";
 
 // Disciplines/Rankings/Countries pages read searchParams, which makes
@@ -2792,5 +2792,5 @@ export async function resolveEventSlug(slug: string): Promise<string | null> {
   const fromCatalog = eventFromSlug(slug);
   if (fromCatalog) return fromCatalog;
   const hit = (await knownEventBases()).find((b) => eventSlug(b) === slug);
-  return hit && !UNRANKABLE_EVENTS.has(hit) ? hit : null;
+  return hit && !isUnrankableEvent(hit) ? hit : null;
 }

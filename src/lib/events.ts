@@ -343,3 +343,8 @@ export const BASE_TIERS = "OW,DF,GW,GL,A,B";
 // Cajones genericos sin distancia conocida ("Road Race": carreras de ruta cuyo nombre no dice la distancia). Compararlas por tiempo en un
 // ranking mezclaria 5 km con 15 km, asi que no tienen pagina de disciplina ni ranking historico; el resto de pruebas con datos si.
 export const UNRANKABLE_EVENTS = new Set<string>(["Road Race"]);
+// Tambien las carreras de ruta de distancia unica con decimales ("7.285 Kilometres Road", "4.737 Miles Road"): son recorridos concretos de una sola
+// prueba, no una distancia estandar, asi que tampoco tienen pagina de disciplina ni ranking historico.
+export function isUnrankableEvent(ev: string): boolean {
+  return UNRANKABLE_EVENTS.has(ev) || /^\d*\.\d+\s+(Kilometres|Miles|Metres)/i.test(ev);
+}

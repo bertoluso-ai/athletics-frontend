@@ -2,7 +2,7 @@ import Link from "next/link";
 import Flag from "./Flag";
 import WindBadge from "./WindBadge";
 import { type MeetResultRow, athleteHref } from "@/lib/queries";
-import { eventLabel, isRelayEvent, isFieldEvent } from "@/lib/events";
+import { eventLabel, isRelayEvent, isFieldEvent, isUnrankableEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 
 // Shared between /meets/[name] (grouped across every source spelling of
@@ -293,9 +293,13 @@ export default function MeetResultsSections({
         >
           <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-400">
-              <Link href={`/disciplines/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
-                {eventLabel(g.athletics_event)}
-              </Link>
+              {isUnrankableEvent(g.athletics_event) ? (
+                eventLabel(g.athletics_event)
+              ) : (
+                <Link href={`/disciplines/${eventSlug(g.athletics_event)}`} className="hover:text-orange-400">
+                  {eventLabel(g.athletics_event)}
+                </Link>
+              )}
               <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
               {g.round && <span className="text-neutral-500 ml-2 normal-case">· {g.round}</span>}
               {!isFinal && (
