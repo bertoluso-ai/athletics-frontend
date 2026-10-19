@@ -253,6 +253,10 @@ export default async function DisciplinePage({
     const q = new URLSearchParams();
     if ((over.gender ?? gender) !== availableGenders[0]) q.set("gender", over.gender ?? gender);
     const target = over.event ? eventSlug(over.event) : slug;
+    // El tipo (indoor/outdoor) se conserva al cambiar de prueba o de genero; solo si la prueba destino admite indoor.
+    const tev = over.event ?? event;
+    const tcat = eventCategory(tev);
+    if (tcat !== "Road" && tcat !== "Cross Country" && tcat !== "Trail" && !isRelayEvent(tev)) q.set("indoor", String(indoor));
     const qs = q.toString();
     return `/disciplines/${target}${qs ? `?${qs}` : ""}`;
   };
