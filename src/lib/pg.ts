@@ -33,13 +33,20 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 // .trim() defensively -- a trailing newline snuck into the env var once
 // (piped in via `echo` when it was first set on Vercel) and broke DNS
 // resolution for the host at build time with a cryptic ENOTFOUND.
+// Seguridad de la conexion (ver athletics-database/serving/ROL_SOLO_LECTURA.md):
+//  * PG_SERVING_USER: rol con el que entra la web. Debe ser un rol de SOLO LECTURA (serving_ro); "serving" es el dueño de las tablas y escribe.
+//    Sin la variable se sigue usando "serving" (comportamiento anterior).
+//  * PG_SERVING_CA: certificado del servidor en formato PEM, con los saltos de linea escritos como \n. Con el, la conexion SOLO acepta ese
+//    certificado (fijado): un tercero en medio de la conexion no puede suplantar al servidor. El certificado es autofirmado y no lleva el nombre del host,
+//    por eso no se comprueba el nombre, solo que sea exactamente ese certificado. Sin la variable no se verifica nada (comportamiento anterior).
+const pgCa = process.env.PG_SERVING_CA?.replace(/\\n/g, "\n").trim();
 const pool = new Pool({
   host: process.env.PG_SERVING_HOST?.trim(),
   port: 5432,
-  user: "serving",
+  user: process.env.PG_SERVING_USER?.trim() || "serving",
   password: process.env.PG_SERVING_PASSWORD?.trim(),
   database: "athletics",
-  ssl: { rejectUnauthorized: false },
+  ssl: pgCa ? { ca: pgCa, rejectUnauthorized: true, checkServerIdentity: () => undefined } : { rejectUnauthorized: false },
   max: 15,
   idleTimeoutMillis: 30000,
 });
