@@ -8,8 +8,7 @@ import { Pool, types } from "pg";
 types.setTypeParser(1700, (v) => parseFloat(v));
 types.setTypeParser(20, (v) => parseInt(v, 10));
 
-// Serving-layer database (Cloud SQL Postgres, instance "athletics-serving"
-// in athletics-database/europe-west1) -- a read-only mirror of BigQuery's
+// Serving-layer database (Postgres 18 en el VPS de Hetzner; antes Cloud SQL) -- a read-only mirror of BigQuery's
 // small, precomputed tables (athlete_slugs, race_level, meet_results,
 // country_season_points, ...), refreshed by matchAthletesIncremental's
 // serving/export_to_postgres.py right after each BigQuery ETL job.
@@ -35,11 +34,16 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 // resolution for the host at build time with a cryptic ENOTFOUND.
 // Seguridad de la conexion (ver athletics-database/serving/ROL_SOLO_LECTURA.md):
 //  * PG_SERVING_USER: rol con el que entra la web. Debe ser un rol de SOLO LECTURA (serving_ro); "serving" es el dueño de las tablas y escribe.
-//    Sin la variable se sigue usando "serving" (comportamiento anterior).
+//    Sin la variable se usa "serving" SOLO fuera de produccion; en produccion (VERCEL_ENV=production) falta la variable => error (falla cerrado).
 //  * PG_SERVING_CA: certificado del servidor en formato PEM, con los saltos de linea escritos como \n. Con el, la conexion SOLO acepta ese
 //    certificado (fijado): un tercero en medio de la conexion no puede suplantar al servidor. El certificado es autofirmado y no lleva el nombre del host,
-//    por eso no se comprueba el nombre, solo que sea exactamente ese certificado. Sin la variable no se verifica nada (comportamiento anterior).
+//    por eso no se comprueba el nombre, solo que sea exactamente ese certificado.
+//    Sin la variable solo se admite fuera de produccion; en produccion falta la variable => error (falla cerrado).
 const pgCa = process.env.PG_SERVING_CA?.replace(/\\n/g, "\n").trim();
+const isProd = process.env.VERCEL_ENV === "production";
+if (isProd && (!pgCa || !process.env.PG_SERVING_USER?.trim() || process.env.PG_SERVING_USER.trim() === "serving")) {
+  throw new Error("Produccion exige PG_SERVING_USER (rol de solo lectura distinto de 'serving') y PG_SERVING_CA");
+}
 const pool = new Pool({
   host: process.env.PG_SERVING_HOST?.trim(),
   port: 5432,
