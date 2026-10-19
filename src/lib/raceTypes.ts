@@ -35,11 +35,18 @@ export function eventRaceKind(ev: string): Exclude<RaceType, "indoor"> {
   return "track";
 }
 
-// Does a discipline belong in the list for this type? Indoor lists every
-// discipline that can be run indoors (all but road, cross, walk-on-road, trail).
+// Disciplines that are never contested indoors / only contested indoors (by name). The lists of each kind only offer what
+// is really run there: Indoor has no 100 m, hammer, javelin, 10000 m, long hurdles, steeplechase or decathlon; Outdoor has no
+// 50/60 m, 60 m hurdles, 500 m, pentathlon or weight throw (all indoor events; the few "outdoor" rows are indoor races a
+// source failed to flag).
+const NEVER_INDOOR = /^(100 Metres|150 Metres|10000 Metres|110 Metres Hurdles|100 Metres Hurdles|300 Metres Hurdles|400 Metres Hurdles|Decathlon|Discus|Hammer|Javelin)|Steeplechase|Kilometres|Half Marathon/i;
+const ONLY_INDOOR = /^(50 Metres|60 Metres|60m Hurdles|500 Metres|Pentathlon|Weight Throw)/i;
+
+// Does a discipline belong in the list for this type?
 export function eventMatchesType(ev: string, type: RaceType): boolean {
   const kind = eventRaceKind(ev);
-  if (type === "indoor") return kind === "track" || kind === "walk";
+  if (type === "indoor") return (kind === "track" || kind === "walk") && !NEVER_INDOOR.test(ev);
+  if (type === "track") return kind === "track" && !ONLY_INDOOR.test(ev);
   return kind === type;
 }
 
