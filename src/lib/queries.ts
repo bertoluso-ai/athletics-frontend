@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { raceTypeSql, type RaceType } from "./raceTypes";
 import { pgQuery } from "./pg";
-import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS, isUnrankableEvent } from "./events";
+import { tierPriority, tierScore, isFieldEvent, isRelayEvent, EVENT_GROUPS, isUnrankableEvent, isHiddenEvent, MIN_RESULTS_FOR_UNCATALOGED_EVENT } from "./events";
 import { eventSlug, eventFromSlug } from "./slugs";
 
 // Disciplines/Rankings/Countries pages read searchParams, which makes
@@ -282,7 +282,10 @@ export async function getAthletePersonalBests(
   includeIllegalWind = false,
   indoor = false
 ): Promise<PersonalBestRow[]> {
-  const rows = await _getAthletePersonalBestsBase(athleteId, includeIllegalWind, indoor);
+  const allRows = await _getAthletePersonalBestsBase(athleteId, includeIllegalWind, indoor);
+  // Solo pruebas del catalogo o con datos suficientes: los recorridos de distancia unica y las pruebas casi sin datos no salen en las mejores marcas.
+  const listable = new Set(await knownEventBases());
+  const rows = allRows.filter((r) => !isHiddenEvent(r.athletics_event) && (eventFromSlug(eventSlug(r.athletics_event)) != null || listable.has(r.athletics_event)));
   // The individual all-time rank tables exclude relays by design, so a relay
   // PB came back without a "#". Rank it here as a team performance: 1 + the
   // number of distinct team performances (same event+gender, same
@@ -2783,8 +2786,8 @@ export async function getAthleteNationalityHistory(athleteId: string): Promise<N
 // enlaza a /disciplines/<prueba> para todas sus marcas, asi que el slug tambien se resuelve contra las pruebas que existen en los datos.
 const knownEventBases = unstable_cache(
   async () =>
-    (await pgQuery<{ b: string }>(`SELECT DISTINCT athletics_event_base AS b FROM events WHERE athletics_event_base IS NOT NULL`)).map((r) => r.b),
-  ["known-event-bases"],
+    (await pgQuery<{ b: string }>(`SELECT athletics_event_base AS b FROM events WHERE athletics_event_base IS NOT NULL GROUP BY 1 HAVING COUNT(*) >= ${MIN_RESULTS_FOR_UNCATALOGED_EVENT}`)).map((r) => r.b),
+  ["known-event-bases-v2"],
   { revalidate: 3600 }
 );
 
@@ -2792,5 +2795,5 @@ export async function resolveEventSlug(slug: string): Promise<string | null> {
   const fromCatalog = eventFromSlug(slug);
   if (fromCatalog) return fromCatalog;
   const hit = (await knownEventBases()).find((b) => eventSlug(b) === slug);
-  return hit && !isUnrankableEvent(hit) ? hit : null;
+  return hit && !isUnrankableEvent(hit) && !isHiddenEvent(hit) ? hit : null;
 }

@@ -70,8 +70,9 @@ export const EVENT_GROUPS = [
   },
   {
     key: "throws", label: "Throws",
-    events: { Men: ["Shot Put", "Discus Throw", "Javelin Throw", "Hammer Throw"], Women: ["Shot Put", "Discus Throw", "Javelin Throw", "Hammer Throw"] },
-    names: { "Shot Put": "Shot Put", "Discus Throw": "Discus", "Javelin Throw": "Javelin", "Hammer Throw": "Hammer" } as Record<string, string>,
+    events: { Men: ["Shot Put", "Discus Throw", "Javelin Throw", "Javelin Throw (old)", "Hammer Throw"], Women: ["Shot Put", "Discus Throw", "Javelin Throw", "Javelin Throw (old)", "Hammer Throw"] },
+    // "Javelin Throw (old)" = modelo anterior de jabalina (hombres hasta 1985, mujeres hasta 1998): disciplina propia, sus marcas no se mezclan con la actual.
+    names: { "Shot Put": "Shot Put", "Discus Throw": "Discus", "Javelin Throw": "Javelin", "Javelin Throw (old)": "Javelin (old model)", "Hammer Throw": "Hammer" } as Record<string, string>,
   },
   {
     key: "combined", label: "Combined Events",
@@ -252,7 +253,7 @@ export const TIER_LABELS: { value: string; label: string }[] = [
 // else is a time (lower is better) -- used to pick sort direction for marks.
 export const FIELD_EVENTS = [
   "Long Jump", "High Jump", "Triple Jump", "Pole Vault",
-  "Shot Put", "Discus Throw", "Javelin Throw", "Hammer Throw",
+  "Shot Put", "Discus Throw", "Javelin Throw", "Javelin Throw (old)", "Hammer Throw",
 ];
 
 // Combined events score a total (higher is better) stored in the same
@@ -345,6 +346,15 @@ export const BASE_TIERS = "OW,DF,GW,GL,A,B";
 export const UNRANKABLE_EVENTS = new Set<string>(["Road Race"]);
 // Tambien las carreras de ruta de distancia unica con decimales ("7.285 Kilometres Road", "4.737 Miles Road"): son recorridos concretos de una sola
 // prueba, no una distancia estandar, asi que tampoco tienen pagina de disciplina ni ranking historico.
+// Cajones sin significado como prueba: no se muestran en las mejores marcas del atleta ni como disciplina.
+export const HIDDEN_EVENTS = new Set<string>(["Sin clasificar"]);
+// Una prueba fuera del catalogo solo se ofrece (disciplina, evolucion, mejores marcas del atleta) con al menos estos resultados en total.
+export const MIN_RESULTS_FOR_UNCATALOGED_EVENT = 250;
+// Recorridos de distancia unica con decimales ("7.285 Kilometres Road") o cajones sin significado: ni ficha de disciplina ni mejores marcas.
+export function isHiddenEvent(ev: string): boolean {
+  return HIDDEN_EVENTS.has(ev) || /^\d*\.\d+\s+(Kilometres|Miles|Metres)/i.test(ev);
+}
+
 export function isUnrankableEvent(ev: string): boolean {
   return UNRANKABLE_EVENTS.has(ev) || /^\d*\.\d+\s+(Kilometres|Miles|Metres)/i.test(ev);
 }
