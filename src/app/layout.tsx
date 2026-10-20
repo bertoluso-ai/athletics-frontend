@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Header from "@/components/Header";
 import MobileNav from "@/components/MobileNav";
 import ReportErrorLink from "@/components/ReportErrorLink";
-import Analytics from "@/components/Analytics";
+import Analytics, { CookieSettingsLink } from "@/components/Analytics";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -35,6 +35,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className="pl-[13px] flex flex-wrap items-start gap-x-10 gap-y-2">
             <div id="photo-credits-slot" className="contents" />
             <ReportErrorLink />
+            <CookieSettingsLink className="text-xs text-neutral-500 hover:text-neutral-300 underline underline-offset-2" />
           </div>
         </footer>
         <MobileNav />
