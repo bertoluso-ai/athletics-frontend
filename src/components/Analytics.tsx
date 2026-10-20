@@ -4,8 +4,8 @@ import Script from "next/script";
 import { useEffect, useState } from "react";
 
 // Google Analytics 4 con consentimiento previo (RGPD/ePrivacy):
-//  * Sin NEXT_PUBLIC_GA_ID no hace nada (ni script, ni aviso): se activa solo al definir la variable en Vercel.
-//  * El script de Google NO se carga hasta que la persona pulsa "Accept". Con "Decline" no se carga nunca ni se guarda nada salvo la eleccion (localStorage).
+//  * El aviso de cookies se muestra siempre hasta que la persona elige; la eleccion se guarda en localStorage.
+//  * El script de Google solo se carga si la persona pulsa "Accept" Y existe NEXT_PUBLIC_GA_ID (se define en Vercel). Con "Decline" no se carga nunca.
 //  * Las vistas de pagina entre rutas las registra GA4 por si mismo (medicion mejorada: cambios de historial).
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 const KEY = "air-analytics-consent";
@@ -30,7 +30,7 @@ export default function Analytics() {
     setReady(true);
   }, []);
 
-  if (!GA_ID || !ready) return null;
+  if (!ready) return null;
 
   const decide = (v: "granted" | "denied") => {
     try {
@@ -43,7 +43,7 @@ export default function Analytics() {
 
   return (
     <>
-      {choice === "granted" && (
+      {GA_ID && choice === "granted" && (
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="afterInteractive" />
           <Script id="ga-init" strategy="afterInteractive">
@@ -58,17 +58,17 @@ gtag('config', '${GA_ID}', { anonymize_ip: true });`}
         <div
           role="dialog"
           aria-label="Cookie consent"
-          className="fixed z-50 left-2 right-2 bottom-20 sm:left-auto sm:right-4 sm:bottom-4 sm:max-w-sm rounded-lg border border-neutral-700 bg-neutral-900 p-3 shadow-lg text-xs text-neutral-300"
+          className="fixed z-50 left-3 right-3 bottom-[5.25rem] sm:left-4 sm:right-auto sm:bottom-4 sm:max-w-md flex items-center gap-3 rounded-full border border-neutral-800 bg-neutral-900/95 backdrop-blur pl-4 pr-1.5 py-1.5 shadow-lg text-xs text-neutral-300"
         >
-          <p className="mb-2">We use Google Analytics to understand how the site is used. It only loads if you accept; no other tracking.</p>
-          <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => decide("denied")} className="px-3 py-1.5 rounded bg-neutral-800 text-neutral-300 hover:bg-neutral-700">
-              Decline
-            </button>
-            <button type="button" onClick={() => decide("granted")} className="px-3 py-1.5 rounded bg-orange-500 text-black font-semibold hover:bg-orange-400">
-              Accept
-            </button>
-          </div>
+          <p className="flex-1 min-w-0 leading-snug">
+            <span aria-hidden>🍪</span> Help us improve: allow anonymous usage stats?
+          </p>
+          <button type="button" onClick={() => decide("denied")} className="shrink-0 px-1.5 py-1 text-neutral-500 hover:text-neutral-300">
+            No thanks
+          </button>
+          <button type="button" onClick={() => decide("granted")} className="shrink-0 px-4 py-1.5 rounded-full bg-orange-500 text-black font-semibold hover:bg-orange-400">
+            Accept
+          </button>
         </div>
       )}
     </>
