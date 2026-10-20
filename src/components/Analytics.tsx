@@ -91,6 +91,9 @@ gtag('config', '${GA_ID}', { anonymize_ip: true });`}
               <button type="button" onClick={() => setPanel(true)} className="px-2 py-2 text-sm text-neutral-400 underline underline-offset-4 hover:text-neutral-200">
                 Cookie settings
               </button>
+              <button type="button" onClick={() => decide("denied")} className="px-6 py-3 sm:py-2.5 rounded-lg border border-neutral-600 bg-neutral-800 text-neutral-200 text-sm font-semibold hover:bg-neutral-700">
+                Reject all
+              </button>
               <button type="button" onClick={() => decide("granted")} className="px-8 py-3 sm:py-2.5 rounded-lg bg-orange-500 text-black text-sm font-bold hover:bg-orange-400">
                 Accept all
               </button>
