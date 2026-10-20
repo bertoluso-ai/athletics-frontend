@@ -56,6 +56,12 @@ const CHECKS: Def[] = [
     ok: (r) => Number(r[0]?.n) === 0,
   },
   {
+    name: "rol_de_lectura_lee_todas_las_tablas",
+    why: "Una tabla recreada por un cron o una carga con otro duenyo deja a la web sin permiso (permission denied) hasta que alguien hace GRANT",
+    sql: `SELECT COUNT(*)::int AS n FROM pg_tables WHERE schemaname = 'public' AND NOT has_table_privilege(current_user, schemaname || '.' || tablename, 'SELECT')`,
+    ok: (r) => Number(r[0]?.n) === 0,
+  },
+  {
     name: "volumen_de_tablas",
     why: "Una carga o un swap incompleto dejaria tablas vacias o recortadas",
     sql: `SELECT (SELECT COUNT(*) FROM events)::int AS ev, (SELECT COUNT(*) FROM meet_results)::int AS mr, (SELECT COUNT(*) FROM athlete_slugs)::int AS sl,
