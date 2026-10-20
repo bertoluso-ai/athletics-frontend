@@ -1,6 +1,7 @@
 "use client";
 
 import Script from "next/script";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 // Aviso de cookies + Google Analytics 4 con consentimiento previo (RGPD/ePrivacy):
@@ -82,7 +83,8 @@ gtag('config', '${GA_ID}', { anonymize_ip: true });`}
             <div className="flex-1 min-w-0">
               <p className="text-sm sm:text-base font-semibold text-neutral-100 mb-1">🍪 Help us make AthleticsInfoRanking better</p>
               <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed">
-                We use cookies to measure how the site is used and improve it. They are anonymous and you stay in control: you can fine-tune or change your choice at any time.
+                We use cookies to measure how the site is used and improve it. They are anonymous and you stay in control: you can fine-tune or change your choice at any time.{" "}
+                <Link href="/cookies" className="underline underline-offset-2 hover:text-neutral-200">Cookie policy</Link>
               </p>
             </div>
             <div className="flex flex-col-reverse sm:flex-row sm:items-center gap-3 sm:gap-4 shrink-0">
