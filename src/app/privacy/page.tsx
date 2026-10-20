@@ -9,7 +9,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      intro={`This policy explains what personal data ${LEGAL.siteName} (${LEGAL.domain}) processes, why, and what rights you have. We keep it short because we collect very little: there are no accounts, no forms and no advertising.`}
+      intro={`This policy explains what personal data ${LEGAL.siteName} (${LEGAL.domain}) processes, why, and what rights you have. We keep it short because we collect very little: there are no accounts and no forms.`}
     >
       <h2>1. Who is responsible</h2>
       <p>
@@ -33,6 +33,18 @@ export default function PrivacyPage() {
         anonymised. Legal basis: your consent (GDPR art. 6(1)(a) and the ePrivacy rules); you can withdraw it at any time from &ldquo;Cookie settings&rdquo; in the footer. Google may process data
         outside the European Economic Area under safeguards such as standard contractual clauses or the EU-US Data Privacy Framework. If you decline, nothing from Google Analytics is loaded.
       </p>
+      {LEGAL.adsEnabled && (
+        <>
+          <h3>Advertising (only if you accept)</h3>
+          <p>
+            The site shows advertising through Google AdSense. If you accept the Advertising category, Google and its partners may use cookies and similar technologies, and your IP address and
+            browsing information, to show and measure ads and, where allowed, to personalise them. Legal basis: your consent (GDPR art. 6(1)(a) and the ePrivacy rules), which you can withdraw at
+            any time from &ldquo;Cookie settings&rdquo; in the footer. If you decline, no ads are loaded for you. Google acts as an independent controller for this processing and may transfer data
+            outside the EEA under safeguards such as standard contractual clauses or the EU-US Data Privacy Framework. You can manage ad personalisation at{" "}
+            <a href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">adssettings.google.com</a>.
+          </p>
+        </>
+      )}
       <h3>Search and navigation</h3>
       <p>
         The search box and filters send your query to our servers only to return results. We do not use them to profile or identify you.
@@ -63,10 +75,14 @@ export default function PrivacyPage() {
       <ul>
         <li>Vercel Inc. &ndash; web hosting (technical logs).</li>
         <li>Hetzner Online GmbH (Germany) &ndash; hosting of the database that serves the site. It holds sports data, not visitor data.</li>
-        <li>Google (Cloud and Google Analytics) &ndash; data processing and, only if you accept, analytics.</li>
+        <li>Google (Cloud, Google Analytics and, only if you accept, AdSense advertising) &ndash; data processing, analytics and ads.</li>
         <li>flagcdn.com and Wikimedia Foundation &ndash; images (see above).</li>
       </ul>
-      <p>We do not sell personal data and we do not use it for advertising.</p>
+      {LEGAL.adsEnabled ? (
+        <p>We do not sell personal data. Advertising is served by Google only with your consent (see section 2).</p>
+      ) : (
+        <p>We do not sell personal data and we do not use it for advertising.</p>
+      )}
 
       <h2>5. Your rights</h2>
       <p>

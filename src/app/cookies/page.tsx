@@ -10,7 +10,11 @@ export default function CookiesPage() {
   return (
     <LegalPage
       title="Cookie Policy"
-      intro={`${LEGAL.siteName} sets no cookies of its own. The only optional cookies come from Google Analytics, and only if you accept them.`}
+      intro={
+        LEGAL.adsEnabled
+          ? `${LEGAL.siteName} sets no cookies of its own. The only optional cookies come from Google (analytics and advertising), and only if you accept them.`
+          : `${LEGAL.siteName} sets no cookies of its own. The only optional cookies come from Google Analytics, and only if you accept them.`
+      }
     >
       <h2>What we use</h2>
       <table>
@@ -35,9 +39,17 @@ export default function CookiesPage() {
             <td>Analytics (optional)</td>
             <td>Up to 2 years</td>
           </tr>
+          {LEGAL.adsEnabled && (
+            <tr>
+              <td>__gads, __gpi, IDE (and similar)</td>
+              <td>Google AdSense / DoubleClick: show and measure ads, limit repetition and, where allowed, personalise ads. Set only if you accept advertising.</td>
+              <td>Advertising (optional)</td>
+              <td>Up to 13 months</td>
+            </tr>
+          )}
         </tbody>
       </table>
-      <p>We use no advertising or tracking cookies.</p>
+      {LEGAL.adsEnabled ? <p>No advertising cookies are set unless you accept the Advertising category.</p> : <p>We use no advertising or tracking cookies.</p>}
 
       <h2>Your choices</h2>
       <p>

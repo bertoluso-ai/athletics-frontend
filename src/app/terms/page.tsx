@@ -37,6 +37,15 @@ export default function TermsPage() {
         owners; the site is <strong>not affiliated with, endorsed by or sponsored by</strong> any of them and uses their names only to identify events.
       </p>
 
+      {LEGAL.adsEnabled && (
+        <>
+          <h2>Advertising</h2>
+          <p>
+            The site may display advertising served by third parties (Google AdSense). Ads are clearly separate from our content; we do not endorse the advertised products or services and are
+            not responsible for them. Ads are shown according to your cookie choices (see the <Link href="/cookies">Cookie Policy</Link>).
+          </p>
+        </>
+      )}
       <h2>5. Links to other websites</h2>
       <p>The site may link to third-party websites. We do not control them and are not responsible for their content or privacy practices.</p>
 

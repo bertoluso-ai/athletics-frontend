@@ -15,6 +15,9 @@ export const LEGAL = {
   // Pais cuya ley aplica y autoridad de proteccion de datos competente
   country: "Spain",
   authorityName: "the Spanish Data Protection Agency (AEPD, www.aepd.es)",
+  // Publicidad (Google AdSense): se activa SOLO al definir NEXT_PUBLIC_ADSENSE_PUB en Vercel ("pub-XXXXXXXXXXXXXXXX"). Con publicidad hay actividad economica:
+  // el aviso legal debe llevar NIF (operatorTaxId) y el titular debe estar dado de alta fiscalmente. Ver ADS_PUBLICIDAD.md.
+  adsEnabled: !!process.env.NEXT_PUBLIC_ADSENSE_PUB?.trim(),
   // Fecha de la ultima revision de los textos (actualizar al modificarlos)
   lastUpdated: "20 October 2026",
 } as const;
