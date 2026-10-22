@@ -1795,6 +1795,7 @@ export type MeetResultRow = {
   division_key_resolved: string | null;
   is_shadow_result: boolean | null; // a weaker parallel section merged under the same final -- doesn't score
   race_level: number | null; // field strength of this specific race, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
+  race_number: number | null; // serie/seccion real dentro de la prueba (solo WA v3, 2023+): la web agrupa por ella; null = se adivina como siempre
 };
 
 // NOTE: some historical sources (mainly dlmeetings) run several unlabelled
@@ -1848,7 +1849,7 @@ async function _getMeetResults(
       athletics_event, gender, round, place, athlete_id,
       display_name, mark_display, mark_value, nationality, record, city, country,
       date::text AS date, wind, wind_legal,
-      division_key_resolved, is_shadow_result, race_level
+      division_key_resolved, is_shadow_result, race_level, race_number::int AS race_number
     FROM meet_results
     WHERE ${where.join(" AND ")}
     -- Finals first, qualifying rounds (heats, semis) after -- reading the
@@ -1901,7 +1902,7 @@ async function _getMeetResultsFromEvents(
       CASE WHEN athletics_discipline IN ('Jumps', 'Throws') THEN ${safeMarkEvents} ELSE mark_seconds END AS mark_value,
       nationality, NULLIF(record, '') AS record, city, country,
       date::text AS date, wind, wind_legal,
-      division_key_resolved, is_shadow_result, NULL::double precision AS race_level
+      division_key_resolved, is_shadow_result, NULL::double precision AS race_level, race_number::int AS race_number
     FROM events
     WHERE ${where.join(" AND ")}
     ORDER BY athletics_event, gender,
@@ -2004,7 +2005,7 @@ export async function getCompetitionResults(eventName: string, year: number): Pr
       CASE WHEN e.athletics_discipline IN ('Jumps','Throws') THEN ${safeMarkEvents.replace(/\bmark\b/g, "e.mark")} ELSE e.mark_seconds END AS mark_value,
       e.nationality,
       NULLIF(e.record, '') AS record, e.city, e.country, e.date::text AS date, e.wind, e.wind_legal,
-      e.division_key_resolved, e.is_shadow_result, COALESCE(rs.race_level, rl.race_level) AS race_level
+      e.division_key_resolved, e.is_shadow_result, COALESCE(rs.race_level, rl.race_level) AS race_level, e.race_number::int AS race_number
     FROM events e
     LEFT JOIN race_section_rows rs ON rs.event_row_key = e.event_row_key
     LEFT JOIN (

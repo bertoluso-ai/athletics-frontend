@@ -19,6 +19,7 @@ export type Group = {
   section: number;
   rows: MeetResultRow[];
   label?: "Podium" | "Rest of times"; // set when this section came from resolving a merged heat+final -- see splitResolved
+  heat?: number | null; // numero de serie/seccion real (race_number); solo si la prueba tiene varias y todas las filas lo traen
   level: number | null; // field strength of this specific race, 0-100, tier-anchored (see registry/16_compute_race_level.sql)
 };
 
@@ -99,6 +100,27 @@ function splitByMarkTier(rows: MeetResultRow[], isField: boolean): MeetResultRow
 // after that. Shown as two labelled sections, Podium and Rest of times,
 // rather than one plain final -- only the podium is fact-checked, the
 // rest is a time-based placement among what's left, worth telling apart.
+// Parallel sections by their REAL number (race_number, WA v3 / 2023+): when
+// every visible row of a group carries it and there are at least two
+// distinct (date, race_number) pairs, each pair is its own race -- no more
+// guessing from same-place/different-mark. Anything else (older sources,
+// mixed groups, a merged heat+final) returns null and keeps the old path.
+function splitByRaceNumber(rows: MeetResultRow[]): { rows: MeetResultRow[]; heat: number }[] | null {
+  const visible = rows.filter((r) => !r.is_shadow_result);
+  if (visible.length === 0) return null;
+  if (visible.some((r) => r.is_shadow_result === false)) return null;
+  if (visible.some((r) => r.race_number == null)) return null;
+  const byKey = new Map<string, { rows: MeetResultRow[]; heat: number; date: string }>();
+  for (const r of visible) {
+    const k = `${r.date ?? ""}|${r.race_number}`;
+    const s = byKey.get(k) ?? { rows: [], heat: r.race_number as number, date: r.date ?? "" };
+    s.rows.push(r);
+    byKey.set(k, s);
+  }
+  if (byKey.size < 2) return null;
+  return [...byKey.values()].sort((a, b) => a.date.localeCompare(b.date) || a.heat - b.heat).map(({ rows: rr, heat }) => ({ rows: rr, heat }));
+}
+
 function splitResolved(rows: MeetResultRow[], isField: boolean): { rows: MeetResultRow[]; label?: Group["label"] }[] {
   const visible = rows.filter((r) => !r.is_shadow_result);
   if (visible.length === 0) return [];
@@ -157,8 +179,9 @@ export function groupResults(rows: MeetResultRow[]): Group[] {
       continue;
     }
     const isField = isFieldEvent(g.athletics_event);
-    const sections = splitResolved(g.rows, isField);
-    sections.forEach(({ rows: sectionRows, label }, i) => {
+    const byHeat = splitByRaceNumber(g.rows);
+    const sections: { rows: MeetResultRow[]; label?: Group["label"]; heat?: number }[] = byHeat ?? splitResolved(g.rows, isField);
+    sections.forEach(({ rows: sectionRows, label, heat }, i) => {
       // Always order by the mark itself, not the source's raw `place` --
       // a real final's places already follow its marks, so this is a
       // no-op there; it only matters for a same-place tie, which must
@@ -173,7 +196,9 @@ export function groupResults(rows: MeetResultRow[]): Group[] {
       // non-null one found (a split section's rows are a subset of the
       // same underlying race in that key, so they all agree anyway).
       const level = sectionRows.find((r) => r.race_level != null)?.race_level ?? null;
-      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind, section: i, rows: sorted, label, level });
+      // Con series reales el viento se calcula por serie (en pista es de la carrera entera); en concursos sigue siendo por atleta y no se toca.
+      const sectionWind = heat != null && !isField ? (() => { const w = new Set(sectionRows.map((r) => r.wind).filter((x): x is string => !!x)); return w.size === 1 ? [...w][0] : null; })() : wind;
+      result.push({ athletics_event: g.athletics_event, gender: g.gender, round: g.round, wind: sectionWind, section: i, rows: sorted, label, level, heat: heat ?? null });
     });
   }
   return result;
@@ -301,7 +326,11 @@ export default function MeetResultsSections({
                 </Link>
               )}
               <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
-              {g.round && <span className="text-neutral-500 ml-2 normal-case">· {g.round}</span>}
+              {g.heat != null ? (
+                <span className="text-neutral-500 ml-2 normal-case">· {/\d\s*$/.test(g.round ?? "") ? `${g.round} · ${g.heat}` : `${g.round ?? "Race"} ${g.heat}`}</span>
+              ) : (
+                g.round && <span className="text-neutral-500 ml-2 normal-case">· {g.round}</span>
+              )}
               {!isFinal && (
                 <span
                   className="ml-2 text-[10px] font-mono px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 normal-case"
