@@ -1,0 +1,5 @@
+# HTTPS automatico (Let's Encrypt). Con Cloudflare delante: modo SSL "Full (strict)".
+athleticsinforanking.com, www.athleticsinforanking.com {
+	encode zstd gzip
+	reverse_proxy web:3000
+}

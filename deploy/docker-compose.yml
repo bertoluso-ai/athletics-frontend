@@ -1,0 +1,39 @@
+# Despliegue de la web de atletismo en el VPS (junto a Postgres). Uso: ver deploy/README.md
+services:
+  web:
+    build:
+      context: ..
+      network: host            # la construccion necesita hablar con Postgres (Next pre-genera paginas que consultan la base)
+      args:
+        NEXT_PUBLIC_GTM_ID: ${NEXT_PUBLIC_GTM_ID:-}
+        NEXT_PUBLIC_GA_ID: ${NEXT_PUBLIC_GA_ID:-}
+        NEXT_PUBLIC_ADSENSE_PUB: ${NEXT_PUBLIC_ADSENSE_PUB:-}
+        PG_SERVING_HOST: 127.0.0.1
+        PG_SERVING_USER: ${PG_SERVING_USER}
+        PG_SERVING_PASSWORD: ${PG_SERVING_PASSWORD}
+        PG_SERVING_CA: ${PG_SERVING_CA}
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      PG_SERVING_HOST: host.docker.internal   # el Postgres del propio servidor
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose: ["3000"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web]
+volumes:
+  caddy_data:
+  caddy_config:

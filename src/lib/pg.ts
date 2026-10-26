@@ -40,7 +40,10 @@ types.setTypeParser(20, (v) => parseInt(v, 10));
 //    por eso no se comprueba el nombre, solo que sea exactamente ese certificado.
 //    Sin la variable solo se admite fuera de produccion; en produccion falta la variable => error (falla cerrado).
 const pgCa = process.env.PG_SERVING_CA?.replace(/\\n/g, "\n").trim();
-const isProd = process.env.VERCEL_ENV === "production";
+// APP_ENV=production es el equivalente fuera de Vercel (despliegue en el VPS): mantiene el mismo cierre por defecto.
+// Durante "next build" (NEXT_PHASE=phase-production-build) no hay credenciales y solo se importan los modulos: la comprobacion se aplica en ejecucion.
+const isBuild = process.env.NEXT_PHASE === "phase-production-build";
+const isProd = !isBuild && (process.env.VERCEL_ENV === "production" || process.env.APP_ENV === "production");
 if (isProd && (!pgCa || !process.env.PG_SERVING_USER?.trim() || process.env.PG_SERVING_USER.trim() === "serving")) {
   throw new Error("Produccion exige PG_SERVING_USER (rol de solo lectura distinto de 'serving') y PG_SERVING_CA");
 }

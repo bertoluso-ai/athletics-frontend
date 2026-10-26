@@ -1,0 +1,7 @@
+node_modules
+.next
+.git
+_cmp.*
+_pg.cjs
+*.png
+tsconfig.tsbuildinfo
