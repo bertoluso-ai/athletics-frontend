@@ -2,7 +2,7 @@
 # Ejecutar EN EL VPS, dentro de la carpeta del repo: ./deploy/deploy.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
-git pull --ff-only
+[ -d .git ] && git pull --ff-only || echo '(sin git: codigo subido a mano)'
 cd deploy
 test -f .env || { echo "Falta deploy/.env (copiar de env.example)"; exit 1; }
 set -a; . ./.env; set +a
