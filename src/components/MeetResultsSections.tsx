@@ -326,7 +326,7 @@ export default function MeetResultsSections({
                 </Link>
               )}
               <span className="text-neutral-500 ml-2 normal-case">{g.gender}</span>
-              {g.heat != null ? (
+              {g.heat != null && g.heat > 0 ? (
                 <span className="text-neutral-500 ml-2 normal-case">· {/\d\s*$/.test(g.round ?? "") ? `${g.round} · ${g.heat}` : `${g.round ?? "Race"} ${g.heat}`}</span>
               ) : (
                 g.round && <span className="text-neutral-500 ml-2 normal-case">· {g.round}</span>
