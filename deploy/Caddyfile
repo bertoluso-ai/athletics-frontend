@@ -3,3 +3,6 @@ athleticsinforanking.com, www.athleticsinforanking.com {
 	encode zstd gzip
 	reverse_proxy web:3000
 }
+
+# Otras webs alojadas en este VPS (una por fichero)
+import /etc/caddy/sites/*.caddy
