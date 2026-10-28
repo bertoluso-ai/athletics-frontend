@@ -148,6 +148,30 @@ export async function getAthleteHomonyms(base: string): Promise<AthleteHomonym[]
   );
 }
 
+// Slug que ya no existe (ficha fusionada con otra, o pais/año de nacimiento que cambiaron): se prueba quitando hasta 3 sufijos ("bernard-lagat-usa" ->
+// "bernard-lagat"). Devuelve el slug exacto si existe o los homonimos de ese nombre; vacio si no hay nada (404).
+export async function getAthleteSlugFallback(slug: string): Promise<AthleteHomonym[]> {
+  if (!/^[a-z0-9-]{3,}$/.test(slug)) return [];
+  const parts = slug.split("-");
+  for (let k = parts.length - 1; k >= Math.max(2, parts.length - 3); k--) {
+    const base = parts.slice(0, k).join("-");
+    const exact = await pgQuery<AthleteHomonym>(
+      `SELECT s.athlete_id, s.slug, s.display_name, s.nationality,
+              MIN(e.year)::int AS y1, MAX(e.year)::int AS y2,
+              (PERCENTILE_DISC(0.5) WITHIN GROUP (ORDER BY e.birth_year))::int AS birth_year,
+              COUNT(*)::int AS n, MODE() WITHIN GROUP (ORDER BY e.athletics_event_base) AS main_event
+       FROM athlete_slugs s JOIN events e ON e.athlete_id = s.athlete_id
+       WHERE s.slug = $1
+       GROUP BY s.athlete_id, s.slug, s.display_name, s.nationality`,
+      [base]
+    );
+    if (exact.length) return exact;
+    const hom = await getAthleteHomonyms(base);
+    if (hom.length) return hom;
+  }
+  return [];
+}
+
 export async function getAthleteIdBySlug(slug: string): Promise<string | null> {
   const rows = await pgQuery<{ athlete_id: string }>(`SELECT athlete_id FROM athlete_slugs WHERE slug = $1`, [slug]);
   return rows[0]?.athlete_id ?? null;
