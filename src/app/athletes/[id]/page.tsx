@@ -16,7 +16,6 @@ import {
   getAthleteNationalityHistory,
   getAthleteGlobalIndex,
   getAthleteHomonyms,
-  getAthleteSlugFallback,
   getAthleteIdBySlug,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
@@ -72,10 +71,6 @@ export default async function AthletePage({
     const homonyms = await getAthleteHomonyms(idParam);
     if (homonyms.length === 1) permanentRedirect(`/athletes/${homonyms[0].slug}`);
     if (homonyms.length > 1) return <AthleteChooser name={homonyms[0].display_name} candidates={homonyms} />;
-    // enlace antiguo (ficha fusionada o slug que cambio de pais/año): se prueba sin los sufijos
-    const loose = await getAthleteSlugFallback(idParam);
-    if (loose.length === 1) permanentRedirect(`/athletes/${loose[0].slug}`);
-    if (loose.length > 1) return <AthleteChooser name={loose[0].display_name} candidates={loose} />;
     notFound();
   }
   const id = resolved;
