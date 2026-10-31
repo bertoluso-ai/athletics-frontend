@@ -23,6 +23,8 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
   const [event, setEvent] = useState<string>(group.events[gender][0]);
   const [data, setData] = useState<YearProgressionPoint[]>(initial);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     const options = group.events[gender] as readonly string[];
@@ -37,14 +39,16 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
     }
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     fetch(`/api/progression?event=${encodeURIComponent(event)}&gender=${gender}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((d) => !cancelled && setData(d))
+      .catch(() => !cancelled && setFailed(true))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [event, gender, initial]);
+  }, [event, gender, initial, retry]);
 
   return (
     <section>
@@ -88,6 +92,11 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
       {loading ? (
         <div className="h-40 flex items-center justify-center text-xs text-neutral-500 border border-neutral-800 rounded-lg">
           Loading…
+        </div>
+      ) : failed ? (
+        <div className="h-40 flex items-center justify-center gap-2 text-xs text-neutral-500 border border-neutral-800 rounded-lg">
+          Couldn&apos;t load the data.
+          <button type="button" onClick={() => setRetry((n) => n + 1)} className="underline text-orange-400">Retry</button>
         </div>
       ) : data.length >= 2 ? (
         <YearlyProgressionChart data={data} isField={isFieldEvent(event)} recordPosition="inline" />

@@ -27,6 +27,8 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
   const [discipline, setDiscipline] = useState("");
   const [rows, setRows] = useState(initial);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!category && !discipline) {
@@ -35,17 +37,19 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
     }
     let cancelled = false;
     setLoading(true);
+    setFailed(false);
     const params = new URLSearchParams();
     if (category) params.set("category", category);
     if (discipline) params.set("discipline", discipline);
     fetch(`/api/upcoming?${params.toString()}`)
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data) => !cancelled && setRows(data))
+      .catch(() => !cancelled && setFailed(true))
       .finally(() => !cancelled && setLoading(false));
     return () => {
       cancelled = true;
     };
-  }, [category, discipline, initial]);
+  }, [category, discipline, initial, retry]);
 
   return (
     <section>
@@ -124,7 +128,13 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
               </div>
             );
           })}
-        {!loading && rows.length === 0 && (
+        {!loading && failed && (
+          <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500">
+            Couldn&apos;t load the races.{" "}
+            <button type="button" onClick={() => setRetry((n) => n + 1)} className="underline text-orange-400">Retry</button>
+          </div>
+        )}
+        {!loading && !failed && rows.length === 0 && (
           <div className="px-3 sm:px-4 py-6 text-sm text-neutral-500">No upcoming races.</div>
         )}
       </div>
