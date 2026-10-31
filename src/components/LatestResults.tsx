@@ -193,7 +193,8 @@ export default function LatestResults({
                             {race.round ? ` · ${race.round}` : ""}
                           </span>
                           {raceWind && <span className="text-xs font-mono text-neutral-500">Wind: {raceWind}</span>}
-                          <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>
+                          {/* la fecha ya va en la caja; solo se repite si esta prueba es de otro dia que la mas reciente de la competicion */}
+                          {race.date !== latestDate && <span className="text-xs text-neutral-500 ml-auto">{formatDate(race.date)}</span>}
                         </div>
                         {race.top3.map((entry, i) => {
                           const isTeam = entry.athletes.length > 1;
