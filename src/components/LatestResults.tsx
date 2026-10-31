@@ -168,6 +168,7 @@ export default function LatestResults({
                           {group.competition_level}
                         </span>
                       )}
+                      {latestDate && <span className="ml-auto shrink-0 whitespace-nowrap">{formatDate(latestDate)}</span>}
                     </div>
                   </div>
                   {group.races.map((race, ri) => {
