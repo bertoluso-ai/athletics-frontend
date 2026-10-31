@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import YearSelect from "@/components/YearSelect";
@@ -5,6 +6,8 @@ import MeetResultsSections, { groupResults } from "@/components/MeetResultsSecti
 import { getCompetitionResults, getCompetitionYears, getAthleteSlugs } from "@/lib/queries";
 import { TIER_LABELS } from "@/lib/events";
 
+
+export const metadata: Metadata = { title: "Competition (debug view)", robots: { index: false, follow: false } };
 function tierLabel(code: string) {
   return TIER_LABELS.find((t) => t.value === code)?.label ?? code;
 }

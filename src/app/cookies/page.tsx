@@ -4,7 +4,7 @@ import LegalPage, { Contact } from "@/components/LegalPage";
 import { CookieSettingsLink } from "@/components/Analytics";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Cookie Policy - AthleticsInfoRanking" };
+export const metadata: Metadata = { title: "Cookie Policy" };
 
 export default function CookiesPage() {
   return (

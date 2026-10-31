@@ -3,7 +3,7 @@ import Link from "next/link";
 import LegalPage, { Contact } from "@/components/LegalPage";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "About & data - AthleticsInfoRanking" };
+export const metadata: Metadata = { title: "About & data" };
 
 export default function AboutPage() {
   return (

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import PageBar from "@/components/PageBar";
 import LinkSelect from "@/components/LinkSelect";
@@ -16,6 +17,8 @@ import {
   type CountryRankingRow,
 } from "@/lib/countries";
 
+
+export const metadata: Metadata = { title: "Countries", description: "Athletics by country: rankings, best athletes and results for every nation." };
 export const revalidate = 3600;
 
 // Countries, in the spirit of the ProCyclingStats teams page: the ranking

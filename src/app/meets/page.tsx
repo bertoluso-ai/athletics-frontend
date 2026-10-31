@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import MultiSelectDropdown from "@/components/MultiSelectDropdown";
@@ -10,6 +11,8 @@ import { RACE_TYPES, eventMatchesType } from "@/lib/raceTypes";
 import { getAthleteSlugs, athleteHref, getAllNationalities } from "@/lib/queries";
 import { AREAS } from "@/lib/country-data";
 
+
+export const metadata: Metadata = { title: "Meetings and competitions", description: "Athletics meetings, championships and road races ranked by quality, with results by year." };
 export const revalidate = 3600;
 
 // Meets: the old Calendar and Races pages merged. Both lists answer "what was

@@ -3,7 +3,7 @@ import Link from "next/link";
 import LegalPage, { Contact } from "@/components/LegalPage";
 import { LEGAL } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Privacy Policy - AthleticsInfoRanking" };
+export const metadata: Metadata = { title: "Privacy Policy" };
 
 export default function PrivacyPage() {
   return (

@@ -6,7 +6,7 @@ import type { NextRequest } from "next/server";
 //  - Para abrirlo al publico hay que definir SITE_PUBLIC=1 en Vercel de forma explicita.
 //  - /api/health* queda fuera: lo consultan las alarmas de Cloud Monitoring (solo devuelve estado de salud, nada de datos).
 //  - En desarrollo local (next dev) no se bloquea nada.
-// Siempre se envia X-Robots-Tag: noindex para que ningun buscador indexe nada.
+// Mientras es privado (o en desarrollo) se envia X-Robots-Tag: noindex para que ningun buscador indexe nada.
 
 const OPEN_PATH_PREFIXES = ["/api/health"];
 
@@ -18,8 +18,11 @@ function safeEqual(a: string, b: string): boolean {
   return diff === 0;
 }
 
+// Publicado a proposito (produccion + SITE_PUBLIC=1) ya no se manda noindex: si no, ningun buscador indexaria nunca el sitio.
+const PUBLISHED = process.env.NODE_ENV === "production" && process.env.SITE_PUBLIC === "1";
+
 function withRobots(res: NextResponse): NextResponse {
-  res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+  if (!PUBLISHED) res.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
   return res;
 }
 

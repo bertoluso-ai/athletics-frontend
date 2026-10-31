@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist_Mono } from "next/font/google";
 import Header from "@/components/Header";
@@ -13,9 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AthleticsInfoRanking - Athletics results, rankings and records",
+  metadataBase: new URL("https://athleticsinforanking.com"),
+  title: {
+    default: "AthleticsInfoRanking - Athletics results, rankings and records",
+    template: "%s - AthleticsInfoRanking",
+  },
   description: "Athletics results, rankings and records: track & field, road running and race walking, from Diamond League to national championships.",
+  openGraph: { type: "website", siteName: "AthleticsInfoRanking", locale: "en_GB" },
+  twitter: { card: "summary" },
 };
+
+export const viewport: Viewport = { themeColor: "#ffffff" };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import PageBar from "@/components/PageBar";
 import { RACE_TYPES, eventMatchesType, eventRaceKind, type RaceType } from "@/lib/raceTypes";
@@ -133,6 +134,16 @@ function SideList({ title, help, children }: { title: string; help: string; chil
       <div className="flex flex-col bg-neutral-950 border border-neutral-800 rounded-lg px-2 sm:px-3 py-1">{children}</div>
     </section>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const event = await resolveEventSlug(slug);
+  if (!event) return { title: "Discipline" };
+  const label = eventLabel(event);
+  const title = `${label} - all-time list, records and progression`;
+  const description = `${label}: all-time best performances, yearly bests, top athletes and progression of the world best.`;
+  return { title, description, alternates: { canonical: `/disciplines/${slug}` }, openGraph: { title, description } };
 }
 
 export default async function DisciplinePage({

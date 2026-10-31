@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import CountryKeyStats from "@/components/CountryKeyStats";
 import { Suspense } from "react";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/countries";
 import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
+import { countryName as countryNameMeta } from "@/lib/flags";
 export const revalidate = 3600;
 
 // Country page, after the ProCyclingStats team page: header with the key
@@ -140,6 +142,14 @@ function TierBadge({ tier }: { tier: string | null }) {
       {tier}
     </span>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ code: string }> }): Promise<Metadata> {
+  const { code } = await params;
+  const name = countryNameMeta(code.toUpperCase()) ?? code.toUpperCase();
+  const title = `${name} - athletics results and rankings`;
+  const description = `${name} in athletics: best athletes, rankings, wins and season-by-season results.`;
+  return { title, description, alternates: { canonical: `/countries/${code.toLowerCase()}` }, openGraph: { title, description } };
 }
 
 export default async function CountryPage({

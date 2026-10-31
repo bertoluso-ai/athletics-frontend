@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import Link from "next/link";
@@ -26,6 +27,7 @@ import { eventCategory, eventLabel, isUnrankableEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
 import { tierFor, percentileFromTop, formatPercentile } from "@/lib/tiers";
 
+import { countryName } from "@/lib/flags";
 export const revalidate = 3600;
 
 const MEDAL = ["🥇", "🥈", "🥉"];
@@ -49,6 +51,18 @@ function birthAge(birthYear: number, birthDateFull: string | null): { value: num
     }
   }
   return { value: now.getFullYear() - birthYear, approx: true };
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id: slug } = await params;
+  const resolved = await getAthleteIdBySlug(slug);
+  if (!resolved) return { title: "Athlete" };
+  const info = await getAthleteInfo(resolved);
+  if (!info) return { title: "Athlete not found" };
+  const country = countryName(info.nationality);
+  const title = `${info.display_name} - results, PBs and progression`;
+  const description = `${info.display_name}${country ? ` (${country})` : ""}: every result, personal best and yearly progression${info.first_year ? `, ${info.first_year}-${info.last_year}` : ""}.`;
+  return { title, description, alternates: { canonical: `/athletes/${slug}` }, openGraph: { title, description } };
 }
 
 export default async function AthletePage({

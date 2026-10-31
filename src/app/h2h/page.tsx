@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Flag from "@/components/Flag";
@@ -9,6 +10,8 @@ import PhotoCreditsToast from "@/components/PhotoCreditsToast";
 import { eventLabel, TIER_LABELS } from "@/lib/events";
 import { getH2H, getH2HSuggestions, type H2HKpis, type H2HSeasonPoint } from "@/lib/h2h";
 
+
+export const metadata: Metadata = { title: "Head to head", description: "Compare two athletes: shared races, personal bests and progression by age." };
 export const revalidate = 3600;
 
 // Head-to-head (after ProCyclingStats' H2H). With only ?a= it's the rival

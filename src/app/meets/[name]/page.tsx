@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import YearSelect from "@/components/YearSelect";
@@ -18,6 +19,14 @@ function formatDate(iso: string | null) {
 
 function tierLabel(code: string) {
   return TIER_LABELS.find((t) => t.value === code)?.label ?? code;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ name: string }> }): Promise<Metadata> {
+  const { name } = await params;
+  const eventName = decodeURIComponent(name);
+  const title = `${eventName} - results`;
+  const description = `${eventName}: results by year and discipline, with the best marks and winners of every edition.`;
+  return { title, description, alternates: { canonical: `/meets/${name}` }, openGraph: { title, description } };
 }
 
 export default async function MeetPage({

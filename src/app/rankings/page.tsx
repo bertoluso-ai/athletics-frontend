@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import PageBar from "@/components/PageBar";
 import { RACE_TYPES, eventMatchesType, type RaceType } from "@/lib/raceTypes";
@@ -28,6 +29,8 @@ import {
   type RankingView,
 } from "@/lib/rankings";
 
+
+export const metadata: Metadata = { title: "Athletics rankings", description: "World athletics rankings by points and by mark, for every event, gender and season." };
 export const revalidate = 3600;
 
 // Rankings, after the ProCyclingStats ranking page but with more picture:
