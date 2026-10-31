@@ -424,7 +424,7 @@ export default async function CountryPage({
                     className="grid grid-cols-[1.75rem_1fr_2rem_3rem] items-center gap-x-1.5 px-3 py-1.5 text-sm bg-neutral-950 hover:bg-neutral-800"
                     title={a.counts ? `Scores for ${name} (#${a.rn_in_country} in the country)` : `#${a.rn_in_country} in the country, outside the best ${COUNTED_ATHLETES}`}
                   >
-                    <span className={`text-xs tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-600"}`}>{a.rn_in_country}</span>
+                    <span className={`text-xs tabular-nums ${a.counts ? "text-orange-400" : "text-neutral-500"}`}>{a.rn_in_country}</span>
                     <span className="min-w-0">
                       <span className="block truncate">{a.display_name}</span>
                       <span className="block text-[11px] text-neutral-500 truncate">{eventLabel(a.main_event)}</span>

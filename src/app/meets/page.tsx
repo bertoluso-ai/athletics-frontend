@@ -389,7 +389,7 @@ export default async function MeetsPage({
                   : r.past_event_name
                   ? `/meets/${encodeURIComponent(r.past_event_name)}`
                   : null;
-              const quality = r.level != null ? <QualityChip value={r.level} /> : <span className="text-neutral-600 text-xs">—</span>;
+              const quality = r.level != null ? <QualityChip value={r.level} /> : <span className="text-neutral-500 text-xs">—</span>;
               const topPerformance =
                 r.kind === "past" && r.top_athlete ? (
                   <>
@@ -403,7 +403,7 @@ export default async function MeetsPage({
                 ) : r.kind === "upcoming" ? (
                   <span className="text-neutral-500">{[r.city, r.disciplines].filter(Boolean).join(" · ")}</span>
                 ) : (
-                  <span className="text-neutral-600">{r.n_events} events</span>
+                  <span className="text-neutral-500">{r.n_events} events</span>
                 );
 
               return (
@@ -480,7 +480,7 @@ export default async function MeetsPage({
                   <span className="font-mono font-semibold text-orange-400">{r.top_mark}</span>
                 </>
               ) : (
-                <span className="text-neutral-600">{raceLabel}</span>
+                <span className="text-neutral-500">{raceLabel}</span>
               );
               return (
                 <div key={i} className={`relative border-l-2 ${rowAccent(r.tier)} bg-neutral-950 hover:bg-neutral-900`}>

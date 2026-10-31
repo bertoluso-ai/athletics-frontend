@@ -20,7 +20,7 @@ export default function ReportErrorLink() {
     encodeURIComponent(`Page: ${pageUrl}\nWhat looks wrong: \n`);
 
   return (
-    <a href={href} className="text-[11px] text-neutral-600 hover:text-neutral-400">
+    <a href={href} className="text-xs text-neutral-500 hover:text-neutral-400">
       Report a data error
     </a>
   );

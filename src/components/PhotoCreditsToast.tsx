@@ -19,7 +19,7 @@ export default function PhotoCreditsToast({ items }: { items: PhotoCreditItem[] 
   if (items.length === 0 || !slot) return null;
   return createPortal(
     <>
-      <details className="text-[11px] text-neutral-600">
+      <details className="text-xs text-neutral-500">
         <summary className="cursor-pointer select-none hover:text-neutral-400 w-fit">
           Photos: Wikimedia Commons · credits
         </summary>

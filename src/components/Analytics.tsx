@@ -156,7 +156,7 @@ gtag('config', '${GA_ID}', { anonymize_ip: true });`}
               <button type="button" onClick={rejectAll} className="px-6 py-3 sm:py-2.5 rounded-lg border border-neutral-600 bg-neutral-800 text-neutral-200 text-sm font-semibold hover:bg-neutral-700">
                 Reject all
               </button>
-              <button type="button" onClick={acceptAll} className="px-8 py-3 sm:py-2.5 rounded-lg bg-orange-500 text-black text-sm font-bold hover:bg-orange-400">
+              <button type="button" onClick={acceptAll} className="px-8 py-3 sm:py-2.5 rounded-lg bg-orange-500 text-black text-sm font-bold hover:bg-orange-600">
                 Accept all
               </button>
             </div>
@@ -203,7 +203,7 @@ gtag('config', '${GA_ID}', { anonymize_ip: true });`}
               <button type="button" onClick={() => decide(draft)} className="px-4 py-2.5 rounded-lg bg-neutral-800 text-sm text-neutral-200 hover:bg-neutral-700">
                 Save choices
               </button>
-              <button type="button" onClick={acceptAll} className="px-5 py-2.5 rounded-lg bg-orange-500 text-sm font-bold text-black hover:bg-orange-400">
+              <button type="button" onClick={acceptAll} className="px-5 py-2.5 rounded-lg bg-orange-500 text-sm font-bold text-black hover:bg-orange-600">
                 Accept all
               </button>
             </div>

@@ -59,7 +59,7 @@ export default function Avatar({
   if (src) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={src} alt={name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+      <img src={src} alt="" loading="lazy" decoding="async" className="w-6 h-6 rounded-full object-cover shrink-0" />
     );
   }
   return (

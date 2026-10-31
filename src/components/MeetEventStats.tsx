@@ -127,7 +127,7 @@ export default async function MeetEventStats({
                 <span className="text-xs text-neutral-500 tabular-nums">#{r.all_time_rank}</span>
                 {person(r.athlete_id, r.display_name, r.nationality)}
                 <span className="font-mono text-xs text-neutral-300">
-                  {r.mark_display} <span className="text-neutral-600">&apos;{String(r.year).slice(2)}</span>
+                  {r.mark_display} <span className="text-neutral-500">&apos;{String(r.year).slice(2)}</span>
                 </span>
               </div>
             ))}

@@ -134,7 +134,7 @@ export default function ResultsList({
           {winsOnly && (
             <button
               onClick={() => setWinsOnly(false)}
-              className="shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded bg-orange-500 text-black font-semibold hover:bg-orange-400"
+              className="shrink-0 flex items-center gap-1 text-xs px-2 py-1 rounded bg-orange-500 text-black font-semibold hover:bg-orange-600"
               title="Showing wins only -- click to show every result"
             >
               🥇 Wins only ×

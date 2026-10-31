@@ -25,16 +25,17 @@
   --color-neutral-800: #eceef1;
   --color-neutral-700: #d9dce2;
   --color-neutral-600: #a3a9b4;
-  --color-neutral-500: #6b7280;
+  --color-neutral-500: #5c6370;
   --color-neutral-400: #525a67;
   --color-neutral-300: #3b424d;
   --color-neutral-200: #262b34;
   --color-neutral-100: #14181f;
-  --color-orange-400: #ea580c;
+  --color-orange-400: #b83c0b; /* texto de acento: 5.7:1 sobre blanco, 4.7:1 sobre tint */
+  --color-focus: #b83c0b;
   --color-sky-400: #0284c7;
   --color-red-400: #dc2626;
   --color-red-300: #b91c1c;
-  --color-green-400: #16a34a;
+  --color-green-400: #15803d;
   --color-green-300: #15803d;
   --color-blue-400: #2563eb;
   --color-blue-300: #1d4ed8;
@@ -45,7 +46,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: Arial, Helvetica, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -53,6 +54,22 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Foco de teclado visible en todo elemento interactivo (los componentes quitan
+   el anillo nativo con focus:outline-none; esto lo restaura solo para teclado). */
+:focus-visible {
+  outline: 2px solid var(--color-focus) !important;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Horizontally-scrolling pill rows (category/discipline filters) --

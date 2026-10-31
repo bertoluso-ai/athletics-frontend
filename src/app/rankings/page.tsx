@@ -703,7 +703,7 @@ function RankingLine({
           ) : diff < 0 ? (
             <span className="text-red-400">▼{-diff}</span>
           ) : (
-            <span className="text-neutral-600">–</span>
+            <span className="text-neutral-500">–</span>
           )}
         </span>
       )}
@@ -905,7 +905,7 @@ async function NationsRanking({ view, sp }: { view: NationView; sp: SP }) {
                     ) : diff < 0 ? (
                       <span className="text-red-400">▼{-diff}</span>
                     ) : (
-                      <span className="text-neutral-600">–</span>
+                      <span className="text-neutral-500">–</span>
                     )}
                   </span>
                 )}
