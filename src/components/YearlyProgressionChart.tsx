@@ -78,6 +78,9 @@ function Chart({
   // size on phones instead of shrinking with a fixed viewBox; taller there
   const box = useRef<HTMLDivElement>(null);
   const [W, setW] = useState(760);
+  // alto de ventana medido tras montar (leerlo durante el render hacia distinto el HTML del servidor y el del cliente)
+  const [vh, setVh] = useState(500);
+  useEffect(() => setVh(window.innerHeight), []);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -85,7 +88,7 @@ function Chart({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const H = tall ? Math.round(Math.min(W * 0.55, typeof window !== "undefined" ? window.innerHeight * 0.7 : 500)) : W < 640 ? Math.round(W * 0.75) : 260;
+  const H = tall ? Math.round(Math.min(W * 0.55, vh * 0.7)) : W < 640 ? Math.round(W * 0.75) : 260;
 
   // all-time best up to each year, computed on the FULL history so a
   // record from before the visible range still sets the level
@@ -218,22 +221,22 @@ function Chart({
       </div>
 
       <div className="relative" ref={box}>
-        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block w-full h-auto" onMouseLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block w-full h-auto" role="group" aria-label={`Yearly best marks, ${pts.length} years. Use Tab to move between years.`} onMouseLeave={() => setHover(null)}>
           {gridVals.map((v) => (
             <g key={v}>
-              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="#e5e7eb" />
-              <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill="#737373">
+              <line x1={PAD.l} x2={W - PAD.r} y1={y(v)} y2={y(v)} stroke="var(--color-neutral-700)" />
+              <text x={PAD.l - 6} y={y(v) + 3} textAnchor="end" fontSize="10" fill="var(--color-neutral-500)">
                 {fmt(v)}
               </text>
             </g>
           ))}
           {ticks.map((t) => (
-            <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="10" fill="#737373">
+            <text key={t} x={x(t)} y={H - 8} textAnchor="middle" fontSize="10" fill="var(--color-neutral-500)">
               {t}
             </text>
           ))}
           {segments.map((d, i) => (
-            <path key={i} d={d} fill="none" stroke="#f97316" strokeWidth="2.5" />
+            <path key={i} d={d} fill="none" stroke="var(--color-orange-600)" strokeWidth="2.5" />
           ))}
           {pts.map((d, i) => (
             <circle
@@ -241,25 +244,28 @@ function Chart({
               cx={x(d.year)}
               cy={y(d.mark_value)}
               r={hover === i ? 5 : 3}
-              fill={d.mark_value === d.best.mark_value ? "#f97316" : "#9ca3af"}
-              stroke="#ffffff"
+              fill={d.mark_value === d.best.mark_value ? "var(--color-orange-600)" : "var(--color-neutral-500)"}
+              stroke="var(--color-neutral-950)"
               strokeWidth="1"
             />
           ))}
-          {/* invisible hover bands, one per year */}
+          {/* invisible bands, one per year: hover, tap (pointerdown), keyboard focus and Enter/Space all select the year */}
           {pts.map((d, i) => {
             const left = i === 0 ? PAD.l : (x(pts[i - 1].year) + x(d.year)) / 2;
             const right = i === pts.length - 1 ? W - PAD.r : (x(d.year) + x(pts[i + 1].year)) / 2;
             return (
-              <rect key={`h${d.year}`} x={left} y={PAD.t} width={Math.max(1, right - left)} height={H - PAD.t - PAD.b} fill="transparent" onMouseEnter={() => setHover(i)} />
+              <rect key={`h${d.year}`} x={left} y={PAD.t} width={Math.max(1, right - left)} height={H - PAD.t - PAD.b} fill="transparent" tabIndex={0} role="button"
+                aria-label={`${d.year}: ${d.mark_display}${d.athlete ? `, ${d.athlete}` : ""}`}
+                onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)} onPointerDown={() => setHover(i)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHover(i); } }} />
             );
           })}
-          {h && <line x1={x(h.year)} x2={x(h.year)} y1={PAD.t} y2={H - PAD.b} stroke="#9ca3af" strokeDasharray="3 3" pointerEvents="none" />}
+          {h && <line x1={x(h.year)} x2={x(h.year)} y1={PAD.t} y2={H - PAD.b} stroke="var(--color-neutral-500)" strokeDasharray="3 3" pointerEvents="none" />}
         </svg>
       </div>
       {/* year detail BELOW the chart (fixed height, no layout jump): a floating tooltip over the plot covered the
           other years' dots and made them impossible to hover */}
-      <div className="mt-1 min-h-[3.25rem] rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-xs">
+      <div aria-live="polite" className="mt-1 min-h-[3.25rem] rounded-md border border-neutral-800 bg-neutral-900/60 px-2.5 py-1.5 text-xs">
         {h ? (
           <>
             <div className="flex items-baseline gap-2">
@@ -272,7 +278,7 @@ function Chart({
             </div>
           </>
         ) : (
-          <div className="text-neutral-500 pt-2.5">Hover a year to see its best mark</div>
+          <div className="text-neutral-500 pt-2.5">Tap or hover a year to see its best mark</div>
         )}
       </div>
       {recordPosition === "bottom" && recordCard}
