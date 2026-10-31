@@ -28,14 +28,6 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-function dayLabel(iso: string) {
-  const day = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = Math.round((day(new Date()) - Date.parse(iso + "T00:00:00Z")) / 86400000);
-  if (diff <= 0) return "today";
-  if (diff === 1) return "yesterday";
-  return `· ${formatDate(iso)}`;
-}
-
 function place(city: string | null, country: string | null) {
   if (!city && !country) return null;
   return [city, country].filter(Boolean).join(", ");
@@ -95,7 +87,7 @@ export default function LatestResults({
       {showFilters && !loading && shown.length > 0 && shown[0].races[0] && (
         <h2 className="flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3" suppressHydrationWarning>
           <SectionIcon name="stopwatch" />
-          Last athletics results {dayLabel(shown[0].races[0].date)}
+          Last athletics results
         </h2>
       )}
       <div className={showFilters ? "mb-3" : "hidden"}>
@@ -155,16 +147,13 @@ export default function LatestResults({
         {!loading &&
           shown.map((group, gi) => {
             const latestDate = group.races[0]?.date;
-            const label = latestDate ? dayLabel(latestDate) : "";
-            const prevDate = gi > 0 ? shown[gi - 1].races[0]?.date : undefined;
-            const newDay = heading ? gi === 0 : gi === 0 || (prevDate ? dayLabel(prevDate) : "") !== label;
             const meetHref = `/meets/${encodeURIComponent(group.event_name)}${latestDate ? `?year=${latestDate.slice(0, 4)}` : ""}`;
             return (
               <div key={group.event_name} className={gi >= 4 ? "hidden lg:block" : ""}>
-                {newDay && (heading || label) && !(gi === 0 && showFilters) && (
-                  <h2 className={`flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3 ${gi > 0 ? "mt-4" : ""}`} suppressHydrationWarning>
-                    <SectionIcon name={heading ? headingIcon : "stopwatch"} />
-                    {heading ?? `Last athletics results ${label}`}
+                {heading && gi === 0 && (
+                  <h2 className="flex items-center gap-2 bg-tint text-neutral-100 text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2 rounded-lg mb-3">
+                    <SectionIcon name={headingIcon} />
+                    {heading}
                   </h2>
                 )}
                 <div className="border border-neutral-800 rounded-xl overflow-hidden shadow-sm bg-neutral-950">
