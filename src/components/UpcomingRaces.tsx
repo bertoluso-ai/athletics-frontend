@@ -6,6 +6,7 @@ import { EVENT_GROUPS, TIER_PRIORITY, eventLabel, sortEventsAlpha } from "@/lib/
 import type { UpcomingCompetition } from "@/lib/queries";
 import Flag from "./Flag";
 import SectionIcon from "./SectionIcon";
+import { writeParam } from "@/lib/url-state";
 
 // Every tier selectable, not just OW-B: "All categories" prioritizes the
 // bigger meets (see getUpcomingCompetitions) so C-F rarely surface there on
@@ -22,16 +23,17 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" });
 }
 
-export default function UpcomingRaces({ initial }: { initial: UpcomingCompetition[] }) {
-  const [category, setCategory] = useState("");
-  const [discipline, setDiscipline] = useState("");
+export default function UpcomingRaces({ initial, initialCategory = "", initialDiscipline = "" }: { initial: UpcomingCompetition[]; initialCategory?: string; initialDiscipline?: string }) {
+  const [category, setCategory] = useState(initialCategory);
+  const [discipline, setDiscipline] = useState(initialDiscipline);
   const [rows, setRows] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    if (!category && !discipline) {
+    // la seleccion inicial (la de la URL) ya viene resuelta desde el servidor en `initial`
+    if (category === initialCategory && discipline === initialDiscipline) {
       setRows(initial);
       return;
     }
@@ -49,6 +51,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, discipline, initial, retry]);
 
   return (
@@ -66,7 +69,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
         <div className="flex items-center gap-2 flex-wrap">
           <select
             value={discipline}
-            onChange={(e) => setDiscipline(e.target.value)}
+            onChange={(e) => { setDiscipline(e.target.value); writeParam("udisc", e.target.value); }}
             className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All disciplines</option>
@@ -78,7 +81,7 @@ export default function UpcomingRaces({ initial }: { initial: UpcomingCompetitio
           </select>
           <select
             value={category}
-            onChange={(e) => setCategory(e.target.value)}
+            onChange={(e) => { setCategory(e.target.value); writeParam("ucat", e.target.value); }}
             className="flex-1 min-w-[6rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700 focus:outline-none focus:border-orange-500"
           >
             <option value="">All categories</option>

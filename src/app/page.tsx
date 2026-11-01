@@ -7,6 +7,7 @@ import LatestResults from "@/components/LatestResults";
 import UpcomingRaces from "@/components/UpcomingRaces";
 import SectionBar from "@/components/SectionBar";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
+import { EVENT_GROUPS } from "@/lib/events";
 
 // Se renderiza en cada visita (no ISR): con ISR, tras un rato sin visitas el primer visitante recibia una copia vieja de la
 // portada (el 1-nov se veian resultados del 25-28 oct con los del 30-31 ya cargados). Las consultas pesadas siguen cacheadas
@@ -17,15 +18,26 @@ const CURRENT_YEAR = new Date().getFullYear();
 const RECENT_TOP_DAYS = 7; // una top competition cuenta como "reciente" (va arriba) durante estos dias
 const TOP_TIERS = "OW,DF,GW"; // Olympics/Worlds, Diamond League Final and world-level championships
 
-export default async function Home() {
+type HomeSearch = { ucat?: string; udisc?: string; pg?: string; pgen?: string; pev?: string };
+
+export default async function Home({ searchParams }: { searchParams: Promise<HomeSearch> }) {
+  const sp = await searchParams;
+  // seleccion de los widgets (Upcoming races y Best mark by year) guardada en la URL; valores no validos se ignoran
+  const progGroups = EVENT_GROUPS.filter((g) => g.key !== "relays");
+  const pGender: "Men" | "Women" = sp.pgen === "Women" ? "Women" : "Men";
+  const pGroup = progGroups.find((g) => g.key === sp.pg) ?? progGroups[0];
+  const pOptions = pGroup.events[pGender] as readonly string[];
+  const pEvent = sp.pev && pOptions.includes(sp.pev) ? sp.pev : pOptions[0];
+  const uCat = sp.ucat ?? "";
+  const uDisc = sp.udisc ?? "";
   const topSince = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
   const [races, topRaces, upcoming, progression] = await Promise.all([
     getLatestRaces(60, {}), // all categories by default: the Quality+tier score ranks the feed, so strong low-tier races surface
     // the latest big competitions (GW and above): a quiet week of
     // small meets must not bury them for a visitor who only wants the headline event
     getLatestRaces(12, { tier: TOP_TIERS, from: topSince }),
-    getUpcomingHome(10),
-    getEventYearlyProgression("100 Metres", "Men"),
+    getUpcomingHome(10, uCat || undefined, uDisc || undefined),
+    getEventYearlyProgression(pEvent, pGender),
   ]);
 
   // Una competicion top (GW o superior) RECIENTE sube al principio del feed principal (mismo orden que el resto); cuando deja de ser
@@ -52,9 +64,9 @@ export default async function Home() {
 
         {/* Upcoming races, then a compact best-mark progression chart */}
         <div className="flex flex-col gap-10 lg:gap-6">
-          <UpcomingRaces initial={upcoming} />
+          <UpcomingRaces initial={upcoming} initialCategory={uCat} initialDiscipline={uDisc} />
           <div className="hidden lg:block">
-            <HomeProgressionWidget initial={progression} />
+            <HomeProgressionWidget initial={progression} initialGender={pGender} initialGroup={pGroup.key} initialEvent={pEvent} />
           </div>
         </div>
 

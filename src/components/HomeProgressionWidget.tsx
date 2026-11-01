@@ -7,6 +7,7 @@ import { EVENT_GROUPS, eventLabel, isFieldEvent, sortEventsAlpha } from "@/lib/e
 import { eventSlug } from "@/lib/slugs";
 import type { YearProgressionPoint } from "@/lib/queries";
 import YearlyProgressionChart from "./YearlyProgressionChart";
+import { writeParam } from "@/lib/url-state";
 
 const GROUPS = EVENT_GROUPS.filter((g) => g.key !== "relays"); // no single progression line for a team event
 
@@ -16,11 +17,22 @@ type Gender = "Men" | "Women";
 // discipline picker -- replaces the old Best Marks of Year list, which ran
 // far taller than the rest of the center column. Links out to the full
 // Disciplines browser.
-export default function HomeProgressionWidget({ initial }: { initial: YearProgressionPoint[] }) {
-  const [gender, setGender] = useState<Gender>("Men");
-  const [groupKey, setGroupKey] = useState<string>(GROUPS[0].key);
-  const group = GROUPS.find((g) => g.key === groupKey)!;
-  const [event, setEvent] = useState<string>(group.events[gender][0]);
+export default function HomeProgressionWidget({
+  initial,
+  initialGender = "Men",
+  initialGroup = GROUPS[0].key,
+  initialEvent,
+}: {
+  initial: YearProgressionPoint[];
+  initialGender?: Gender;
+  initialGroup?: string;
+  initialEvent?: string;
+}) {
+  const [gender, setGender] = useState<Gender>(initialGender);
+  const [groupKey, setGroupKey] = useState<string>(initialGroup);
+  const group = GROUPS.find((g) => g.key === groupKey) ?? GROUPS[0];
+  const startEvent = initialEvent ?? (GROUPS.find((g) => g.key === initialGroup) ?? GROUPS[0]).events[initialGender][0];
+  const [event, setEvent] = useState<string>(startEvent);
   const [data, setData] = useState<YearProgressionPoint[]>(initial);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -33,7 +45,8 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
   }, [groupKey, gender]);
 
   useEffect(() => {
-    if (event === "100 Metres" && gender === "Men") {
+    // la seleccion inicial (la de la URL, o 100 m hombres) ya viene resuelta desde el servidor en `initial`
+    if (event === startEvent && gender === initialGender) {
       setData(initial);
       return;
     }
@@ -48,6 +61,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, gender, initial, retry]);
 
   return (
@@ -58,7 +72,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
           {(["Men", "Women"] as Gender[]).map((g) => (
             <button
               key={g}
-              onClick={() => setGender(g)}
+              onClick={() => { setGender(g); writeParam("pgen", g === "Men" ? "" : g); }}
               className={`px-2 py-1 rounded ${gender === g ? "bg-orange-500 text-black font-semibold" : "text-neutral-400"}`}
             >
               {g === "Men" ? "M" : "W"}
@@ -67,7 +81,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
         </div>
         <select
           value={groupKey}
-          onChange={(e) => setGroupKey(e.target.value)}
+          onChange={(e) => { setGroupKey(e.target.value); writeParam("pg", e.target.value === GROUPS[0].key ? "" : e.target.value); writeParam("pev", ""); }}
           className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700"
         >
           {GROUPS.map((g) => (
@@ -78,7 +92,7 @@ export default function HomeProgressionWidget({ initial }: { initial: YearProgre
         </select>
         <select
           value={event}
-          onChange={(e) => setEvent(e.target.value)}
+          onChange={(e) => { setEvent(e.target.value); writeParam("pev", e.target.value); }}
           className="flex-1 min-w-[7rem] bg-neutral-800 text-xs rounded px-2 py-1.5 border border-neutral-700"
         >
           {sortEventsAlpha(group.events[gender] as readonly string[]).map((ev) => (
