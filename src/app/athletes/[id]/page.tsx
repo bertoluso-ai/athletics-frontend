@@ -17,6 +17,7 @@ import {
   getAthleteNationalityHistory,
   getAthleteGlobalIndex,
   getAthleteHomonyms,
+  getAthleteLowConfidence,
   getAthleteIdBySlug,
 } from "@/lib/queries";
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
@@ -120,7 +121,7 @@ export default async function AthletePage({
   // field was long since ready from BigQuery. It's fetched by the
   // <AthletePhoto>/<AthletePhotoToast> Server Components below instead,
   // each wrapped in <Suspense> so they stream in independently.
-  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results, globalIndex] = await Promise.all([
+  const [bestResults, personalBests, yearlyPoints, championships, recordStats, natHistory, results, globalIndex, lowConfidence] = await Promise.all([
     getAthleteBestResults(id, 7),
     getAthletePersonalBests(id, includeIllegalWind, indoor),
     getAthleteYearlyPoints(id, info.gender ?? ""),
@@ -129,6 +130,7 @@ export default async function AthletePage({
     getAthleteNationalityHistory(id),
     event ? getAthleteResultsForYear(id, year, event) : Promise.resolve([]),
     getAthleteGlobalIndex(id),
+    getAthleteLowConfidence(id),
   ]);
   // earlier countries the athlete competed for (URS -> UKR, transfers...)
   const formerNats = natHistory.filter((h) => h.nationality !== info.nationality);
@@ -599,6 +601,32 @@ export default async function AthletePage({
               initialWinsOnly={winsParam === "1"}
             />
           </section>
+
+          {lowConfidence.length > 0 && (
+            <section className="lg:col-start-1 lg:col-span-2 lg:row-start-3">
+              <details className="border border-neutral-800 rounded-lg overflow-hidden">
+                <summary className="cursor-pointer bg-neutral-900 px-3 sm:px-4 py-2 text-[13px] font-semibold text-neutral-300">
+                  Unverified results ({lowConfidence.length}) — from an old scanned archive
+                </summary>
+                <p className="px-3 sm:px-4 py-2 text-xs text-neutral-500">
+                  These results come from a scanned archive (Track &amp; Field News, 1975–1995) and may contain errors in the athlete&apos;s name, gender or meeting.
+                  They are not counted in rankings, bests or progression.
+                </p>
+                <div className="divide-y divide-neutral-800 text-sm" role="table" aria-label="Unverified results">
+                  {lowConfidence.map((r, i) => (
+                    <div key={i} role="row" className="grid grid-cols-[5.5rem_minmax(0,1fr)_5rem] gap-x-2 px-3 sm:px-4 py-1.5 items-baseline">
+                      <span role="cell" className="text-xs text-neutral-500 tabular-nums">{r.date ?? "—"}</span>
+                      <span role="cell" className="min-w-0">
+                        <span className="truncate block">{eventLabel(r.athletics_event)} · {r.event_name}</span>
+                        {r.reasons && <span className="block text-[11px] text-neutral-500">Possible issue: {r.reasons}</span>}
+                      </span>
+                      <span role="cell" className="text-right font-mono text-neutral-400">{r.mark_display ?? ""}</span>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            </section>
+          )}
         </div>
       </main>
       <Suspense fallback={null}>

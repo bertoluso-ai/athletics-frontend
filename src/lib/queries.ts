@@ -128,6 +128,32 @@ export type AthleteHomonym = {
   main_event: string | null;
 };
 
+export type LowConfidenceResult = {
+  date: string | null;
+  event_name: string;
+  athletics_event: string;
+  mark_display: string | null;
+  place: number | null;
+  nationality: string | null;
+  reasons: string | null;
+  source_name: string | null;
+};
+
+// Resultados de baja confianza (archivo T&FN leido por OCR: nombre roto, genero dudoso...). Quedan fuera de rankings, mejores marcas y
+// progresion (no estan en events) y la ficha los muestra aparte como "dato dudoso". Tabla low_confidence_results (ver athletics-database/
+// calendario_faltantes/correcciones). Si la tabla no existe todavia, la ficha sigue funcionando sin esa seccion.
+export async function getAthleteLowConfidence(athleteId: string): Promise<LowConfidenceResult[]> {
+  try {
+    return await pgQuery<LowConfidenceResult>(
+      `SELECT date::text AS date, event_name, athletics_event, mark_display, place, nationality, NULLIF(reasons, '') AS reasons, source_name
+       FROM low_confidence_results WHERE athlete_id = $1 ORDER BY date DESC NULLS LAST, athletics_event`,
+      [athleteId]
+    );
+  } catch {
+    return [];
+  }
+}
+
 // Atletas que comparten nombre (la URL base "/athletes/jose-de-assis" no existe cuando hay varios: cada uno lleva pais y año de
 // nacimiento, o primer año activo si no se conoce, en su slug). Devuelve los candidatos para que el visitante elija.
 export async function getAthleteHomonyms(base: string): Promise<AthleteHomonym[]> {
