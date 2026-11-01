@@ -646,7 +646,7 @@ async function _getLatestRaces(
 // exports run every 2 h).
 export const getLatestRaces = unstable_cache(
   _getLatestRaces,
-  ["latest-races-v6"],
+  ["latest-races-v7"],
   { revalidate: 300 }
 );
 
@@ -881,10 +881,18 @@ async function fetchWindow(
   // date, the blended Quality+tier score of the competition's best race decides (tier F still
   // sinks to the bottom when a tier filter is set, so a handful of parkrun-level results never
   // bury a real -- if slightly older -- competition); the raw tier priority only breaks exact ties.
+  // Una competicion F (parkrun, escolares, ligas de club...) nunca desplaza a una B-E de los ultimos 3 dias, aunque sea de un
+  // dia mas reciente: sin esto, dos F del dia 31 dejaban fuera de la portada a una D del dia 30. Pasados esos 3 dias, o entre F,
+  // vuelve a mandar la recencia.
+  const top3Cut = isoDaysAgo(3);
+  const bucket = (g: { competition_level: string | null; races: Race[] }) => (g.competition_level !== "F" && (g.races[0]?.date ?? "") >= top3Cut ? 0 : 1);
   const orderedGroups = Array.from(groups.values()).sort((a, b) => {
     const fa = tier && a.competition_level === "F" ? 1 : 0;
     const fb = tier && b.competition_level === "F" ? 1 : 0;
     if (fa !== fb) return fa - fb;
+    const ba = bucket(a);
+    const bb = bucket(b);
+    if (ba !== bb) return ba - bb;
     const da = a.races[0]?.date ?? "";
     const db = b.races[0]?.date ?? "";
     if (da !== db) return da < db ? 1 : -1;
