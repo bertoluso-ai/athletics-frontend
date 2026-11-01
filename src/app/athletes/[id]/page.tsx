@@ -188,7 +188,7 @@ export default async function AthletePage({
             className="ml-auto lg:ml-3 text-xs font-semibold px-2.5 py-1 rounded border border-neutral-700 text-neutral-300 hover:border-orange-500 hover:text-orange-400"
             title="Head-to-head: compare with another athlete"
           >
-            H2H
+            Compare
           </Link>
         </h1>
 
