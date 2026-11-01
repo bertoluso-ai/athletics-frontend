@@ -8,7 +8,10 @@ import UpcomingRaces from "@/components/UpcomingRaces";
 import SectionBar from "@/components/SectionBar";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 
-export const revalidate = 3600; // 1h: no need to hit BigQuery on every visit
+// Se renderiza en cada visita (no ISR): con ISR, tras un rato sin visitas el primer visitante recibia una copia vieja de la
+// portada (el 1-nov se veian resultados del 25-28 oct con los del 30-31 ya cargados). Las consultas pesadas siguen cacheadas
+// 5 min con unstable_cache (getLatestRaces...), asi que la carga sobre Postgres es la misma.
+export const dynamic = "force-dynamic";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const RECENT_TOP_DAYS = 7; // una top competition cuenta como "reciente" (va arriba) durante estos dias
