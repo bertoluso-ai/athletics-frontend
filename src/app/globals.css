@@ -13,6 +13,7 @@
 }
 
 @theme {
+  /* Estilo denso (tipo PCS): radios pequenos y fijos para todo el sitio; las clases rounded-* de los componentes los toman de aqui. */
   --radius-sm: 0.125rem;
   --radius-md: 0.25rem;
   --radius-lg: 0.3125rem;
@@ -54,6 +55,18 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* <select> con el mismo aspecto en todos los navegadores (en iOS/Safari conservaban el estilo del sistema): sin apariencia
+   nativa y con chevron propio. Va sin capa para ganar a los utilitarios de padding de Tailwind. */
+select:not([multiple]):not([size]) {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M2 4.5l4 4 4-4' fill='none' stroke='%235c6370' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 0.65rem;
+  padding-right: 1.5rem;
 }
 
 /* Foco de teclado visible en todo elemento interactivo (los componentes quitan
