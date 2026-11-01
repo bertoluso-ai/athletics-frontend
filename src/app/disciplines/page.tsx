@@ -19,7 +19,8 @@ export default function DisciplinesIndex() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {EVENT_GROUPS.map((group) => {
             // pruebas del grupo (union hombres + mujeres, sin repetir) y a que generos aplica cada una
-            const events = Array.from(new Set<string>([...group.events.Men, ...group.events.Women]));
+            const mixedList = ("Mixed" in group.events ? (group.events as { Mixed: readonly string[] }).Mixed : []) as readonly string[];
+            const events = Array.from(new Set<string>([...group.events.Men, ...group.events.Women, ...mixedList]));
             return (
               <section key={group.key} className="border border-neutral-800 rounded-xl overflow-hidden bg-neutral-950">
                 <h2 className="bg-tint text-[13px] font-extrabold uppercase tracking-wide px-3 sm:px-4 py-2">{group.label}</h2>
@@ -29,6 +30,7 @@ export default function DisciplinesIndex() {
                     const label = group.names[ev] ?? ev;
                     const men = (group.events.Men as readonly string[]).includes(ev);
                     const women = (group.events.Women as readonly string[]).includes(ev);
+                    const mixed = mixedList.includes(ev);
                     return (
                       <li key={ev} className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 text-sm">
                         <span className="truncate">{label}</span>
@@ -41,6 +43,11 @@ export default function DisciplinesIndex() {
                           {women && (
                             <Link href={`/disciplines/${slug}?gender=Women`} aria-label={`${label}, women`} className="px-2 py-0.5 rounded border border-neutral-700 text-neutral-300 hover:border-orange-500 hover:text-orange-400">
                               Women
+                            </Link>
+                          )}
+                          {mixed && (
+                            <Link href={`/disciplines/${slug}?gender=Mixed`} aria-label={`${label}, mixed`} className="px-2 py-0.5 rounded border border-neutral-700 text-neutral-300 hover:border-orange-500 hover:text-orange-400">
+                              Mixed
                             </Link>
                           )}
                         </span>
