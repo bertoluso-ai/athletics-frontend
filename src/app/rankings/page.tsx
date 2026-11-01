@@ -460,15 +460,16 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
             noun="athletes"
             initial={20}
             scrollOnMobile
+            tableLabel="Athlete ranking"
             header={
-              <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
-                <span>#</span>
-                {movement && <span>Prev</span>}
-                {movement && <span>Diff</span>}
-                <span>Athlete</span>
-                <span className={`hidden sm:block ${sortBy === "mark" ? "text-orange-400" : ""}`}>Best mark</span>
-                <span className="hidden sm:block text-right">Wins</span>
-                <span className="text-right">
+              <div role="row" className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] uppercase tracking-wide text-neutral-500`}>
+                <span role="columnheader">#</span>
+                {movement && <span role="columnheader">Prev</span>}
+                {movement && <span role="columnheader">Diff</span>}
+                <span role="columnheader">Athlete</span>
+                <span role="columnheader" aria-sort={sortBy === "mark" ? "ascending" : undefined} className={`hidden sm:block ${sortBy === "mark" ? "text-orange-400" : ""}`}>Best mark</span>
+                <span role="columnheader" className="hidden sm:block text-right">Wins</span>
+                <span role="columnheader" aria-sort={sortBy === "points" ? "descending" : undefined} className="text-right">
                   <span className="sm:hidden">{sortBy === "mark" ? "Mark" : "Points"}</span>
                   <span className={`hidden sm:inline ${sortBy === "points" ? "text-orange-400" : ""}`}>Points</span>
                 </span>
@@ -486,15 +487,15 @@ async function IndividualRanking({ view, sp }: { view: RankingView; sp: SP }) {
       ) : (
         <>
         {/* Table */}
-        <div className="border border-neutral-800 rounded-lg overflow-hidden bg-neutral-950">
-          <div className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide bg-tint text-neutral-300`}>
-            <span>#</span>
-            {movement && <span>Prev</span>}
-            {movement && <span>Diff</span>}
-            <span>Athlete</span>
-            <span className="hidden sm:block">{discipline ? "Best mark" : "Main event"}</span>
-            <span className="hidden sm:block text-right">Wins</span>
-            <span className="text-right">Points</span>
+        <div role="table" aria-label="Athlete ranking" className="border border-neutral-800 rounded-lg overflow-hidden bg-neutral-950">
+          <div role="row" className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 px-3 py-1.5 text-[10px] font-extrabold uppercase tracking-wide bg-tint text-neutral-300`}>
+            <span role="columnheader">#</span>
+            {movement && <span role="columnheader">Prev</span>}
+            {movement && <span role="columnheader">Diff</span>}
+            <span role="columnheader">Athlete</span>
+            <span role="columnheader" className="hidden sm:block">{discipline ? "Best mark" : "Main event"}</span>
+            <span role="columnheader" className="hidden sm:block text-right">Wins</span>
+            <span role="columnheader" aria-sort="descending" className="text-right">Points</span>
           </div>
           <div className="divide-y divide-neutral-800">
             {rows.map((r) => (
@@ -693,12 +694,13 @@ function RankingLine({
   return (
     <Link
       href={athleteHref(r.athlete_id, athleteSlugs)}
+      role="row"
       className={`grid ${cols(movement)} gap-x-1 sm:gap-x-2 items-center px-3 py-2 text-sm ${r.rank <= 3 ? "bg-orange-500/5" : "bg-neutral-950"} hover:bg-neutral-800`}
     >
-      <span className={`tabular-nums ${r.rank <= 3 ? "text-orange-400 font-bold" : "text-neutral-300"}`}>{r.rank}</span>
-      {movement && <span className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
+      <span role="cell" className={`tabular-nums ${r.rank <= 3 ? "text-orange-400 font-bold" : "text-neutral-300"}`}>{r.rank}</span>
+      {movement && <span role="cell" className="text-xs text-neutral-500 tabular-nums">{r.prev_rank ?? "—"}</span>}
       {movement && (
-        <span className="text-xs tabular-nums">
+        <span role="cell" className="text-xs tabular-nums">
           {diff === null ? (
             <span className="text-sky-400" title="New in the ranking">new</span>
           ) : diff > 0 ? (
@@ -710,16 +712,16 @@ function RankingLine({
           )}
         </span>
       )}
-      <span className="flex items-center gap-2 min-w-0">
+      <span role="cell" className="flex items-center gap-2 min-w-0">
         <Flag code={r.nationality} />
         <span className="truncate">{r.display_name}</span>
       </span>
-      <span className={`hidden sm:block text-xs truncate ${discipline ? "font-mono text-neutral-300" : "text-neutral-500"}`}>
+      <span role="cell" className={`hidden sm:block text-xs truncate ${discipline ? "font-mono text-neutral-300" : "text-neutral-500"}`}>
         {discipline ? r.best_mark ?? "" : r.main_event ? eventLabel(r.main_event) : ""}
       </span>
-      <span className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins || ""}</span>
+      <span role="cell" className="hidden sm:block text-right text-xs text-neutral-400 tabular-nums">{r.wins || ""}</span>
       {/* phones: the chosen metric; desktop: points (mark has its own column) */}
-      <span className="text-right font-mono text-orange-400 tabular-nums">
+      <span role="cell" className="text-right font-mono text-orange-400 tabular-nums">
         {markFirst ? (
           <>
             <span className="sm:hidden">{r.best_mark ?? "—"}</span>

@@ -14,12 +14,15 @@ export default function ViewAllList({
   noun,
   header,
   scrollOnMobile = false,
+  tableLabel,
 }: {
   items: ReactNode[];
   initial: number;
   noun: string;
   header?: ReactNode;
   scrollOnMobile?: boolean;
+  // si se pasa, el listado se anuncia como tabla (role=table); cabecera y filas deben traer role=row/columnheader/cell
+  tableLabel?: string;
 }) {
   const [isDesktop, setIsDesktop] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -42,7 +45,7 @@ export default function ViewAllList({
 
   return (
     <>
-      <div className={box}>
+      <div className={box} {...(tableLabel ? { role: "table", "aria-label": tableLabel } : {})}>
         {header}
         {shown}
       </div>
