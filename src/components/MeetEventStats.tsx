@@ -2,7 +2,7 @@ import Link from "next/link";
 import Flag from "./Flag";
 import { eventLabel } from "@/lib/events";
 import { getMeetEventStats } from "@/lib/meetStats";
-import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import { getAthletePhotoForAthlete, photoCredit } from "@/lib/wikipedia";
 import PhotoCreditsToast from "./PhotoCreditsToast";
 import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
@@ -33,7 +33,7 @@ export default async function MeetEventStats({
   const s = await getMeetEventStats(eventName, event, gender);
   // record holder's photo (not for relays: that's a team)
   const recordPhoto =
-    s.meetRecord && !s.relay && s.meetRecord.display_name ? await getAthletePhotoInfo(s.meetRecord.display_name) : null;
+    s.meetRecord && !s.relay && s.meetRecord.display_name ? await getAthletePhotoForAthlete(s.meetRecord.athlete_id, s.meetRecord.display_name) : null;
   const athleteSlugs = await getAthleteSlugs(
     [s.meetRecord?.athlete_id, ...s.winners.map((w) => w.athlete_id)].filter((id): id is string => !!id)
   );

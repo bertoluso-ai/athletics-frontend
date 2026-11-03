@@ -358,11 +358,42 @@ export async function getAthletePhotosBatch(
 // Fotos para las filas de una lista (rankings, mejores marcas): UNA lectura de cache por la clave (nombre, año de nacimiento) -- la misma que
 // usa la ficha del atleta -- y busqueda en vivo, con pausa, solo para los fallos. Antes las API de listas llamaban a getAthletePhoto(nombre) sin
 // año: otra clave (nombre, 0), otra cache y una rafaga de busquedas en paralelo que Wikimedia limitaba.
+//
+// El año de nacimiento sale de la fila si la trae; si no, se lee por athlete_id con LA MISMA expresion que la ficha (getAthleteInfo), para que la clave
+// de la cache coincida siempre con la de la ficha.
+export async function birthYearsByAthleteId(ids: string[]): Promise<Map<string, number | null>> {
+  const out = new Map<string, number | null>();
+  const uniq = [...new Set(ids.filter(Boolean))];
+  if (uniq.length === 0) return out;
+  try {
+    const rows = await pgQuery<{ athlete_id: string; birth_year: number | null }>(
+      `SELECT athlete_id, (ARRAY_AGG(birth_year) FILTER (WHERE birth_year IS NOT NULL))[1] AS birth_year
+       FROM events WHERE athlete_id = ANY($1::text[]) GROUP BY athlete_id`,
+      [uniq]
+    );
+    for (const r of rows) out.set(r.athlete_id, r.birth_year ?? null);
+  } catch {
+    // sin año: se usara la clave sin año, como antes
+  }
+  return out;
+}
+
 export async function photoUrlsForRows<T extends { display_name: string }>(rows: T[]): Promise<(string | null)[]> {
-  const by = (r: T) => (r as { birth_year?: number | null }).birth_year ?? null;
+  const idOf = (r: T) => (r as { athlete_id?: string | null }).athlete_id ?? null;
+  const hasYear = (r: T) => "birth_year" in (r as object);
+  const missing = rows.filter((r) => !hasYear(r) && idOf(r)).map((r) => idOf(r)!);
+  const looked = await birthYearsByAthleteId(missing);
+  const by = (r: T): number | null => (hasYear(r) ? ((r as { birth_year?: number | null }).birth_year ?? null) : (looked.get(idOf(r) ?? "") ?? null));
   const map = await getAthletePhotosBatch(rows.map((r) => ({ name: r.display_name, birthYear: by(r) })));
   return rows.map((r) => map.get(photoKey(r.display_name, by(r)))?.url ?? null);
 }
+
+// Foto de UN atleta conocido por athlete_id (podios, records, progresiones): misma clave que la ficha.
+export const getAthletePhotoForAthlete = cache(async (athleteId: string | null | undefined, name: string): Promise<AthletePhoto | null> => {
+  if (!name) return null;
+  const by = athleteId ? ((await birthYearsByAthleteId([athleteId])).get(athleteId) ?? null) : null;
+  return getAthletePhotoInfo(name, by);
+});
 
 // One-line credit, e.g. "Photo: Jane Doe, CC BY-SA 4.0, via Wikimedia Commons"
 export function photoCredit(p: AthletePhoto) {

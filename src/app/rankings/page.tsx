@@ -18,7 +18,7 @@ import { flagUrlWide } from "@/lib/flags";
 import { AREAS } from "@/lib/country-data";
 import { EVENT_GROUPS } from "@/lib/events";
 import { eventLabel } from "@/lib/events";
-import { getAthletePhotoInfo, getAthletePhotosBatch, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
+import { getAthletePhotoForAthlete, getAthletePhotosBatch, photoCredit, type AthletePhoto } from "@/lib/wikipedia";
 import {
   getIndividualRanking,
   getAllTimeRanking,
@@ -944,7 +944,7 @@ async function ProgressionBox({ event, data }: { event: string; data: Awaited<Re
     (b, d) => (!b || (field ? d.mark_value > b.mark_value : d.mark_value < b.mark_value) ? d : b),
     null
   );
-  const photo = best?.athlete ? await getAthletePhotoInfo(best.athlete) : null;
+  const photo = best?.athlete ? await getAthletePhotoForAthlete(best.athlete_id, best.athlete) : null;
   return (
     <section className="mb-8 border border-neutral-800 rounded-lg p-3 bg-neutral-950">
       <div className="text-[11px] uppercase tracking-wide text-neutral-400 mb-1">{eventLabel(event)} · best mark by year</div>

@@ -8,7 +8,7 @@ import EventFilters from "@/components/EventFilters";
 import LinkSelect from "@/components/LinkSelect";
 import YearlyProgressionChart from "@/components/YearlyProgressionChart";
 import { GenericAthlete } from "@/components/Avatar";
-import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
+import { getAthletePhotoForAthlete, photoCredit } from "@/lib/wikipedia";
 import {
   getEventAllTimeBest, getEventYearBestMarks,
   getEventAllTimeBestRelay, getEventYearBestMarksRelay,
@@ -80,8 +80,8 @@ function RelayMarkRowItem({ m, rank }: { m: RelayMarkRow; rank: number }) {
   );
 }
 
-async function PodiumPhoto({ name, gender, nationality }: { name: string; gender: string; nationality: string | null }) {
-  const photo = await getAthletePhotoInfo(name);
+async function PodiumPhoto({ athleteId, name, gender, nationality }: { athleteId: string; name: string; gender: string; nationality: string | null }) {
+  const photo = await getAthletePhotoForAthlete(athleteId, name);
   return photo ? (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={photo.url} alt={name} title={photoCredit(photo)} className="absolute inset-0 w-full h-full object-cover" />
@@ -109,7 +109,7 @@ async function Podium({ rows, gender, athleteSlugs }: { rows: MarkRow[]; gender:
           className={`group flex flex-col rounded-xl border ${ring[i]} bg-neutral-900/60 overflow-hidden hover:bg-neutral-800`}
         >
           <span className={`relative w-full ${i === 1 ? "aspect-[3/4]" : "aspect-[4/5]"} bg-neutral-800`}>
-            <PodiumPhoto name={r.display_name} gender={gender} nationality={r.nationality} />
+            <PodiumPhoto athleteId={r.athlete_id} name={r.display_name} gender={gender} nationality={r.nationality} />
             <span className="absolute top-1.5 left-1.5 text-xl sm:text-2xl drop-shadow">{medal[i]}</span>
           </span>
           <span className="px-2 py-2 text-center">
@@ -258,7 +258,7 @@ export default async function DisciplinePage({
     null
   );
   // Relay progression points carry a country name in `athlete` -- no photo lookup for those.
-  const bestPhoto = !isRelay && bestEver?.athlete ? await getAthletePhotoInfo(bestEver.athlete) : null;
+  const bestPhoto = !isRelay && bestEver?.athlete ? await getAthletePhotoForAthlete(bestEver.athlete_id, bestEver.athlete) : null;
 
   const baseHref = (over: { gender?: string; event?: string }) => {
     const q = new URLSearchParams();
