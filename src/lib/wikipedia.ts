@@ -30,7 +30,7 @@ import { pgQuery } from "./pg";
 // anonymous bursts.
 const DAY = {
   next: { revalidate: 60 * 60 * 24 },
-  headers: { "User-Agent": "athleticsinforanking.com photo lookup (https://athleticsinforanking.com)" },
+  headers: { "User-Agent": process.env.PHOTO_LOOKUP_UA ?? "athleticsinforanking.com photo lookup (https://athleticsinforanking.com)" },
 };
 
 const ATHLETICS_KEYWORDS = [
@@ -104,15 +104,28 @@ export type AthletePhoto = {
   sourceUrl: string; // Commons file page, where the full credit lives
 };
 
+// Fallo transitorio (429, 5xx, red caida): NO significa "no hay foto". Antes se devolvia null igual que un "no encontrado" y el
+// resultado se guardaba en athlete_photos como "sin foto" para siempre; ahora se propaga y getAthletePhotoInfo no escribe la cache.
+class TransientError extends Error {}
+
 async function getJson<T>(url: string): Promise<T | null> {
+  let res: Response;
   try {
-    const res = await fetch(url, DAY);
-    if (!res.ok) return null;
+    res = await fetch(url, DAY);
+  } catch {
+    throw new TransientError("network");
+  }
+  if (res.status === 429 || res.status >= 500) throw new TransientError(`http ${res.status}`);
+  if (!res.ok) return null;
+  try {
     return (await res.json()) as T;
   } catch {
-    return null;
+    throw new TransientError("bad json");
   }
 }
+
+// Un "sin foto" guardado caduca: pasado este tiempo se vuelve a buscar (puede haber aparecido pagina o imagen en Wikipedia/Commons).
+const NEGATIVE_TTL_DAYS = 30;
 
 function stripHtml(s: string | undefined) {
   if (!s) return null;
@@ -204,16 +217,18 @@ async function fromWikidata(name: string, birthYear?: number | null): Promise<At
   return null;
 }
 
-type PhotoCacheRow = { url: string | null; author: string | null; license: string | null; source_url: string | null };
+type PhotoCacheRow = { url: string | null; author: string | null; license: string | null; source_url: string | null; stale_negative?: boolean };
 
 async function readPhotoCache(name: string, birthYearKey: number): Promise<{ hit: true; photo: AthletePhoto | null } | { hit: false }> {
   try {
     const rows = await pgQuery<PhotoCacheRow>(
-      `SELECT url, author, license, source_url FROM athlete_photos WHERE name = $1 AND birth_year = $2`,
+      `SELECT url, author, license, source_url, (url IS NULL AND resolved_at < now() - interval '${NEGATIVE_TTL_DAYS} days') AS stale_negative
+       FROM athlete_photos WHERE name = $1 AND birth_year = $2`,
       [name, birthYearKey]
     );
     if (rows.length === 0) return { hit: false };
     const row = rows[0];
+    if (row.stale_negative) return { hit: false };
     return { hit: true, photo: row.url ? { url: row.url, author: row.author, license: row.license, sourceUrl: row.source_url! } : null };
   } catch {
     // Postgres unreachable or the table isn't there yet -- fall through to
@@ -246,10 +261,34 @@ export const getAthletePhotoInfo = cache(async (name: string, birthYear?: number
   const cached = await readPhotoCache(name, birthYearKey);
   if (cached.hit) return cached.photo;
 
-  const photo = (await fromWikipedia(name)) ?? (await fromWikidata(name, birthYear));
-  writePhotoCache(name, birthYearKey, photo);
-  return photo;
+  try {
+    const photo = (await fromWikipedia(name)) ?? (await fromWikidata(name, birthYear));
+    writePhotoCache(name, birthYearKey, photo);
+    return photo;
+  } catch (e) {
+    if (e instanceof TransientError) return null; // no se guarda: se reintenta en la siguiente visita
+    throw e;
+  }
 });
+
+// Para el rellenado por lotes (scripts/backfill-athlete-photos.ts): busca en vivo SIN leer la cache y la sobrescribe, salvo que haya un fallo
+// transitorio (entonces no toca la cache y devuelve "error" para reintentar mas tarde).
+export async function refreshAthletePhoto(name: string, birthYear?: number | null): Promise<"found" | "none" | "error"> {
+  try {
+    const photo = (await fromWikipedia(name)) ?? (await fromWikidata(name, birthYear));
+    await pgQuery(
+      `INSERT INTO athlete_photos (name, birth_year, url, author, license, source_url, resolved_at)
+       VALUES ($1, $2, $3, $4, $5, $6, now())
+       ON CONFLICT (name, birth_year) DO UPDATE
+         SET url = EXCLUDED.url, author = EXCLUDED.author, license = EXCLUDED.license, source_url = EXCLUDED.source_url, resolved_at = now()`,
+      [name, birthYear ?? 0, photo?.url ?? null, photo?.author ?? null, photo?.license ?? null, photo?.sourceUrl ?? null]
+    );
+    return photo ? "found" : "none";
+  } catch (e) {
+    if (e instanceof TransientError) return "error";
+    throw e;
+  }
+}
 
 // Back-compatible URL-only helper (lists, avatars).
 export async function getAthletePhoto(name: string, birthYear?: number | null): Promise<string | null> {
@@ -281,7 +320,8 @@ export async function getAthletePhotosBatch(
   let rows: Row[] = [];
   try {
     rows = await pgQuery<Row>(
-      `SELECT name, birth_year, url, author, license, source_url FROM athlete_photos
+      `SELECT name, birth_year, url, author, license, source_url,
+         (url IS NULL AND resolved_at < now() - interval '${NEGATIVE_TTL_DAYS} days') AS stale_negative FROM athlete_photos
        WHERE (name, birth_year) IN (
          SELECT * FROM UNNEST($1::text[], $2::int[])
        )`,
@@ -290,7 +330,7 @@ export async function getAthletePhotosBatch(
   } catch {
     // fall through -- everyone below is treated as a miss
   }
-  const cachedByKey = new Map(rows.map((r) => [photoKey(r.name, r.birth_year), r]));
+  const cachedByKey = new Map(rows.filter((r) => !r.stale_negative).map((r) => [photoKey(r.name, r.birth_year), r]));
 
   const misses: typeof keyed = [];
   for (const p of keyed) {
@@ -313,6 +353,15 @@ export async function getAthletePhotosBatch(
   }
 
   return result;
+}
+
+// Fotos para las filas de una lista (rankings, mejores marcas): UNA lectura de cache por la clave (nombre, año de nacimiento) -- la misma que
+// usa la ficha del atleta -- y busqueda en vivo, con pausa, solo para los fallos. Antes las API de listas llamaban a getAthletePhoto(nombre) sin
+// año: otra clave (nombre, 0), otra cache y una rafaga de busquedas en paralelo que Wikimedia limitaba.
+export async function photoUrlsForRows<T extends { display_name: string }>(rows: T[]): Promise<(string | null)[]> {
+  const by = (r: T) => (r as { birth_year?: number | null }).birth_year ?? null;
+  const map = await getAthletePhotosBatch(rows.map((r) => ({ name: r.display_name, birthYear: by(r) })));
+  return rows.map((r) => map.get(photoKey(r.display_name, by(r)))?.url ?? null);
 }
 
 // One-line credit, e.g. "Photo: Jane Doe, CC BY-SA 4.0, via Wikimedia Commons"

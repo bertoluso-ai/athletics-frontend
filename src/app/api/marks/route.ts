@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEventYearBestMarks, getAthleteSlugs } from "@/lib/queries";
-import { getAthletePhoto } from "@/lib/wikipedia";
+import { photoUrlsForRows } from "@/lib/wikipedia";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -14,8 +14,7 @@ export async function GET(req: NextRequest) {
 
   const rows = await getEventYearBestMarks(event, gender, year, 10);
   const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id));
-  const withPhotos = await Promise.all(
-    rows.map(async (r) => ({ ...r, slug: slugs.get(r.athlete_id) ?? null, photo: await getAthletePhoto(r.display_name) }))
-  );
+  const photos = await photoUrlsForRows(rows);
+  const withPhotos = rows.map((r, i) => ({ ...r, slug: slugs.get(r.athlete_id) ?? null, photo: photos[i] }));
   return NextResponse.json(withPhotos);
 }
