@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import PageBar from "@/components/PageBar";
-import { RACE_TYPES, eventMatchesType, eventRaceKind, type RaceType } from "@/lib/raceTypes";
+import { RACE_TYPES, eventMatchesType, eventRaceKind, isIndoorOnlyEvent, type RaceType } from "@/lib/raceTypes";
 import Link from "next/link";
 import Flag from "@/components/Flag";
 import EventFilters from "@/components/EventFilters";
@@ -184,10 +184,10 @@ export default async function DisciplinePage({
   // entirely (caught live: Christian Coleman's 6.34 WR missing, "best"
   // shown was 6.42). Default to indoor for these two; sp.indoor is still
   // an explicit override either way ("true" or "false", not just absent).
-  const INDOOR_DEFAULT_EVENTS = ["60 Metres", "60 Metres Hurdles"];
+  // Lo mismo para el resto de pruebas solo de pista cubierta (50 m, 500 m, pentatlon, lanzamiento de peso): ver isIndoorOnlyEvent.
   const indoor =
     indoorEligible &&
-    (sp.indoor ? sp.indoor === "true" : INDOOR_DEFAULT_EVENTS.includes(event));
+    (sp.indoor ? sp.indoor === "true" : isIndoorOnlyEvent(event));
   const nationality = sp.nationality || undefined;
   const area = sp.area && sp.area in AREAS ? sp.area : undefined;
   // Narrow the nation dropdown to the selected area -- same fix as
@@ -208,6 +208,8 @@ export default async function DisciplinePage({
   // name. The discipline list is narrowed to that kind (Road lists road runs, Track lists track events...).
   const currentType: RaceType = indoor ? "indoor" : eventRaceKind(event);
   const eventOptions = allEventOptions.filter((ev) => eventMatchesType(ev, currentType));
+  // La prueba en pantalla siempre esta en su desplegable (un <select> con un valor que no esta entre sus opciones muestra la primera).
+  if (!eventOptions.includes(event)) eventOptions.push(event);
   // Switching type lands on a discipline of the new type: the current one if it fits, else the first.
   const typeHref = (ty: RaceType) => {
     const ev = eventMatchesType(event, ty) ? event : allEventOptions.find((e) => eventMatchesType(e, ty)) ?? event;

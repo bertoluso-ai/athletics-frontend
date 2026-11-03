@@ -42,6 +42,12 @@ export function eventRaceKind(ev: string): Exclude<RaceType, "indoor"> {
 const NEVER_INDOOR = /^(100 Metres|150 Metres|10000 Metres|110 Metres Hurdles|100 Metres Hurdles|300 Metres Hurdles|400 Metres Hurdles|Decathlon|Discus|Hammer|Javelin)|Steeplechase|Kilometres|Half Marathon/i;
 const ONLY_INDOOR = /^(50 Metres|60 Metres|60m Hurdles|500 Metres|Pentathlon|Weight Throw)/i;
 
+// Prueba que solo se corre en pista cubierta (50/60 m, 60 m vallas, 500 m, pentatlon, lanzamiento de peso pesado). Su pagina de disciplina abre en
+// Indoor por defecto: abrirla en Outdoor dejaba la prueba fuera de su propio desplegable (el navegador mostraba "2 Miles", la primera opcion).
+export function isIndoorOnlyEvent(ev: string): boolean {
+  return ONLY_INDOOR.test(ev);
+}
+
 // Does a discipline belong in the list for this type?
 export function eventMatchesType(ev: string, type: RaceType): boolean {
   const kind = eventRaceKind(ev);
