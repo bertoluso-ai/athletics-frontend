@@ -91,6 +91,11 @@ select:not([multiple]):not([size]) {
    only affordance needed; a visible scrollbar looks broken on a chip row). */
 .pill-row {
   scrollbar-width: none;
+  /* overflow-x:auto recorta tambien en vertical: sin este margen el contorno de foco/seleccion de los
+     controles (que se dibuja fuera de su caja) queda cortado por arriba. El margen negativo compensa
+     el relleno para que el espaciado entre filas no cambie. */
+  padding-top: 4px;
+  margin-top: -4px;
 }
 .pill-row::-webkit-scrollbar {
   display: none;

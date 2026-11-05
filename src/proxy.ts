@@ -29,6 +29,9 @@ function withRobots(res: NextResponse): NextResponse {
 export function proxy(req: NextRequest) {
   if (process.env.NODE_ENV !== "production" || process.env.SITE_PUBLIC === "1") return withRobots(NextResponse.next());
 
+  // Abierto sin clave pero NO publicado: SITE_OPEN=1 quita el usuario/clave y withRobots sigue mandando noindex.
+  if (process.env.SITE_OPEN === "1") return withRobots(NextResponse.next());
+
   const { pathname } = req.nextUrl;
   if (OPEN_PATH_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"))) return withRobots(NextResponse.next());
 
@@ -43,7 +46,19 @@ export function proxy(req: NextRequest) {
     try {
       const decoded = atob(header.slice(6));
       const i = decoded.indexOf(":");
-      if (i >= 0 && safeEqual(decoded.slice(0, i), user) && safeEqual(decoded.slice(i + 1), password)) return withRobots(NextResponse.next());
+      if (i >= 0) {
+        const u = decoded.slice(0, i);
+        const p = decoded.slice(i + 1);
+        if (safeEqual(u, user) && safeEqual(p, password)) return withRobots(NextResponse.next());
+        // Invitados: SITE_GUESTS="miguel:clave1,ana:clave2" (usuario:clave separados por coma; las claves no deben llevar coma ni dos puntos).
+        // Se recorren todos sin cortar antes de tiempo para no filtrar cuantos hay.
+        let ok = false;
+        for (const g of (process.env.SITE_GUESTS ?? "").split(",")) {
+          const j = g.indexOf(":");
+          if (j > 0 && safeEqual(u, g.slice(0, j).trim()) && safeEqual(p, g.slice(j + 1).trim())) ok = true;
+        }
+        if (ok) return withRobots(NextResponse.next());
+      }
     } catch {
       /* cabecera mal formada: cae al 401 */
     }
