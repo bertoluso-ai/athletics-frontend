@@ -1,4 +1,7 @@
 # Despliegue de la web de atletismo en el VPS (junto a Postgres). Uso: ver deploy/README.md
+# Nombre de proyecto propio: este VPS comparte Docker con Surki y otros sitios; sin esto Compose usaria el de la carpeta ("deploy") y se pisarian.
+name: athletics
+
 services:
   web:
     build:
@@ -38,3 +41,9 @@ services:
 volumes:
   caddy_data:
   caddy_config:
+
+# Red compartida con el Caddy del VPS (y Surki), por nombre fijo: NO renombrar.
+networks:
+  default:
+    name: deploy_default
+    external: true
