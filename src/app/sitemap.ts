@@ -6,8 +6,22 @@ import { getAllNationalities } from "@/lib/queries";
 import { pgQuery } from "@/lib/pg";
 
 const BASE = "https://athleticsinforanking.com";
-// Las fichas de atleta NO se listan: ya existen y se descubren por los enlaces de los rankings, listas historicas y ganadores (listar miles exigia
-// una consulta de 2 minutos que hacia fallar el sitemap por tiempo).
+
+// Los mejores atletas de cada genero (rnk <= 3000 del indice global ya calculado, athlete_global_index): una sola consulta de ~1 s.
+// Las demas fichas se descubren por los enlaces de rankings, listas historicas y ganadores.
+const TOP_ATHLETES_PER_GENDER = 3000;
+const topAthletePaths = unstable_cache(
+  async (): Promise<string[]> => {
+    const rows = await pgQuery<{ slug: string }>(
+      `SELECT s.slug FROM athlete_global_index g JOIN athlete_slugs s USING (athlete_id)
+        WHERE g.rnk <= $1 ORDER BY g.rnk, s.slug`,
+      [TOP_ATHLETES_PER_GENDER]
+    );
+    return rows.map((r) => `/athletes/${r.slug}`);
+  },
+  ["sitemap-top-athletes-v2"],
+  { revalidate: 86400 }
+);
 
 // Series con al menos 3 ediciones con resultados, las mas largas primero (BAUHAUS-Galan, Athletissima, mundiales...). Se usa el nombre mas reciente,
 // que es el que resuelve /meets/[name].
@@ -75,16 +89,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const disciplines = [...events].map((e) => ({ url: `${BASE}/disciplines/${eventSlug(e)}`, changeFrequency: "weekly" as const, priority: 0.7 }));
 
   let countries: MetadataRoute.Sitemap = [];
+  let athletes: MetadataRoute.Sitemap = [];
   let meets: MetadataRoute.Sitemap = [];
   let seasons: MetadataRoute.Sitemap = [];
   let records: MetadataRoute.Sitemap = [];
   try {
     countries = (await getAllNationalities()).map((c) => ({ url: `${BASE}/countries/${c.code.toLowerCase()}`, changeFrequency: "weekly" as const, priority: 0.6 }));
+    athletes = (await topAthletePaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.5 }));
     meets = (await topMeetPaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     seasons = (await seasonPaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     records = (await recordCountryCodes()).map((c) => ({ url: `${BASE}/countries/${c}/records`, changeFrequency: "monthly" as const, priority: 0.5 }));
   } catch {
     /* sin base de datos (build, error puntual): solo la parte estatica */
   }
-  return [...hubs, ...disciplines, ...seasons, ...countries, ...records, ...meets];
+  return [...hubs, ...disciplines, ...seasons, ...countries, ...records, ...meets, ...athletes];
 }
