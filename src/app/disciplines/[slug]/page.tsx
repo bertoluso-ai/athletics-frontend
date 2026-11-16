@@ -21,6 +21,7 @@ import { eventSlug } from "@/lib/slugs";
 import { AREAS } from "@/lib/country-data";
 
 export const revalidate = 3600;
+const CURRENT_YEAR_LINKS = new Date().getFullYear();
 
 // Relays get their own nation-level side data (getRelaySideData) instead
 // of the athlete-level one, so the athlete-shaped fields are left empty.
@@ -500,6 +501,23 @@ export default async function DisciplinePage({
             </aside>
           )}
         </div>
+        {!isRelay && (
+          <nav aria-label="Season rankings" className="mt-10">
+            <h2 className="text-xs font-bold uppercase tracking-wide text-neutral-500 mb-2">{eventLabel(event)}: all-time lists and season rankings</h2>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm mb-2">
+              <Link href={`/disciplines/${slug}/men`} className="text-orange-400 hover:underline">Men&apos;s all-time and year by year →</Link>
+              <Link href={`/disciplines/${slug}/women`} className="text-orange-400 hover:underline">Women&apos;s all-time and year by year →</Link>
+            </div>
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+              {Array.from({ length: 10 }, (_, i) => CURRENT_YEAR_LINKS - i).map((y) => (
+                <span key={y} className="inline-flex gap-1">
+                  <Link href={`/disciplines/${slug}/men/${y}`} className="text-neutral-400 hover:text-neutral-200">{y} M</Link>
+                  <Link href={`/disciplines/${slug}/women/${y}`} className="text-neutral-400 hover:text-neutral-200">W</Link>
+                </span>
+              ))}
+            </div>
+          </nav>
+        )}
       </main>
     </div>
   );

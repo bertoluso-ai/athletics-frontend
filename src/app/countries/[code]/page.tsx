@@ -516,6 +516,9 @@ export default async function CountryPage({
             </section>
           </aside>
         </div>
+        <p className="mt-8 text-sm">
+          <Link href={`/countries/${code.toLowerCase()}/records`} className="font-semibold text-orange-400 hover:underline">{name}: all-time best marks by event →</Link>
+        </p>
       </main>
     </div>
   );

@@ -42,6 +42,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </div>
           <nav aria-label="Legal and information" className="pl-[13px] mt-4 pt-3 border-t border-neutral-900 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-neutral-500">
             <span className="text-neutral-500">&copy; {new Date().getFullYear()} AthleticsInfoRanking</span>
+            <Link href="/records" className="hover:text-neutral-300">World records</Link>
             <Link href="/about" className="hover:text-neutral-300">About &amp; data</Link>
             <Link href="/privacy" className="hover:text-neutral-300">Privacy</Link>
             <Link href="/cookies" className="hover:text-neutral-300">Cookies</Link>

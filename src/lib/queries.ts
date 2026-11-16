@@ -2832,3 +2832,60 @@ export async function resolveEventSlug(slug: string): Promise<string | null> {
   const hit = (await knownEventBases()).find((b) => eventSlug(b) === slug);
   return hit && !isUnrankableEvent(hit) && !isHiddenEvent(hit) ? hit : null;
 }
+
+// ---------------------------------------------------------------------
+// Mejores marcas historicas de un pais (todos los tiempos, al aire libre, viento legal): para cada prueba y genero, la mejor marca de
+// un atleta con esa nacionalidad. NO es el record nacional oficial (cada federacion homologa el suyo): es la mejor marca de nuestra base.
+// ---------------------------------------------------------------------
+export type CountryBestRow = { athletics_event: string; gender: string; athlete_id: string; display_name: string; mark_display: string; year: number | null };
+
+async function _getCountryAllTimeBests(code: string, trackEvents: string[], fieldEvents: string[]): Promise<CountryBestRow[]> {
+  const windEvents = ["100 Metres", "200 Metres", "110 Metres Hurdles", "100 Metres Hurdles", "Long Jump", "Triple Jump"];
+  const common = (valueExpr: string, dir: "ASC" | "DESC", events: string) => `
+    SELECT athletics_event_base AS athletics_event, gender, athlete_id, display_name, mark_display, year FROM (
+      SELECT athletics_event_base, gender, athlete_id, athlete_display_name AS display_name, mark_display, year,
+        ROW_NUMBER() OVER (PARTITION BY athletics_event_base, gender ORDER BY ${valueExpr} ${dir}) AS rn
+      FROM events
+      WHERE nationality = $1 AND athletics_event_base = ANY(${events}) AND athlete_display_name IS NOT NULL
+        AND ${valueExpr} IS NOT NULL
+        AND (athletics_event_base <> ALL(ARRAY[${windEvents.map((e) => `'${e}'`).join(",")}]) OR wind_legal IS NULL OR wind_legal = TRUE)
+        AND NOT ${INDOOR_EXPR}
+    ) z WHERE rn = 1`;
+  const [track, field] = await Promise.all([
+    pgQuery<CountryBestRow>(common("mark_seconds", "ASC", "$2"), [code, trackEvents]),
+    pgQuery<CountryBestRow>(common(safeMarkEvents, "DESC", "$2"), [code, fieldEvents]),
+  ]);
+  return [...track, ...field];
+}
+export const getCountryAllTimeBests = unstable_cache(_getCountryAllTimeBests, ["getCountryAllTimeBests-v1"], { revalidate: 21600 });
+
+// ---------------------------------------------------------------------
+// Ganadores de las competiciones de nivel B o superior (OW, DF, GW, GL, A, B) de una prueba en un año: el primer puesto de la final
+// (o del resultado unico cuando la fuente no da ronda). Se usa el nombre bruto de la competicion, no el agrupado, para no mezclar
+// campeonatos distintos que comparten serie.
+// ---------------------------------------------------------------------
+export type MajorWinnerRow = {
+  event_name: string;
+  tier: string;
+  date: string | null;
+  athlete_id: string;
+  display_name: string;
+  nationality: string | null;
+  mark_display: string | null;
+};
+
+async function _getMajorWinners(event: string, gender: string, year: number): Promise<MajorWinnerRow[]> {
+  return pgQuery<MajorWinnerRow>(
+    `SELECT DISTINCT ON (event_name) event_name, division_key_resolved AS tier, date::text AS date, athlete_id, display_name, nationality, mark_display
+       FROM meet_results
+      WHERE athletics_event = $1 AND gender = $2 AND year = $3 AND place = 1
+        AND division_key_resolved IN ('OW','DF','GW','GL','A','B')
+        AND (round IS NULL OR round = '' OR round ILIKE 'final%')
+        AND (round IS NULL OR round !~* '\m(b|c|d)$')
+        AND NOT COALESCE(is_shadow_result, FALSE)
+        AND display_name IS NOT NULL AND athlete_id IS NOT NULL
+      ORDER BY event_name, (round ILIKE 'final%') DESC, date`,
+    [event, gender, year]
+  );
+}
+export const getMajorWinners = unstable_cache(_getMajorWinners, ["getMajorWinners-v1"], { revalidate: 21600 });
