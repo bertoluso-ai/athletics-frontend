@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { EVENT_GROUPS, groupEvents, isRelayEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
-import { getAllNationalities, getGlobalYearRanking, getAthleteSlugs, getEventAvailableYears } from "@/lib/queries";
+import { getAllNationalities, getGlobalYearRanking, getAthleteSlugs } from "@/lib/queries";
 import { pgQuery } from "@/lib/pg";
 
 const BASE = "https://athleticsinforanking.com";
@@ -45,27 +45,29 @@ const topMeetPaths = unstable_cache(
 // Paginas por prueba y genero (/disciplines/<prueba>/<men|women>) y rankings de temporada (.../<año>): solo años 2000+ en los que hay marcas.
 const seasonPaths = unstable_cache(
   async (): Promise<string[]> => {
-    const out: string[] = [];
-    const seen = new Set<string>();
+    // Una sola consulta (antes eran ~100, una por prueba y genero): combinaciones prueba/genero/año 2000+ con marcas.
+    const valid = new Set<string>();
     for (const g of EVENT_GROUPS) {
       for (const gender of ["Men", "Women"] as const) {
-        for (const e of groupEvents(g, gender)) {
-          if (isRelayEvent(e)) continue;
-          const gs = gender === "Men" ? "men" : "women";
-          const base = `/disciplines/${eventSlug(e)}/${gs}`;
-          const years = (await getEventAvailableYears(e, gender)).filter((y) => y >= 2000);
-          if (years.length === 0) continue;
-          if (!seen.has(base)) { seen.add(base); out.push(base); }
-          for (const y of years) {
-            const path = `${base}/${y}`;
-            if (!seen.has(path)) { seen.add(path); out.push(path); }
-          }
-        }
+        for (const e of groupEvents(g, gender)) if (!isRelayEvent(e)) valid.add(`${e}|${gender}`);
       }
+    }
+    const rows = await pgQuery<{ ev: string; gender: string; year: number }>(
+      `SELECT athletics_event_base AS ev, gender, year FROM events
+        WHERE year >= 2000 AND gender IN ('Men','Women') AND athletics_event_base IS NOT NULL
+        GROUP BY 1, 2, 3 ORDER BY 1, 2, 3 DESC`
+    );
+    const out: string[] = [];
+    const bases = new Set<string>();
+    for (const r of rows) {
+      if (!valid.has(`${r.ev}|${r.gender}`)) continue;
+      const base = `/disciplines/${eventSlug(r.ev)}/${r.gender === "Men" ? "men" : "women"}`;
+      if (!bases.has(base)) { bases.add(base); out.push(base); }
+      out.push(`${base}/${r.year}`);
     }
     return out;
   },
-  ["sitemap-seasons-v2"],
+  ["sitemap-seasons-v3"],
   { revalidate: 86400 }
 );
 
@@ -80,6 +82,9 @@ const recordCountryCodes = unstable_cache(
   ["sitemap-record-countries-v1"],
   { revalidate: 86400 }
 );
+
+// Se genera al pedirlo (no al construir la imagen: ahi no hay que consultar la base y la construccion no debe depender de ella).
+export const dynamic = "force-dynamic";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const hubs = ["", "/rankings", "/records", "/meets", "/countries", "/h2h", "/about"].map((p) => ({ url: `${BASE}${p}`, changeFrequency: "daily" as const, priority: p === "" ? 1 : 0.8 }));
