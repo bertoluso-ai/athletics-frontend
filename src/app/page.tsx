@@ -8,6 +8,10 @@ import UpcomingRaces from "@/components/UpcomingRaces";
 import SectionBar from "@/components/SectionBar";
 import HomeProgressionWidget from "@/components/HomeProgressionWidget";
 import { EVENT_GROUPS } from "@/lib/events";
+import JsonLd, { SITE_URL } from "@/components/JsonLd";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = { alternates: { canonical: "/" } };
 
 // Se renderiza en cada visita (no ISR): con ISR, tras un rato sin visitas el primer visitante recibia una copia vieja de la
 // portada (el 1-nov se veian resultados del 25-28 oct con los del 30-31 ya cargados). Las consultas pesadas siguen cacheadas
@@ -52,6 +56,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<Hom
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "AthleticsInfoRanking",
+          url: SITE_URL,
+          description: "Athletics results, rankings and records: track & field, road running and race walking.",
+          inLanguage: "en",
+        }}
+      />
 
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="sr-only">Latest athletics results</h1>

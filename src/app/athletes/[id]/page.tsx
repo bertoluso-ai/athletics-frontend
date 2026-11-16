@@ -23,6 +23,7 @@ import {
 import { getAthletePhotoInfo, photoCredit } from "@/lib/wikipedia";
 import { GenericAthlete } from "@/components/Avatar";
 import PhotoCreditsToast from "@/components/PhotoCreditsToast";
+import JsonLd, { SITE_URL, breadcrumbs } from "@/components/JsonLd";
 import AthleteChooser from "@/components/AthleteChooser";
 import { eventCategory, eventLabel, isUnrankableEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
@@ -177,6 +178,25 @@ export default async function AthletePage({
   // underneath (personal bests). On phones: one column in reading order.
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
+      <JsonLd
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Person",
+            name: info.display_name,
+            url: `${SITE_URL}/athletes/${hrefId}`,
+            jobTitle: "Athlete",
+            ...(info.gender === "Men" ? { gender: "https://schema.org/Male" } : info.gender === "Women" ? { gender: "https://schema.org/Female" } : {}),
+            ...(info.nationality && countryName(info.nationality) ? { nationality: { "@type": "Country", name: countryName(info.nationality) } } : {}),
+            ...(info.birth_year ? { birthDate: String(info.birth_year) } : {}),
+          },
+          breadcrumbs([
+            { name: "Home", path: "/" },
+            { name: "Rankings", path: "/rankings" },
+            { name: info.display_name, path: `/athletes/${hrefId}` },
+          ]),
+        ]}
+      />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <h1 className="text-2xl lg:text-3xl font-bold mb-5 flex items-center justify-center lg:justify-start gap-3">
           {info.nationality && (

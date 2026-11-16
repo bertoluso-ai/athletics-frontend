@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   },
   description: "Athletics results, rankings and records: track & field, road running and race walking, from Diamond League to national championships.",
   openGraph: { type: "website", siteName: "AthleticsInfoRanking", locale: "en_GB" },
-  twitter: { card: "summary" },
+  twitter: { card: "summary_large_image" },
 };
 
 export const viewport: Viewport = { themeColor: "#ffffff" };
