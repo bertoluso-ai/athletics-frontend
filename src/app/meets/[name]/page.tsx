@@ -6,6 +6,7 @@ import MeetFilters from "@/components/MeetFilters";
 import MeetResultsSections, { groupResults } from "@/components/MeetResultsSections";
 import { getMeetAvailableYears, getMeetResults, getMeetSeriesKey, getMeetYearsFromEvents, getMeetResultsFromEvents, getMeetEventMatrix, getMeetEventMatrixFromEvents, getMeetEditions, getAthleteSlugs } from "@/lib/queries";
 import MeetEventStats from "@/components/MeetEventStats";
+import JsonLd, { breadcrumbs } from "@/components/JsonLd";
 import { eventLabel, EVENT_GROUPS, TIER_LABELS, tierPriority } from "@/lib/events";
 
 export const revalidate = 3600;
@@ -184,6 +185,7 @@ export default async function MeetPage({
 
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
+      <JsonLd data={breadcrumbs([{ name: "Home", path: "/" }, { name: "Meetings", path: "/meets" }, { name: eventName, path: `/meets/${encodeURIComponent(eventName)}` }])} />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <div className="flex items-center justify-between mb-3 gap-3 flex-wrap bg-tint rounded-lg px-3 sm:px-4 py-2">
           <div>

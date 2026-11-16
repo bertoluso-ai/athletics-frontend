@@ -26,6 +26,7 @@ import {
 import { getAthleteSlugs, athleteHref } from "@/lib/queries";
 
 import { countryName as countryNameMeta } from "@/lib/flags";
+import JsonLd, { breadcrumbs } from "@/components/JsonLd";
 export const revalidate = 3600;
 
 // Country page, after the ProCyclingStats team page: header with the key
@@ -219,6 +220,7 @@ export default async function CountryPage({
 
   return (
     <div className="min-h-screen bg-canvas text-neutral-100 -mb-24 pb-24 sm:mb-0 sm:pb-0">
+      <JsonLd data={breadcrumbs([{ name: "Home", path: "/" }, { name: "Countries", path: "/countries" }, { name: name ?? code, path: `/countries/${code.toLowerCase()}` }])} />
       <main className="mx-auto max-w-7xl px-2 sm:px-6 py-6">
         <Link href={`/countries?${qs(year, f)}`} className="text-xs text-neutral-500 hover:text-neutral-300">
           ← Countries

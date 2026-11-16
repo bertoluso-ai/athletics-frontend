@@ -30,7 +30,7 @@ import {
 } from "@/lib/rankings";
 
 
-export const metadata: Metadata = { title: "Athletics rankings", description: "World athletics rankings by points and by mark, for every event, gender and season." };
+export const metadata: Metadata = { title: "Athletics rankings", description: "World athletics rankings by points and by mark, for every event, gender and season.", alternates: { canonical: "/rankings" } };
 export const revalidate = 3600;
 
 // Rankings, after the ProCyclingStats ranking page but with more picture:

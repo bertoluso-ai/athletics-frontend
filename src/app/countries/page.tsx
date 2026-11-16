@@ -18,7 +18,7 @@ import {
 } from "@/lib/countries";
 
 
-export const metadata: Metadata = { title: "Countries", description: "Athletics by country: rankings, best athletes and results for every nation." };
+export const metadata: Metadata = { title: "Countries", description: "Athletics by country: rankings, best athletes and results for every nation.", alternates: { canonical: "/countries" } };
 export const revalidate = 3600;
 
 // Countries, in the spirit of the ProCyclingStats teams page: the ranking
