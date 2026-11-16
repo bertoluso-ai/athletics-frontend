@@ -28,13 +28,13 @@ const topAthletePaths = unstable_cache(
 const topMeetPaths = unstable_cache(
   async (): Promise<string[]> => {
     const rows = await pgQuery<{ n: string; eds: number }>(
-      `SELECT (ARRAY_AGG(event_name ORDER BY year DESC))[1] AS n, COUNT(DISTINCT year)::int AS eds
-         FROM meet_results WHERE series_key IS NOT NULL AND event_name IS NOT NULL
-         GROUP BY series_key HAVING COUNT(DISTINCT year) >= 3 ORDER BY eds DESC, n LIMIT 3000`
+      `SELECT (ARRAY_AGG(r.event_name ORDER BY r.year DESC))[1] AS n, COUNT(DISTINCT r.year)::int AS eds
+         FROM race_level r JOIN meet_series_key k ON k.event_name = r.event_name
+         GROUP BY k.series_key HAVING COUNT(DISTINCT r.year) >= 3 ORDER BY eds DESC, n LIMIT 3000`
     );
     return rows.map((r) => `/meets/${encodeURIComponent(r.n)}`);
   },
-  ["sitemap-top-meets-v1"],
+  ["sitemap-top-meets-v2"],
   { revalidate: 86400 }
 );
 
@@ -71,11 +71,11 @@ const seasonPaths = unstable_cache(
 const recordCountryCodes = unstable_cache(
   async (): Promise<string[]> => {
     const rows = await pgQuery<{ nationality: string }>(
-      `SELECT nationality FROM events WHERE nationality IS NOT NULL AND athlete_id IS NOT NULL GROUP BY nationality HAVING COUNT(DISTINCT athlete_id) >= 40 ORDER BY nationality`
+      `SELECT nationality FROM athlete_nationality WHERE nationality IS NOT NULL GROUP BY nationality HAVING COUNT(*) >= 40 ORDER BY nationality`
     );
     return rows.map((r) => r.nationality.toLowerCase());
   },
-  ["sitemap-record-countries-v1"],
+  ["sitemap-record-countries-v2"],
   { revalidate: 86400 }
 );
 
