@@ -2,30 +2,12 @@ import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
 import { EVENT_GROUPS, groupEvents, isRelayEvent } from "@/lib/events";
 import { eventSlug } from "@/lib/slugs";
-import { getAllNationalities, getGlobalYearRanking, getAthleteSlugs } from "@/lib/queries";
+import { getAllNationalities } from "@/lib/queries";
 import { pgQuery } from "@/lib/pg";
 
 const BASE = "https://athleticsinforanking.com";
-const TOP_ATHLETES_PER_GENDER = 2500; // los atletas con mas puntos de toda la historia; el resto se descubre por enlaces internos
-
-// Se calcula como mucho una vez al dia (el ranking historico es una agregacion pesada) y nunca debe tumbar el sitemap:
-// si la base falla, se devuelve la parte estatica.
-const topAthletePaths = unstable_cache(
-  async (): Promise<string[]> => {
-    const out: string[] = [];
-    for (const gender of ["Men", "Women"] as const) {
-      const rows = await getGlobalYearRanking(gender, "all", 1, TOP_ATHLETES_PER_GENDER);
-      const slugs = await getAthleteSlugs(rows.map((r) => r.athlete_id));
-      for (const r of rows) {
-        const s = slugs.get(r.athlete_id);
-        if (s) out.push(`/athletes/${s}`);
-      }
-    }
-    return out;
-  },
-  ["sitemap-top-athletes-v1"],
-  { revalidate: 86400 }
-);
+// Las fichas de atleta NO se listan: ya existen y se descubren por los enlaces de los rankings, listas historicas y ganadores (listar miles exigia
+// una consulta de 2 minutos que hacia fallar el sitemap por tiempo).
 
 // Series con al menos 3 ediciones con resultados, las mas largas primero (BAUHAUS-Galan, Athletissima, mundiales...). Se usa el nombre mas reciente,
 // que es el que resuelve /meets/[name].
@@ -93,7 +75,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const disciplines = [...events].map((e) => ({ url: `${BASE}/disciplines/${eventSlug(e)}`, changeFrequency: "weekly" as const, priority: 0.7 }));
 
   let countries: MetadataRoute.Sitemap = [];
-  let athletes: MetadataRoute.Sitemap = [];
   let meets: MetadataRoute.Sitemap = [];
   let seasons: MetadataRoute.Sitemap = [];
   let records: MetadataRoute.Sitemap = [];
@@ -102,9 +83,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     meets = (await topMeetPaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     seasons = (await seasonPaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     records = (await recordCountryCodes()).map((c) => ({ url: `${BASE}/countries/${c}/records`, changeFrequency: "monthly" as const, priority: 0.5 }));
-    athletes = (await topAthletePaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.5 }));
   } catch {
     /* sin base de datos (build, error puntual): solo la parte estatica */
   }
-  return [...hubs, ...disciplines, ...seasons, ...countries, ...records, ...meets, ...athletes];
+  return [...hubs, ...disciplines, ...seasons, ...countries, ...records, ...meets];
 }
