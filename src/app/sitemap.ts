@@ -52,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let athletes: MetadataRoute.Sitemap = [];
   let meets: MetadataRoute.Sitemap = [];
   try {
-    countries = (await getAllNationalities()).map((c) => ({ url: `${BASE}/countries/${c.code}`, changeFrequency: "weekly" as const, priority: 0.6 }));
+    countries = (await getAllNationalities()).map((c) => ({ url: `${BASE}/countries/${c.code.toLowerCase()}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     meets = (await topMeetPaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.6 }));
     athletes = (await topAthletePaths()).map((p) => ({ url: `${BASE}${p}`, changeFrequency: "weekly" as const, priority: 0.5 }));
   } catch {

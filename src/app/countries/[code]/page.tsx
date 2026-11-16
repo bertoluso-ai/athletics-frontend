@@ -150,7 +150,7 @@ export async function generateMetadata({ params }: { params: Promise<{ code: str
   const name = countryNameMeta(code.toUpperCase()) ?? code.toUpperCase();
   const title = `${name} - athletics results and rankings`;
   const description = `${name} in athletics: best athletes, rankings, wins and season-by-season results.`;
-  return { title, description, alternates: { canonical: `/countries/${code.toLowerCase()}` }, openGraph: { title, description } };
+  return { title, description, alternates: { canonical: `/countries/${code.toLowerCase()}` }, openGraph: { title, description, images: ["/opengraph-image"] } };
 }
 
 export default async function CountryPage({

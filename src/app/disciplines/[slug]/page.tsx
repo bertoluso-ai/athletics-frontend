@@ -143,7 +143,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const label = eventLabel(event);
   const title = `${label} - all-time list, records and progression`;
   const description = `${label}: all-time best performances, yearly bests, top athletes and progression of the world best.`;
-  return { title, description, alternates: { canonical: `/disciplines/${slug}` }, openGraph: { title, description } };
+  return { title, description, alternates: { canonical: `/disciplines/${slug}` }, openGraph: { title, description, images: ["/opengraph-image"] } };
 }
 
 export default async function DisciplinePage({
